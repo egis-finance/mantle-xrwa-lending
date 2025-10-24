@@ -12,3 +12,6 @@ docs/
 
 # Dotenv file
 .env
+
+# Wallet files containing private keys
+wallets/*.json
