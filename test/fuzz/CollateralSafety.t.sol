@@ -201,7 +201,7 @@ contract CollateralSafetyTest is Test {
             locker.unlock(user, unlockAmount, bytes32(0));
         } else if (unlockAmount > lockAmount) {
             // Should revert on insufficient balance
-            vm.expectRevert(CollateralLocker.InsufficientBalance.selector);
+            vm.expectRevert(abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, user, unlockAmount, lockAmount));
             locker.unlock(user, unlockAmount, bytes32(0));
         } else {
             // Should succeed within bounds
@@ -238,7 +238,7 @@ contract CollateralSafetyTest is Test {
 
         // Attacker attempts to unlock
         vm.prank(attacker);
-        vm.expectRevert(CollateralLocker.Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.Unauthorized.selector, attacker, admin));
         locker.unlock(user, lockAmount, bytes32(0));
 
         // Verify funds remain locked

@@ -78,25 +78,20 @@ contract CollateralLocker {
     //  ERRORS
     // ═══════════════════════════════════════════════════════════════
 
-    error Unauthorized();
+    error Unauthorized(address caller, address expectedAdmin);
     error ContractPaused();
-    error DuplicateLockId();
-    error TransferFailed();
+    error DuplicateLockId(bytes32 lockId);
+    error TransferFailed(address token, address from, address to, uint256 amount);
     error ZeroAmount();
     error ZeroAddress();
-    error InsufficientBalance();
+    error InsufficientBalance(address account, uint256 requested, uint256 available);
 
     // ═══════════════════════════════════════════════════════════════
     //  MODIFIERS
     // ═══════════════════════════════════════════════════════════════
 
-    /**
-     * Note: Modifiers not wrapped in internal functions per forge-lint suggestion.
-     * Trade-off: Saves ~50 bytes total vs. 3 extra function calls per usage.
-     * Decision: Prioritize readability and simplicity over marginal gas savings.
-     */
     modifier onlyAdmin() {
-        require(msg.sender == admin, Unauthorized());
+        require(msg.sender == admin, Unauthorized(msg.sender, admin));
         _;
     }
 
@@ -155,7 +150,7 @@ contract CollateralLocker {
         ));
 
         // Prevent duplicate lock attempts (protects against accidental double-locking)
-        require(!consumed[lockId], DuplicateLockId());
+        require(!consumed[lockId], DuplicateLockId(lockId));
         consumed[lockId] = true;
 
         // Update accounting before external call (CEI pattern)
@@ -165,7 +160,7 @@ contract CollateralLocker {
         // Transfer USDY from user (requires prior approval)
         // Note: USDY may have transfer restrictions (allowlist/blocklist)
         bool success = USDY.transferFrom(msg.sender, address(this), amount);
-        require(success, TransferFailed());
+        require(success, TransferFailed(address(USDY), msg.sender, address(this), amount));
 
         // Emit event for DVN relayers to monitor
         emit Locked(msg.sender, amount, lockId, vcHash, epoch, nonce);
@@ -191,7 +186,7 @@ contract CollateralLocker {
     ) external onlyAdmin whenNotPaused {
         require(recipient != address(0), ZeroAddress());
         require(amount != 0, ZeroAmount());
-        require(lockedBalance[recipient] >= amount, InsufficientBalance());
+        require(lockedBalance[recipient] >= amount, InsufficientBalance(recipient, amount, lockedBalance[recipient]));
 
         // Update accounting before external call
         lockedBalance[recipient] -= amount;
@@ -199,7 +194,7 @@ contract CollateralLocker {
 
         // Transfer USDY to recipient
         bool success = USDY.transfer(recipient, amount);
-        require(success, TransferFailed());
+        require(success, TransferFailed(address(USDY), address(this), recipient, amount));
 
         emit Unlocked(recipient, amount, lockId);
     }

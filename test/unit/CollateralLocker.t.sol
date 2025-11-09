@@ -139,10 +139,10 @@ contract CollateralLockerTest is Test {
         usdy.approve(address(locker), LOCK_AMOUNT * 2);
 
         // First lock succeeds
-        locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
+        bytes32 lockId = locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
 
         // Second lock with same parameters fails
-        vm.expectRevert(CollateralLocker.DuplicateLockId.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.DuplicateLockId.selector, lockId));
         locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
 
         vm.stopPrank();
@@ -208,7 +208,7 @@ contract CollateralLockerTest is Test {
         bytes32 lockId = _lockUsdy(borrower, LOCK_AMOUNT);
 
         vm.prank(attacker);
-        vm.expectRevert(CollateralLocker.Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.Unauthorized.selector, attacker, admin));
         locker.unlock(borrower, LOCK_AMOUNT, lockId);
     }
 
@@ -228,7 +228,7 @@ contract CollateralLockerTest is Test {
         _lockUsdy(borrower, SMALL_AMOUNT);
 
         vm.prank(admin);
-        vm.expectRevert(CollateralLocker.InsufficientBalance.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, borrower, LOCK_AMOUNT, SMALL_AMOUNT));
         locker.unlock(borrower, LOCK_AMOUNT, bytes32(0));
     }
 
@@ -271,7 +271,7 @@ contract CollateralLockerTest is Test {
 
     function test_SetAdmin_RevertsOnUnauthorized() public {
         vm.prank(attacker);
-        vm.expectRevert(CollateralLocker.Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.Unauthorized.selector, attacker, admin));
         locker.setAdmin(attacker);
     }
 
@@ -293,7 +293,7 @@ contract CollateralLockerTest is Test {
 
     function test_Pause_RevertsOnUnauthorized() public {
         vm.prank(attacker);
-        vm.expectRevert(CollateralLocker.Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.Unauthorized.selector, attacker, admin));
         locker.pause();
     }
 
@@ -315,7 +315,7 @@ contract CollateralLockerTest is Test {
         locker.pause();
 
         vm.prank(attacker);
-        vm.expectRevert(CollateralLocker.Unauthorized.selector);
+        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.Unauthorized.selector, attacker, admin));
         locker.unpause();
     }
 
