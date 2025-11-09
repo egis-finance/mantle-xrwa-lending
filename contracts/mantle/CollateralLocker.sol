@@ -2,6 +2,8 @@
 pragma solidity 0.8.30;
 
 import {IERC20} from "../interfaces/IERC20.sol";
+import {SafeTransferLib} from "@solmate/utils/SafeTransferLib.sol";
+import {ERC20} from "@solmate/tokens/ERC20.sol";
 
 /**
  * CollateralLocker - Phase 1: Asset Locking on Mantle
@@ -159,8 +161,7 @@ contract CollateralLocker {
 
         // Transfer USDY from user (requires prior approval)
         // Note: USDY may have transfer restrictions (allowlist/blocklist)
-        bool success = USDY.transferFrom(msg.sender, address(this), amount);
-        require(success, TransferFailed(address(USDY), msg.sender, address(this), amount));
+        SafeTransferLib.safeTransferFrom(ERC20(address(USDY)), msg.sender, address(this), amount);
 
         // Emit event for DVN relayers to monitor
         emit Locked(msg.sender, amount, lockId, vcHash, epoch, nonce);
@@ -193,8 +194,7 @@ contract CollateralLocker {
         totalLocked -= amount;
 
         // Transfer USDY to recipient
-        bool success = USDY.transfer(recipient, amount);
-        require(success, TransferFailed(address(USDY), address(this), recipient, amount));
+        SafeTransferLib.safeTransfer(ERC20(address(USDY)), recipient, amount);
 
         emit Unlocked(recipient, amount, lockId);
     }
