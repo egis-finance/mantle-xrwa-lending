@@ -46,7 +46,7 @@ This project uses 5 wallets with distinct roles:
 1. **Admin** - Deployer, contract admin, treasury operations
 2. **Borrower** - Tests locking USDY collateral on Mantle
 3. **DVN1-3** - Decentralized Verifier Network signers for cross-chain attestation
-4. **Lender** - Supplies USDC to Morpho Blue markets (Phase 2)
+4. **Lender** - Supplies USDC to Morpho Blue markets
 
 ## Funding Wallets on Tenderly VTE
 
