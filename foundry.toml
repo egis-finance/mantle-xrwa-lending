@@ -9,12 +9,16 @@ via_ir = false
 evm_version = "paris"
 remappings = ["@solmate/=lib/solmate/src/"]
 
-# Lint configuration: exclude code-size suggestions and a specific lint we intentionally ignore
+# Lint configuration: exclude code-size suggestions and specific lints we intentionally ignore
 [profile.default.lint]
 # Only include severities we care about; omit "code-size" to silence code size suggestions
 severity = ["high", "med", "low", "info", "gas"]
-# Additionally exclude this rule explicitly (matches the note ID in build output)
-exclude_lints = ["unwrapped-modifier-logic"]
+# Exclude rules for intentional deviations from strict Solidity style guide:
+# - unwrapped-modifier-logic: Original exclusion
+# - screaming-snake-case-const: Allow ERC20 standard constants (name, symbol, decimals) to remain lowercase for compatibility
+# - mixed-case-function: Allow capitalized acronyms in function names (setDVN, supplyUSDC) per industry practice
+# - asm-keccak256: Prefer readable high-level keccak256 over assembly optimization for maintainability
+exclude_lints = ["unwrapped-modifier-logic", "screaming-snake-case-const", "mixed-case-function", "asm-keccak256"]
 
 # Fuzz testing configuration
 [profile.default.fuzz]
