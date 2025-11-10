@@ -12,14 +12,14 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  * Funding strategy:
  * - Borrower: Needs substantial USDY for locking tests
  * - DVNs: Only need gas (MNT) for signing transactions
- * - Lender: Reserved for Phase 2 Morpho interactions
+ * - Lender: Reserved for Morpho interactions
  */
 contract FundWallets is Script {
     /// Token amounts scaled to proper decimals
     uint256 constant BORROWER_USDY_AMOUNT = 100 ether;  // 100 USDY (18 decimals)
     uint256 constant BORROWER_MNT_AMOUNT = 1 ether;     // 1 MNT for gas
     uint256 constant DVN_MNT_AMOUNT = 0.1 ether;        // 0.1 MNT each (DVNs only sign, don't transfer tokens)
-    uint256 constant LENDER_MNT_AMOUNT = 5 ether;       // 5 MNT for Phase 2 operations
+    uint256 constant LENDER_MNT_AMOUNT = 5 ether;       // 5 MNT for operations
 
     function run() external {
         HelperConfig config = new HelperConfig();
@@ -54,7 +54,7 @@ contract FundWallets is Script {
         console2.log("\n[4/5] Funding DVN3:", dvn3);
         _transferMnt(dvn3, DVN_MNT_AMOUNT);
 
-        // Fund lender for Phase 2 (Morpho USDC operations)
+        // Fund lender (Morpho USDC operations)
         console2.log("\n[5/5] Funding Lender:", lender);
         _transferMnt(lender, LENDER_MNT_AMOUNT);
 
