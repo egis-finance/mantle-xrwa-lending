@@ -42,18 +42,17 @@ contract XRWAReceiver {
     bytes32 public immutable DOMAIN_SEPARATOR;
 
     bytes32 public constant LOCK_MESSAGE_TYPEHASH = keccak256(
-        "LockMessage(address borrower,uint256 amount,bytes32 lockId,uint256 srcChainId,address srcLocker,bytes32 vcHash,uint64 validUntil,uint64 nonce)"
+        "LockMessage(address borrower,bytes32 lockId,uint256 amount,uint256 sourceChainId,address sourceLocker,uint64 validUntil,bytes32 vcHash)"
     );
 
     struct LockMessage {
         address borrower;      // Address receiving AcUSDY on Ethereum
-        uint256 amount;        // USDY amount locked on Mantle (18 decimals)
         bytes32 lockId;        // Unique lock identifier from source chain
-        uint256 srcChainId;    // Source chain ID (Mantle = 5000)
-        address srcLocker;     // CollateralLocker address on Mantle
-        bytes32 vcHash;        // Verifiable Credential hash
+        uint256 amount;        // USDY amount locked on Mantle (18 decimals)
+        uint256 sourceChainId; // Source chain ID (e.g., Mantle = 14996 on VTE)
+        address sourceLocker;  // CollateralLocker address on source chain (for allowlist)
         uint64 validUntil;     // Signature expiration timestamp
-        uint64 nonce;          // Additional replay protection
+        bytes32 vcHash;        // Verifiable Credential hash (optional: 0x0 if unused)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -152,7 +151,7 @@ contract XRWAReceiver {
         consumed[message.lockId] = true;
 
         // Verify source locker is allowlisted
-        require(lockerAllowed[message.srcChainId][message.srcLocker], InvalidLocker(message.srcChainId, message.srcLocker));
+        require(lockerAllowed[message.sourceChainId][message.sourceLocker], InvalidLocker(message.sourceChainId, message.sourceLocker));
 
         // Recover signer from EIP-712 signature
         address signer = _recoverSigner(message, signature);
@@ -167,8 +166,8 @@ contract XRWAReceiver {
             message.borrower,
             message.amount,
             message.lockId,
-            message.srcChainId,
-            message.srcLocker
+            message.sourceChainId,
+            message.sourceLocker
         );
     }
 
@@ -195,6 +194,12 @@ contract XRWAReceiver {
         require(newAdmin != address(0), ZeroAddress());
         emit AdminUpdated(admin, newAdmin);
         admin = newAdmin;
+    }
+
+    /// Configure AcUSDY transfer whitelist (admin only)
+    /// Allows admin to whitelist addresses (e.g., Morpho Blue, adapters) for AcUSDY transfers
+    function setAcUSDYTransferAllowed(address addr, bool allowed) external onlyAdmin {
+        AC_USDY.setTransferAllowed(addr, allowed);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -226,13 +231,12 @@ contract XRWAReceiver {
         bytes32 structHash = keccak256(abi.encode(
             LOCK_MESSAGE_TYPEHASH,
             message.borrower,
-            message.amount,
             message.lockId,
-            message.srcChainId,
-            message.srcLocker,
-            message.vcHash,
+            message.amount,
+            message.sourceChainId,
+            message.sourceLocker,
             message.validUntil,
-            message.nonce
+            message.vcHash
         ));
 
         bytes32 digest = keccak256(abi.encodePacked(
