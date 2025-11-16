@@ -53,8 +53,7 @@ contract CollateralSafetyTest is Test {
      * If this fails, either tokens are stuck or accounting is broken
      */
     function testFuzz_Invariant_TotalLockedMatchesBalance(
-        uint256 lockAmount,
-        uint64 nonce
+        uint256 lockAmount
     ) public {
         // Bound fuzz inputs to realistic range
         lockAmount = bound(lockAmount, MIN_LOCK, MAX_LOCK);
@@ -62,10 +61,10 @@ contract CollateralSafetyTest is Test {
         address user = makeAddr("fuzzUser");
         _fundUser(user, lockAmount);
 
-        // Lock tokens
+        // Lock tokens (nonce auto-managed)
         vm.startPrank(user);
         usdy.approve(address(locker), lockAmount);
-        locker.lock(lockAmount, keccak256("vc"), uint64(block.timestamp), nonce);
+        locker.lock(lockAmount, uint64(block.timestamp + 1 hours), keccak256("vc"));
         vm.stopPrank();
 
         // Verify invariant
@@ -81,8 +80,7 @@ contract CollateralSafetyTest is Test {
      * Tests for race conditions and cumulative accounting errors
      */
     function testFuzz_Invariant_MultiUserAccounting(
-        uint256[3] memory amounts,
-        uint64[3] memory nonces
+        uint256[3] memory amounts
     ) public {
         address[] memory users = new address[](3);
         uint256 expectedTotal = 0;
@@ -94,7 +92,7 @@ contract CollateralSafetyTest is Test {
 
             vm.startPrank(users[i]);
             usdy.approve(address(locker), amounts[i]);
-            locker.lock(amounts[i], keccak256(abi.encodePacked("vc", i)), uint64(block.timestamp), nonces[i]);
+            locker.lock(amounts[i], uint64(block.timestamp + 1 hours), keccak256(abi.encodePacked("vc", i)));
             vm.stopPrank();
 
             expectedTotal += amounts[i];
@@ -112,40 +110,38 @@ contract CollateralSafetyTest is Test {
     /**
      * LockIds must be globally unique - no two locks can share the same ID
      * This prevents replay attacks and double-minting on destination chain
+     * With auto-incrementing nonces, uniqueness is guaranteed even with identical parameters
      */
     function testFuzz_Invariant_LockIdUniqueness(
         uint256 amount1,
-        uint256 amount2,
-        uint64 nonce
+        uint256 amount2
     ) public {
         // Bound amounts to safe ranges
         amount1 = bound(amount1, MIN_LOCK, MAX_LOCK);
         amount2 = bound(amount2, MIN_LOCK, MAX_LOCK);
-        // Avoid nonce overflow when incrementing (uint64.max would overflow to 0)
-        nonce = uint64(bound(nonce, 0, type(uint64).max - 2));
 
         address user = makeAddr("uniqueUser");
         bytes32 vcHash = keccak256("vc");
-        uint64 epoch = uint64(block.timestamp);
+        uint64 validUntil = uint64(block.timestamp + 1 hours);
 
-        // Test first lock
+        // Test first lock (uses nonce 0)
         _fundUser(user, amount1);
         vm.startPrank(user);
         usdy.approve(address(locker), amount1);
-        bytes32 lockId1 = locker.lock(amount1, vcHash, epoch, nonce);
+        bytes32 lockId1 = locker.lock(amount1, validUntil, vcHash);
         assertTrue(locker.consumed(lockId1), "First lockId should be consumed");
+        assertEq(locker.userNonce(user), 1, "Nonce should be 1 after first lock");
         vm.stopPrank();
 
-        // Test second lock with different parameters
-        if (amount1 != amount2) {
-            _fundUser(user, amount2);
-            vm.startPrank(user);
-            usdy.approve(address(locker), amount2);
-            bytes32 lockId2 = locker.lock(amount2, vcHash, epoch, nonce + 1);
-            assertTrue(lockId1 != lockId2, "Different amounts must produce different lockIds");
-            assertTrue(locker.consumed(lockId2), "Second lockId should be consumed");
-            vm.stopPrank();
-        }
+        // Test second lock with identical parameters (uses nonce 1 - different lockId)
+        _fundUser(user, amount2);
+        vm.startPrank(user);
+        usdy.approve(address(locker), amount2);
+        bytes32 lockId2 = locker.lock(amount2, validUntil, vcHash);
+        assertTrue(lockId1 != lockId2, "Auto-incrementing nonce ensures unique lockIds");
+        assertTrue(locker.consumed(lockId2), "Second lockId should be consumed");
+        assertEq(locker.userNonce(user), 2, "Nonce should be 2 after second lock");
+        vm.stopPrank();
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -165,7 +161,7 @@ contract CollateralSafetyTest is Test {
 
         vm.startPrank(user);
         usdy.approve(address(locker), amount);
-        locker.lock(amount, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(amount, uint64(block.timestamp + 1 hours), keccak256("vc"));
         vm.stopPrank();
 
         // Should not revert, accounting should be correct
@@ -190,7 +186,7 @@ contract CollateralSafetyTest is Test {
         // Lock tokens
         vm.startPrank(user);
         usdy.approve(address(locker), lockAmount);
-        locker.lock(lockAmount, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(lockAmount, uint64(block.timestamp + 1 hours), keccak256("vc"));
         vm.stopPrank();
 
         // Attempt unlock
@@ -233,7 +229,7 @@ contract CollateralSafetyTest is Test {
         // Lock tokens
         vm.startPrank(user);
         usdy.approve(address(locker), lockAmount);
-        locker.lock(lockAmount, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(lockAmount, uint64(block.timestamp + 1 hours), keccak256("vc"));
         vm.stopPrank();
 
         // Attacker attempts to unlock

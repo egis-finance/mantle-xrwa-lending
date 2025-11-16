@@ -89,30 +89,29 @@ contract CollateralLockerTest is Test {
 
     function test_Lock_Success() public {
         bytes32 vcHash = keccak256("test-vc");
-        uint64 epoch = uint64(block.timestamp);
-        uint64 nonce = 1;
+        uint64 validUntil = uint64(block.timestamp + 1 hours);
 
         // Approve locker to spend USDY
         vm.prank(borrower);
         usdy.approve(address(locker), LOCK_AMOUNT);
 
-        // Calculate expected lockId
+        // Calculate expected lockId (nonce starts at 0 for first lock)
         bytes32 expectedLockId = keccak256(abi.encode(
             borrower,
             LOCK_AMOUNT,
+            block.chainid,
+            validUntil,
             vcHash,
-            epoch,
-            nonce,
-            block.chainid
+            uint64(0)  // Auto-managed nonce
         ));
 
         // Expect Locked event
         vm.expectEmit(true, true, false, true);
-        emit CollateralLocker.Locked(borrower, LOCK_AMOUNT, expectedLockId, vcHash, epoch, nonce);
+        emit CollateralLocker.Locked(borrower, expectedLockId, LOCK_AMOUNT, block.chainid, validUntil, vcHash);
 
         // Lock USDY
         vm.prank(borrower);
-        bytes32 lockId = locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
+        bytes32 lockId = locker.lock(LOCK_AMOUNT, validUntil, vcHash);
 
         // Verify lockId
         assertEq(lockId, expectedLockId, "LockId mismatch");
@@ -122,28 +121,32 @@ contract CollateralLockerTest is Test {
         assertEq(locker.totalLocked(), LOCK_AMOUNT, "Total locked mismatch");
         assertTrue(locker.consumed(lockId), "LockId should be consumed");
         assertEq(usdy.balanceOf(address(locker)), LOCK_AMOUNT, "Locker balance mismatch");
+        assertEq(locker.userNonce(borrower), 1, "User nonce should be incremented");
     }
 
     function test_Lock_RevertsOnZeroAmount() public {
         vm.prank(borrower);
         vm.expectRevert(CollateralLocker.ZeroAmount.selector);
-        locker.lock(0, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(0, uint64(block.timestamp + 1 hours), keccak256("vc"));
     }
 
-    function test_Lock_RevertsOnDuplicateLockId() public {
+    function test_Lock_AutoIncrementsNonce() public {
         bytes32 vcHash = keccak256("test-vc");
-        uint64 epoch = uint64(block.timestamp);
-        uint64 nonce = 1;
+        uint64 validUntil = uint64(block.timestamp + 1 hours);
 
         vm.startPrank(borrower);
         usdy.approve(address(locker), LOCK_AMOUNT * 2);
 
-        // First lock succeeds
-        bytes32 lockId = locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
+        // First lock uses nonce 0
+        bytes32 lockId1 = locker.lock(LOCK_AMOUNT, validUntil, vcHash);
+        assertEq(locker.userNonce(borrower), 1, "Nonce should be 1 after first lock");
 
-        // Second lock with same parameters fails
-        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.DuplicateLockId.selector, lockId));
-        locker.lock(LOCK_AMOUNT, vcHash, epoch, nonce);
+        // Second lock with same parameters uses nonce 1 (different lockId)
+        bytes32 lockId2 = locker.lock(LOCK_AMOUNT, validUntil, vcHash);
+        assertEq(locker.userNonce(borrower), 2, "Nonce should be 2 after second lock");
+
+        // LockIds should be different due to auto-incrementing nonce
+        assertTrue(lockId1 != lockId2, "LockIds should be different");
 
         vm.stopPrank();
     }
@@ -154,31 +157,32 @@ contract CollateralLockerTest is Test {
 
         vm.prank(borrower);
         vm.expectRevert(CollateralLocker.ContractPaused.selector);
-        locker.lock(LOCK_AMOUNT, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(LOCK_AMOUNT, uint64(block.timestamp + 1 hours), keccak256("vc"));
     }
 
     function test_Lock_RevertsOnInsufficientAllowance() public {
         // Don't approve locker
         vm.prank(borrower);
         vm.expectRevert();  // ERC20 will revert
-        locker.lock(LOCK_AMOUNT, keccak256("vc"), uint64(block.timestamp), 1);
+        locker.lock(LOCK_AMOUNT, uint64(block.timestamp + 1 hours), keccak256("vc"));
     }
 
     function test_Lock_MultipleLocks() public {
         vm.startPrank(borrower);
         usdy.approve(address(locker), LOCK_AMOUNT * 2);
 
-        // First lock
-        locker.lock(SMALL_AMOUNT, keccak256("vc1"), uint64(block.timestamp), 1);
+        // First lock (nonce auto-increments from 0 to 1)
+        locker.lock(SMALL_AMOUNT, uint64(block.timestamp + 1 hours), keccak256("vc1"));
 
-        // Second lock with different nonce
-        locker.lock(SMALL_AMOUNT, keccak256("vc2"), uint64(block.timestamp), 2);
+        // Second lock (nonce auto-increments from 1 to 2)
+        locker.lock(SMALL_AMOUNT, uint64(block.timestamp + 2 hours), keccak256("vc2"));
 
         vm.stopPrank();
 
         // Verify cumulative state
         assertEq(locker.lockedBalance(borrower), SMALL_AMOUNT * 2, "Total user balance mismatch");
         assertEq(locker.totalLocked(), SMALL_AMOUNT * 2, "Total locked mismatch");
+        assertEq(locker.userNonce(borrower), 2, "User nonce should be 2");
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -346,7 +350,7 @@ contract CollateralLockerTest is Test {
     function _lockUsdy(address user, uint256 amount) internal returns (bytes32) {
         vm.startPrank(user);
         usdy.approve(address(locker), amount);
-        bytes32 lockId = locker.lock(amount, keccak256("vc"), uint64(block.timestamp), 1);
+        bytes32 lockId = locker.lock(amount, uint64(block.timestamp + 1 hours), keccak256("vc"));
         vm.stopPrank();
         return lockId;
     }

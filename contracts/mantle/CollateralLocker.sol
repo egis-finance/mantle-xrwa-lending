@@ -37,6 +37,9 @@ contract CollateralLocker {
     /// Per-user accounting enables efficient balance queries and reconciliation
     mapping(address => uint256) public lockedBalance;
 
+    /// Auto-incrementing nonce per user for replay protection
+    mapping(address => uint64) public userNonce;
+
     /// Global invariant: totalLocked == USDY.balanceOf(address(this))
     uint256 public totalLocked;
 
@@ -50,20 +53,20 @@ contract CollateralLocker {
      * Off-chain relayers monitor this event to trigger DVN attestations.
      * The event data forms the basis of the EIP-712 signature payload.
      *
-     * @param borrower User who locked collateral and will receive xcUSDY on Ethereum
-     * @param amount USDY tokens locked (18 decimals)
+     * @param borrower User who locked collateral and will receive AcUSDY on Ethereum
      * @param lockId Unique identifier preventing duplicate attestations
-     * @param vcHash Verifiable Credential commitment (future: full DID/VC structure)
-     * @param epoch Block timestamp for temporal ordering
-     * @param nonce User-provided replay protection nonce
+     * @param amount USDY tokens locked (18 decimals)
+     * @param sourceChainId Chain ID where lock occurred (for cross-chain clarity)
+     * @param validUntil Expiration timestamp for time-bounded attestations
+     * @param vcHash Verifiable Credential commitment (optional: 0x0 if unused)
      */
     event Locked(
         address indexed borrower,
-        uint256 amount,
         bytes32 indexed lockId,
-        bytes32 vcHash,
-        uint64 epoch,
-        uint64 nonce
+        uint256 amount,
+        uint256 sourceChainId,
+        uint64 validUntil,
+        bytes32 vcHash
     );
 
     event Unlocked(
@@ -121,34 +124,36 @@ contract CollateralLocker {
      *
      * Flow:
      * 1. User approves this contract to spend USDY
-     * 2. User calls lock() with commitment parameters
-     * 3. Contract generates unique lockId from commitment data
+     * 2. User calls lock() with amount, expiration, and optional VC hash
+     * 3. Contract auto-increments user nonce and generates unique lockId
      * 4. Contract transfers USDY from user
      * 5. Event emission triggers off-chain DVN attestation flow
      *
      * @param amount USDY to lock (must be > 0)
-     * @param vcHash Hash of Verifiable Credential data (xRWA Layer 1)
-     * @param epoch Current timestamp for temporal ordering
-     * @param nonce User-controlled replay protection value
+     * @param validUntil Expiration timestamp for cross-chain attestation
+     * @param vcHash Hash of Verifiable Credential (optional: use 0x0 if unused)
      * @return lockId Unique commitment identifier
      */
     function lock(
         uint256 amount,
-        bytes32 vcHash,
-        uint64 epoch,
-        uint64 nonce
+        uint64 validUntil,
+        bytes32 vcHash
     ) external whenNotPaused returns (bytes32 lockId) {
         require(amount != 0, ZeroAmount());
 
+        // Auto-increment user nonce for replay protection
+        uint64 nonce = userNonce[msg.sender]++;
+
         // Generate unique lock identifier from commitment parameters
-        // Includes chain ID to prevent cross-chain replay attacks
+        // Includes sourceChainId, validUntil, vcHash, and auto-nonce
+        uint256 sourceChainId = block.chainid;
         lockId = keccak256(abi.encode(
             msg.sender,
             amount,
+            sourceChainId,
+            validUntil,
             vcHash,
-            epoch,
-            nonce,
-            block.chainid
+            nonce
         ));
 
         // Prevent duplicate lock attempts (protects against accidental double-locking)
@@ -163,8 +168,8 @@ contract CollateralLocker {
         // Note: USDY may have transfer restrictions (allowlist/blocklist)
         SafeTransferLib.safeTransferFrom(ERC20(address(USDY)), msg.sender, address(this), amount);
 
-        // Emit event for DVN relayers to monitor
-        emit Locked(msg.sender, amount, lockId, vcHash, epoch, nonce);
+        // Emit event for DVN relayers to monitor and attest
+        emit Locked(msg.sender, lockId, amount, sourceChainId, validUntil, vcHash);
     }
 
     /**
