@@ -1,0 +1,12 @@
+[
+  {
+    "lockId": "44e45f0df733147c6d98c0e38360c1047541b2ce33a75c994ddbc9930d0dac56",
+    "borrower": "0x91c5CA0B262fDefbb1468AfAE65c0229650B4fBC",
+    "amount": "1000000000000000000",
+    "sourceChainId": "15000",
+    "mantleTxHash": "0xbb7b93482c6a321dceca8255459593ce0b9f542b42ebf3e955c026d6573bd9da",
+    "ethereumTxHash": "0x80f0b6c0d3ce69b5f0b245bb97f0d93a43659a6223e0d94bd34364fdf83e0a40",
+    "processedAt": "2025-11-19T02:44:02.354785Z",
+    "blockNumber": 87688017
+  }
+]
