@@ -65,16 +65,14 @@ contract TestLock is Script {
         // Step 2: Lock USDY
         console2.log("=== Step 2: Locking USDY ===");
         bytes32 vcHash = keccak256(abi.encodePacked("test-vc-", block.timestamp));
-        uint64 epoch = uint64(block.timestamp);
-        uint64 nonce = uint64(block.timestamp % 1000);
+        uint64 validUntil = uint64(block.timestamp + 1 hours);
 
         console2.log("Lock Parameters:");
         console2.log("  Amount:", TEST_LOCK_AMOUNT / 1 ether, "USDY");
         console2.log("  VCHash:", vm.toString(vcHash));
-        console2.log("  Epoch:", epoch);
-        console2.log("  Nonce:", nonce);
+        console2.log("  ValidUntil:", validUntil);
 
-        bytes32 lockId = locker.lock(TEST_LOCK_AMOUNT, vcHash, epoch, nonce);
+        bytes32 lockId = locker.lock(TEST_LOCK_AMOUNT, validUntil, vcHash);
 
         console2.log("");
         console2.log("Lock successful!");
