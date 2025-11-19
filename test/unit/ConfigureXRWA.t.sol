@@ -66,8 +66,8 @@ contract ConfigureXRWATest is Test {
         vm.setEnv("ETHEREUM_RPC_VTE", "http://localhost:8545");
         vm.setEnv("MANTLE_RPC_VTE", "http://localhost:8545");
         vm.setEnv("MANTLE_USDY", vm.toString(address(usdy)));
-        vm.setEnv("MANTLE_CHAIN_ID", "14996");  // VTE chain ID
-        vm.setEnv("ETHEREUM_CHAIN_ID", "10002");  // VTE chain ID
+        vm.setEnv("MANTLE_CHAIN_ID", "14996"); // VTE chain ID
+        vm.setEnv("ETHEREUM_CHAIN_ID", "10002"); // VTE chain ID
 
         // Deploy Mantle contract
         locker = new CollateralLocker(address(usdy), admin);
@@ -92,11 +92,7 @@ contract ConfigureXRWATest is Test {
 
         // Verify market was created on Morpho
         MarketParams memory params = MarketParams({
-            loanToken: address(usdc),
-            collateralToken: address(acUsdy),
-            oracle: address(oracle),
-            irm: irm,
-            lltv: 0.86e18
+            loanToken: address(usdc), collateralToken: address(acUsdy), oracle: address(oracle), irm: irm, lltv: 0.86e18
         });
         Id marketId = Id.wrap(keccak256(abi.encode(params)));
 
@@ -129,7 +125,7 @@ contract ConfigureXRWATest is Test {
     function testIdempotency() public {
         // Run configuration twice
         configScript.run();
-        configScript.run();  // Should not revert
+        configScript.run(); // Should not revert
 
         // Verify configuration is still correct
         assertTrue(receiver.isLockerAllowed(MANTLE_CHAIN_ID, address(locker)), "Locker still allowed");
@@ -155,11 +151,7 @@ contract ConfigureXRWATest is Test {
 
         // Verify market
         MarketParams memory params = MarketParams({
-            loanToken: address(usdc),
-            collateralToken: address(acUsdy),
-            oracle: address(oracle),
-            irm: irm,
-            lltv: 0.86e18
+            loanToken: address(usdc), collateralToken: address(acUsdy), oracle: address(oracle), irm: irm, lltv: 0.86e18
         });
         Id marketId = Id.wrap(keccak256(abi.encode(params)));
         assertTrue(morpho.market(marketId).lastUpdate > 0, "Market exists");

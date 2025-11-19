@@ -16,10 +16,10 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  */
 contract FundWallets is Script {
     /// Token amounts scaled to proper decimals
-    uint256 constant BORROWER_USDY_AMOUNT = 100 ether;  // 100 USDY (18 decimals)
-    uint256 constant BORROWER_MNT_AMOUNT = 1 ether;     // 1 MNT for gas
-    uint256 constant DVN_MNT_AMOUNT = 0.1 ether;        // 0.1 MNT each (DVNs only sign, don't transfer tokens)
-    uint256 constant LENDER_MNT_AMOUNT = 5 ether;       // 5 MNT for operations
+    uint256 constant BORROWER_USDY_AMOUNT = 100 ether; // 100 USDY (18 decimals)
+    uint256 constant BORROWER_MNT_AMOUNT = 1 ether; // 1 MNT for gas
+    uint256 constant DVN_MNT_AMOUNT = 0.1 ether; // 0.1 MNT each (DVNs only sign, don't transfer tokens)
+    uint256 constant LENDER_MNT_AMOUNT = 5 ether; // 5 MNT for operations
 
     function run() external {
         HelperConfig config = new HelperConfig();
@@ -69,7 +69,7 @@ contract FundWallets is Script {
      * Uses low-level call to handle potential failures gracefully
      */
     function _transferMnt(address to, uint256 amount) internal {
-        (bool success, ) = payable(to).call{value: amount}("");
+        (bool success,) = payable(to).call{value: amount}("");
         require(success, "MNT transfer failed");
         console2.log("  Transferred %s MNT", amount / 1 ether);
     }

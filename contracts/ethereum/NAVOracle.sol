@@ -45,7 +45,7 @@ contract NAVOracle is IOracle {
     uint256 public constant MAX_PRICE_AGE = 24 hours;
 
     /// Haircut applied to NAV for safety margin (2% = 98% LTV)
-    uint256 public constant HAIRCUT_BPS = 200;  // 2% = 200 basis points
+    uint256 public constant HAIRCUT_BPS = 200; // 2% = 200 basis points
     uint256 public constant BPS_DENOMINATOR = 10_000;
 
     // ═══════════════════════════════════════════════════════════════
@@ -104,10 +104,7 @@ contract NAVOracle is IOracle {
      */
     function price() external view returns (uint256) {
         // Ensure price is fresh (updated within MAX_PRICE_AGE)
-        require(
-            block.timestamp <= lastUpdate + MAX_PRICE_AGE,
-            StalePrice(lastUpdate, block.timestamp, MAX_PRICE_AGE)
-        );
+        require(block.timestamp <= lastUpdate + MAX_PRICE_AGE, StalePrice(lastUpdate, block.timestamp, MAX_PRICE_AGE));
 
         // Apply haircut for safety margin (e.g., 2% discount)
         return (currentPrice * (BPS_DENOMINATOR - HAIRCUT_BPS)) / BPS_DENOMINATOR;

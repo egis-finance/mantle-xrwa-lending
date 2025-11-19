@@ -28,24 +28,23 @@ contract MorphoAdapterTest is Test {
         acUsdy = new MockERC20("Attested USDY", "AcUSDY", 18);
 
         params = MarketParams({
-            loanToken: address(usdc),
-            collateralToken: address(acUsdy),
-            oracle: oracle,
-            irm: irm,
-            lltv: 0.8e18
+            loanToken: address(usdc), collateralToken: address(acUsdy), oracle: oracle, irm: irm, lltv: 0.8e18
         });
 
         adapter.initializeMarket(params);
         marketId = Id.wrap(keccak256(abi.encode(params)));
 
-        morpho.setMarket(marketId, Market({
-            totalSupplyAssets: 0,
-            totalSupplyShares: 0,
-            totalBorrowAssets: 0,
-            totalBorrowShares: 0,
-            lastUpdate: 0,
-            fee: 0
-        }));
+        morpho.setMarket(
+            marketId,
+            Market({
+                totalSupplyAssets: 0,
+                totalSupplyShares: 0,
+                totalBorrowAssets: 0,
+                totalBorrowShares: 0,
+                lastUpdate: 0,
+                fee: 0
+            })
+        );
     }
 
     function testSupplyAndWithdrawUSDC() public {

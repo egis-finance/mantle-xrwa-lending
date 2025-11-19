@@ -46,13 +46,13 @@ contract XRWAReceiver {
     );
 
     struct LockMessage {
-        address borrower;      // Address receiving AcUSDY on Ethereum
-        bytes32 lockId;        // Unique lock identifier from source chain
-        uint256 amount;        // USDY amount locked on Mantle (18 decimals)
+        address borrower; // Address receiving AcUSDY on Ethereum
+        bytes32 lockId; // Unique lock identifier from source chain
+        uint256 amount; // USDY amount locked on Mantle (18 decimals)
         uint256 sourceChainId; // Source chain ID (e.g., Mantle = 14996 on VTE)
-        address sourceLocker;  // CollateralLocker address on source chain (for allowlist)
-        uint64 validUntil;     // Signature expiration timestamp
-        bytes32 vcHash;        // Verifiable Credential hash (optional: 0x0 if unused)
+        address sourceLocker; // CollateralLocker address on source chain (for allowlist)
+        uint64 validUntil; // Signature expiration timestamp
+        bytes32 vcHash; // Verifiable Credential hash (optional: 0x0 if unused)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -60,11 +60,7 @@ contract XRWAReceiver {
     // ═══════════════════════════════════════════════════════════════
 
     event AcUSDYMinted(
-        address indexed borrower,
-        uint256 amount,
-        bytes32 indexed lockId,
-        uint256 srcChainId,
-        address srcLocker
+        address indexed borrower, uint256 amount, bytes32 indexed lockId, uint256 srcChainId, address srcLocker
     );
 
     event DVNUpdated(address indexed dvn, bool allowed);
@@ -136,22 +132,24 @@ contract XRWAReceiver {
      * @param message Lock attestation data from DVN
      * @param signature EIP-712 signature from DVN
      */
-    function mintWithAttestation(
-        LockMessage calldata message,
-        bytes calldata signature
-    ) external {
+    function mintWithAttestation(LockMessage calldata message, bytes calldata signature) external {
         require(message.amount != 0, ZeroAmount());
         require(message.borrower != address(0), ZeroAddress());
 
         // Verify signature hasn't expired
-        require(uint64(block.timestamp) <= message.validUntil, SignatureExpired(message.validUntil, uint64(block.timestamp)));
+        require(
+            uint64(block.timestamp) <= message.validUntil, SignatureExpired(message.validUntil, uint64(block.timestamp))
+        );
 
         // Prevent replay attacks
         require(!consumed[message.lockId], DuplicateLockId(message.lockId));
         consumed[message.lockId] = true;
 
         // Verify source locker is allowlisted
-        require(lockerAllowed[message.sourceChainId][message.sourceLocker], InvalidLocker(message.sourceChainId, message.sourceLocker));
+        require(
+            lockerAllowed[message.sourceChainId][message.sourceLocker],
+            InvalidLocker(message.sourceChainId, message.sourceLocker)
+        );
 
         // Recover signer from EIP-712 signature
         address signer = _recoverSigner(message, signature);
@@ -162,13 +160,7 @@ contract XRWAReceiver {
         // Mint AcUSDY to borrower
         AC_USDY.mint(message.borrower, message.amount);
 
-        emit AcUSDYMinted(
-            message.borrower,
-            message.amount,
-            message.lockId,
-            message.sourceChainId,
-            message.sourceLocker
-        );
+        emit AcUSDYMinted(message.borrower, message.amount, message.lockId, message.sourceChainId, message.sourceLocker);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -210,10 +202,7 @@ contract XRWAReceiver {
      * Recover signer address from EIP-712 signature
      * Uses ECDSA signature verification with domain separator
      */
-    function _recoverSigner(
-        LockMessage calldata message,
-        bytes calldata signature
-    ) internal view returns (address) {
+    function _recoverSigner(LockMessage calldata message, bytes calldata signature) internal view returns (address) {
         require(signature.length == 65, InvalidSignature());
 
         // Extract v, r, s from signature
@@ -228,22 +217,20 @@ contract XRWAReceiver {
         }
 
         // EIP-712 typed data hash
-        bytes32 structHash = keccak256(abi.encode(
-            LOCK_MESSAGE_TYPEHASH,
-            message.borrower,
-            message.lockId,
-            message.amount,
-            message.sourceChainId,
-            message.sourceLocker,
-            message.validUntil,
-            message.vcHash
-        ));
+        bytes32 structHash = keccak256(
+            abi.encode(
+                LOCK_MESSAGE_TYPEHASH,
+                message.borrower,
+                message.lockId,
+                message.amount,
+                message.sourceChainId,
+                message.sourceLocker,
+                message.validUntil,
+                message.vcHash
+            )
+        );
 
-        bytes32 digest = keccak256(abi.encodePacked(
-            "\x19\x01",
-            DOMAIN_SEPARATOR,
-            structHash
-        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", DOMAIN_SEPARATOR, structHash));
 
         // Recover signer
         address signer = ecrecover(digest, v, r, s);

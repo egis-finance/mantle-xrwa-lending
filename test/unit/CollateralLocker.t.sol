@@ -96,14 +96,16 @@ contract CollateralLockerTest is Test {
         usdy.approve(address(locker), LOCK_AMOUNT);
 
         // Calculate expected lockId (nonce starts at 0 for first lock)
-        bytes32 expectedLockId = keccak256(abi.encode(
-            borrower,
-            LOCK_AMOUNT,
-            block.chainid,
-            validUntil,
-            vcHash,
-            uint64(0)  // Auto-managed nonce
-        ));
+        bytes32 expectedLockId = keccak256(
+            abi.encode(
+                borrower,
+                LOCK_AMOUNT,
+                block.chainid,
+                validUntil,
+                vcHash,
+                uint64(0) // Auto-managed nonce
+            )
+        );
 
         // Expect Locked event
         vm.expectEmit(true, true, false, true);
@@ -163,7 +165,7 @@ contract CollateralLockerTest is Test {
     function test_Lock_RevertsOnInsufficientAllowance() public {
         // Don't approve locker
         vm.prank(borrower);
-        vm.expectRevert();  // ERC20 will revert
+        vm.expectRevert(); // ERC20 will revert
         locker.lock(LOCK_AMOUNT, uint64(block.timestamp + 1 hours), keccak256("vc"));
     }
 
@@ -232,7 +234,9 @@ contract CollateralLockerTest is Test {
         _lockUsdy(borrower, SMALL_AMOUNT);
 
         vm.prank(admin);
-        vm.expectRevert(abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, borrower, LOCK_AMOUNT, SMALL_AMOUNT));
+        vm.expectRevert(
+            abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, borrower, LOCK_AMOUNT, SMALL_AMOUNT)
+        );
         locker.unlock(borrower, LOCK_AMOUNT, bytes32(0));
     }
 

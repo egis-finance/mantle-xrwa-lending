@@ -138,16 +138,7 @@ contract ConfigureXRWA is Script {
         vm.stopBroadcast();
 
         // Verification
-        _verifyConfiguration(
-            morpho,
-            marketId,
-            receiver,
-            acUsdy,
-            mantleChainId,
-            mantleLocker,
-            morphoAddr,
-            adapterAddr
-        );
+        _verifyConfiguration(morpho, marketId, receiver, acUsdy, mantleChainId, mantleLocker, morphoAddr, adapterAddr);
 
         // Next steps
         console2.log("=== Configuration Complete! ===");

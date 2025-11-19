@@ -42,10 +42,7 @@ contract DeployMantle is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy CollateralLocker
-        CollateralLocker locker = new CollateralLocker(
-            mantleConfig.usdy,
-            mantleConfig.admin
-        );
+        CollateralLocker locker = new CollateralLocker(mantleConfig.usdy, mantleConfig.admin);
 
         console2.log("CollateralLocker deployed at:", address(locker));
 

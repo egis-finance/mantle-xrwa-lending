@@ -35,7 +35,9 @@ contract XRWAReceiverTest is Test {
 
         vm.prank(borrower);
         vm.expectEmit(true, false, false, true);
-        emit XRWAReceiver.AcUSDYMinted(borrower, message.amount, message.lockId, message.sourceChainId, message.sourceLocker);
+        emit XRWAReceiver.AcUSDYMinted(
+            borrower, message.amount, message.lockId, message.sourceChainId, message.sourceLocker
+        );
         receiver.mintWithAttestation(message, signature);
 
         assertEq(acUsdy.balanceOf(borrower), message.amount);
@@ -55,7 +57,9 @@ contract XRWAReceiverTest is Test {
         message.validUntil = uint64(block.timestamp - 1);
 
         bytes memory signature = _sign(message);
-        vm.expectRevert(abi.encodeWithSelector(XRWAReceiver.SignatureExpired.selector, message.validUntil, uint64(block.timestamp)));
+        vm.expectRevert(
+            abi.encodeWithSelector(XRWAReceiver.SignatureExpired.selector, message.validUntil, uint64(block.timestamp))
+        );
         receiver.mintWithAttestation(message, signature);
     }
 
@@ -64,7 +68,9 @@ contract XRWAReceiverTest is Test {
         message.sourceLocker = makeAddr("unlisted");
 
         bytes memory signature = _sign(message);
-        vm.expectRevert(abi.encodeWithSelector(XRWAReceiver.InvalidLocker.selector, message.sourceChainId, message.sourceLocker));
+        vm.expectRevert(
+            abi.encodeWithSelector(XRWAReceiver.InvalidLocker.selector, message.sourceChainId, message.sourceLocker)
+        );
         receiver.mintWithAttestation(message, signature);
     }
 
@@ -107,13 +113,7 @@ contract XRWAReceiverTest is Test {
             )
         );
 
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                receiver.DOMAIN_SEPARATOR(),
-                structHash
-            )
-        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", receiver.DOMAIN_SEPARATOR(), structHash));
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, digest);
         return abi.encodePacked(r, s, v);

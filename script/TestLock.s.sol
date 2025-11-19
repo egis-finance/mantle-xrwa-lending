@@ -27,7 +27,7 @@ import {IERC20} from "../contracts/interfaces/IERC20.sol";
  *     --legacy
  */
 contract TestLock is Script {
-    uint256 constant TEST_LOCK_AMOUNT = 10 ether;  // 10 USDY
+    uint256 constant TEST_LOCK_AMOUNT = 10 ether; // 10 USDY
 
     function run() external {
         address lockerAddress = vm.envAddress("MANTLE_LOCKER");

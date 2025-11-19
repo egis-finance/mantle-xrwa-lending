@@ -49,13 +49,10 @@ contract MockMorpho is IMorpho {
         });
     }
 
-    function supply(
-        MarketParams calldata params,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        bytes calldata
-    ) external returns (uint256 assetsSupplied, uint256 sharesSupplied) {
+    function supply(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, bytes calldata)
+        external
+        returns (uint256 assetsSupplied, uint256 sharesSupplied)
+    {
         require(assets != 0, "mock: zero supply");
 
         ERC20(params.loanToken).safeTransferFrom(msg.sender, address(this), assets);
@@ -66,13 +63,10 @@ contract MockMorpho is IMorpho {
         return (assets, assets);
     }
 
-    function withdraw(
-        MarketParams calldata params,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        address receiver
-    ) external returns (uint256 assetsWithdrawn, uint256 sharesWithdrawn) {
+    function withdraw(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, address receiver)
+        external
+        returns (uint256 assetsWithdrawn, uint256 sharesWithdrawn)
+    {
         Id id = _id(params);
         uint256 amount = assets == 0 ? supplySharesStore[id][onBehalf] : assets;
         if (shares != 0) amount = shares;
@@ -84,23 +78,15 @@ contract MockMorpho is IMorpho {
         return (amount, amount);
     }
 
-    function supplyCollateral(
-        MarketParams calldata params,
-        uint256 assets,
-        address onBehalf,
-        bytes calldata
-    ) external {
+    function supplyCollateral(MarketParams calldata params, uint256 assets, address onBehalf, bytes calldata) external {
         ERC20(params.collateralToken).safeTransferFrom(msg.sender, address(this), assets);
         Id id = _id(params);
         collateralStore[id][onBehalf] += assets;
     }
 
-    function withdrawCollateral(
-        MarketParams calldata params,
-        uint256 assets,
-        address onBehalf,
-        address receiver
-    ) external {
+    function withdrawCollateral(MarketParams calldata params, uint256 assets, address onBehalf, address receiver)
+        external
+    {
         Id id = _id(params);
         uint256 amount = assets == 0 ? collateralStore[id][onBehalf] : assets;
         require(amount <= collateralStore[id][onBehalf], "mock: insufficient collateral");
@@ -108,13 +94,10 @@ contract MockMorpho is IMorpho {
         ERC20(params.collateralToken).safeTransfer(receiver, amount);
     }
 
-    function borrow(
-        MarketParams calldata params,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        address receiver
-    ) external returns (uint256 assetsBorrowed, uint256 sharesBorrowed) {
+    function borrow(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, address receiver)
+        external
+        returns (uint256 assetsBorrowed, uint256 sharesBorrowed)
+    {
         require(assets != 0, "mock: zero borrow");
 
         ERC20(params.loanToken).safeTransfer(receiver, assets);
@@ -126,13 +109,10 @@ contract MockMorpho is IMorpho {
         return (assets, assets);
     }
 
-    function repay(
-        MarketParams calldata params,
-        uint256 assets,
-        uint256 shares,
-        address onBehalf,
-        bytes calldata
-    ) external returns (uint256 assetsRepaid, uint256 sharesRepaid) {
+    function repay(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, bytes calldata)
+        external
+        returns (uint256 assetsRepaid, uint256 sharesRepaid)
+    {
         ERC20(params.loanToken).safeTransferFrom(msg.sender, address(this), assets);
 
         Id id = _id(params);

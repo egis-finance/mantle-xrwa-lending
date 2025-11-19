@@ -86,20 +86,13 @@ contract DeployEthereum is Script {
 
         // 2. Deploy XRWAReceiver (address must match prediction)
         console2.log("2/4 Deploying XRWAReceiver...");
-        XRWAReceiver receiver = new XRWAReceiver(
-            address(acUsdy),
-            ethConfig.admin,
-            dvn1
-        );
+        XRWAReceiver receiver = new XRWAReceiver(address(acUsdy), ethConfig.admin, dvn1);
         console2.log("   XRWAReceiver deployed at:", address(receiver));
         require(address(receiver) == predictedReceiver, "Address prediction mismatch");
 
         // 3. Deploy NAVOracle
         console2.log("3/4 Deploying NAVOracle...");
-        NAVOracle oracle = new NAVOracle(
-            ethConfig.admin,
-            INITIAL_NAV_PRICE
-        );
+        NAVOracle oracle = new NAVOracle(ethConfig.admin, INITIAL_NAV_PRICE);
         console2.log("   NAVOracle deployed at:", address(oracle));
 
         // 4. Deploy MorphoAdapter
@@ -159,11 +152,6 @@ contract DeployEthereum is Script {
         console2.log("3. Test end-to-end flow:");
         console2.log("   - Lock USDY on Mantle -> Mint AcUSDY -> Borrow USDC");
 
-        return DeployedContracts({
-            acUsdy: acUsdy,
-            receiver: receiver,
-            oracle: oracle,
-            adapter: adapter
-        });
+        return DeployedContracts({acUsdy: acUsdy, receiver: receiver, oracle: oracle, adapter: adapter});
     }
 }

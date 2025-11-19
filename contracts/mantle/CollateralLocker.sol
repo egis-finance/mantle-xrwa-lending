@@ -69,11 +69,7 @@ contract CollateralLocker {
         bytes32 vcHash
     );
 
-    event Unlocked(
-        address indexed recipient,
-        uint256 amount,
-        bytes32 indexed lockId
-    );
+    event Unlocked(address indexed recipient, uint256 amount, bytes32 indexed lockId);
 
     event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
     event Paused();
@@ -134,11 +130,7 @@ contract CollateralLocker {
      * @param vcHash Hash of Verifiable Credential (optional: use 0x0 if unused)
      * @return lockId Unique commitment identifier
      */
-    function lock(
-        uint256 amount,
-        uint64 validUntil,
-        bytes32 vcHash
-    ) external whenNotPaused returns (bytes32 lockId) {
+    function lock(uint256 amount, uint64 validUntil, bytes32 vcHash) external whenNotPaused returns (bytes32 lockId) {
         require(amount != 0, ZeroAmount());
 
         // Auto-increment user nonce for replay protection
@@ -147,14 +139,7 @@ contract CollateralLocker {
         // Generate unique lock identifier from commitment parameters
         // Includes sourceChainId, validUntil, vcHash, and auto-nonce
         uint256 sourceChainId = block.chainid;
-        lockId = keccak256(abi.encode(
-            msg.sender,
-            amount,
-            sourceChainId,
-            validUntil,
-            vcHash,
-            nonce
-        ));
+        lockId = keccak256(abi.encode(msg.sender, amount, sourceChainId, validUntil, vcHash, nonce));
 
         // Prevent duplicate lock attempts (protects against accidental double-locking)
         require(!consumed[lockId], DuplicateLockId(lockId));
@@ -185,11 +170,7 @@ contract CollateralLocker {
      * @param amount USDY to unlock
      * @param lockId Original lock identifier (for event tracking)
      */
-    function unlock(
-        address recipient,
-        uint256 amount,
-        bytes32 lockId
-    ) external onlyAdmin whenNotPaused {
+    function unlock(address recipient, uint256 amount, bytes32 lockId) external onlyAdmin whenNotPaused {
         require(recipient != address(0), ZeroAddress());
         require(amount != 0, ZeroAmount());
         require(lockedBalance[recipient] >= amount, InsufficientBalance(recipient, amount, lockedBalance[recipient]));

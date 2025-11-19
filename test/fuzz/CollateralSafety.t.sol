@@ -30,9 +30,9 @@ contract CollateralSafetyTest is Test {
     address constant USDY_FUNDER = 0x36FB3fA7c19702A07BE94eea464a8Cee4E11C474;
 
     /// Realistic lock amount bounds (admin has ~10^15 USDY available)
-    uint256 constant MIN_LOCK = 0.001 ether;  // 0.001 USDY minimum
-    uint256 constant MAX_LOCK = 1_000_000 ether;  // 1M USDY maximum
-    uint256 constant MAX_FUZZ_LOCK = 100_000_000 ether;  // 100M USDY for fuzz tests with large amounts
+    uint256 constant MIN_LOCK = 0.001 ether; // 0.001 USDY minimum
+    uint256 constant MAX_LOCK = 1_000_000 ether; // 1M USDY maximum
+    uint256 constant MAX_FUZZ_LOCK = 100_000_000 ether; // 100M USDY for fuzz tests with large amounts
 
     function setUp() public {
         vm.createSelectFork(vm.envString("MANTLE_RPC_VTE"));
@@ -52,9 +52,7 @@ contract CollateralSafetyTest is Test {
      * Critical invariant: Contract's USDY balance must exactly match totalLocked
      * If this fails, either tokens are stuck or accounting is broken
      */
-    function testFuzz_Invariant_TotalLockedMatchesBalance(
-        uint256 lockAmount
-    ) public {
+    function testFuzz_Invariant_TotalLockedMatchesBalance(uint256 lockAmount) public {
         // Bound fuzz inputs to realistic range
         lockAmount = bound(lockAmount, MIN_LOCK, MAX_LOCK);
 
@@ -69,9 +67,7 @@ contract CollateralSafetyTest is Test {
 
         // Verify invariant
         assertEq(
-            locker.totalLocked(),
-            usdy.balanceOf(address(locker)),
-            "Invariant broken: totalLocked != contract balance"
+            locker.totalLocked(), usdy.balanceOf(address(locker)), "Invariant broken: totalLocked != contract balance"
         );
     }
 
@@ -79,9 +75,7 @@ contract CollateralSafetyTest is Test {
      * Multi-user concurrent locking should maintain accounting invariant
      * Tests for race conditions and cumulative accounting errors
      */
-    function testFuzz_Invariant_MultiUserAccounting(
-        uint256[3] memory amounts
-    ) public {
+    function testFuzz_Invariant_MultiUserAccounting(uint256[3] memory amounts) public {
         address[] memory users = new address[](3);
         uint256 expectedTotal = 0;
 
@@ -112,10 +106,7 @@ contract CollateralSafetyTest is Test {
      * This prevents replay attacks and double-minting on destination chain
      * With auto-incrementing nonces, uniqueness is guaranteed even with identical parameters
      */
-    function testFuzz_Invariant_LockIdUniqueness(
-        uint256 amount1,
-        uint256 amount2
-    ) public {
+    function testFuzz_Invariant_LockIdUniqueness(uint256 amount1, uint256 amount2) public {
         // Bound amounts to safe ranges
         amount1 = bound(amount1, MIN_LOCK, MAX_LOCK);
         amount2 = bound(amount2, MIN_LOCK, MAX_LOCK);
@@ -173,12 +164,9 @@ contract CollateralSafetyTest is Test {
      * Test that unlock cannot cause underflow
      * Admin can only unlock what exists in user's balance
      */
-    function testFuzz_NoUnderflow_UnlockBounds(
-        uint256 lockAmount,
-        uint256 unlockAmount
-    ) public {
+    function testFuzz_NoUnderflow_UnlockBounds(uint256 lockAmount, uint256 unlockAmount) public {
         lockAmount = bound(lockAmount, MIN_LOCK, MAX_LOCK);
-        unlockAmount = bound(unlockAmount, 0, lockAmount * 2);  // Allow exceeding balance
+        unlockAmount = bound(unlockAmount, 0, lockAmount * 2); // Allow exceeding balance
 
         address user = makeAddr("unlockUser");
         _fundUser(user, lockAmount);
@@ -197,7 +185,9 @@ contract CollateralSafetyTest is Test {
             locker.unlock(user, unlockAmount, bytes32(0));
         } else if (unlockAmount > lockAmount) {
             // Should revert on insufficient balance
-            vm.expectRevert(abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, user, unlockAmount, lockAmount));
+            vm.expectRevert(
+                abi.encodeWithSelector(CollateralLocker.InsufficientBalance.selector, user, unlockAmount, lockAmount)
+            );
             locker.unlock(user, unlockAmount, bytes32(0));
         } else {
             // Should succeed within bounds
@@ -214,10 +204,7 @@ contract CollateralSafetyTest is Test {
      * Only admin can unlock funds - attackers cannot drain contract
      * This is critical for collateral security
      */
-    function testFuzz_Security_NoUnauthorizedUnlock(
-        uint256 lockAmount,
-        address attacker
-    ) public {
+    function testFuzz_Security_NoUnauthorizedUnlock(uint256 lockAmount, address attacker) public {
         vm.assume(attacker != admin);
         vm.assume(attacker != address(0));
 
