@@ -15,3 +15,20 @@ docs/
 
 # Wallet files containing private keys
 wallets/*.json
+
+# Go build artifacts
+go/bin/
+relayer/bin/
+
+# Go runtime state and data
+go/data/
+relayer/data/
+
+# Log files
+*.log
+go/*.log
+relayer/*.log
+
+# macOS system files
+.DS_Store
+**/.DS_Store
