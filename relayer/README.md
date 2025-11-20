@@ -53,7 +53,7 @@ All these variables are already configured in the project's `.env` file at the r
 
 ## Building
 
-From the `go/` directory:
+From the `relayer/` directory:
 
 ```bash
 # Install dependencies
@@ -64,19 +64,19 @@ go build -o bin/relayer ./cmd/relayer
 
 # Or build from project root
 cd /path/to/mantle-xrwa-lending
-go build -o go/bin/relayer ./go/cmd/relayer
+go build -o relayer/bin/relayer ./relayer/cmd/relayer
 ```
 
 ## Running
 
-### From the `go/` directory:
+### From the `relayer/` directory:
 ```bash
 ./bin/relayer
 ```
 
 ### From the project root:
 ```bash
-./go/bin/relayer
+./relayer/bin/relayer
 ```
 
 The relayer will:
@@ -136,7 +136,7 @@ INFO [timestamp] Attestation submitted successfully lock_id=0x... borrower=0x...
 ## Project Structure
 
 ```
-go/
+relayer/
 ├── cmd/
 │   └── relayer/
 │       └── main.go              # Entry point
