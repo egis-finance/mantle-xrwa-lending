@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@theme {
+  /* Fonts */
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+
+  /* Colors */
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-brand-DEFAULT: #627eea;
+  --color-brand-light: #f0f7ff;
+  --color-brand-dark: #1f2937;
+  --color-brand-muted: #6b7280;
+
+  --color-mantle-DEFAULT: #65b3ad;
+  --color-mantle-light: #e0f2f1;
+
+  --color-eth-DEFAULT: #627eea;
+  --color-eth-light: #eef2ff;
+
+  --color-success-DEFAULT: #10b981;
+  --color-success-light: #d1fae5;
+
+  --color-warning-DEFAULT: #f59e0b;
+  --color-warning-light: #fef3c7;
+
+  --color-danger-DEFAULT: #ef4444;
+  --color-danger-light: #fee2e2;
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  /* Border Radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-xl: 12px;
+
+  /* Box Shadows */
+  --shadow-soft-xl: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 0 8px -1px rgba(0, 0, 0, 0.02);
+  --shadow-floating: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 0 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Background Images */
+  --background-image-body-gradient: linear-gradient(135deg, #f0f7ff 0%, #ffffff 40%, #ffffff 100%);
+  --background-image-brand-gradient: linear-gradient(to right, #627eea, #89CFF0);
+  --background-image-mantle-gradient: linear-gradient(to right, #65b3ad, #80cbc4);
+}
+
+/* Custom Utilities */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+
+  @media (width >=1400px) {
+    max-width: 1400px;
+  }
+}
+
+/* Base Styles */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.75rem;
+}
+
+body {
+  @apply bg-body-gradient text-brand-dark font-sans antialiased;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  @apply font-serif font-semibold text-brand-dark;
+}
+
+.egis-card {
+  @apply bg-white rounded-xl shadow-soft-xl border border-brand-light/50 p-6;
+}
