@@ -1,0 +1,19 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "/relayer"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[[deploy.healthcheck]]
+path = "/health/live"
+port = 8080
+
+[[deploy.healthcheck]]
+path = "/health/ready"
+port = 8080
+
+[observability]
+enabled = true

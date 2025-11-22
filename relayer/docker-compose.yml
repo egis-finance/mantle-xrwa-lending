@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # DVN Relayer service
+  relayer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xrwa-dvn-relayer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"  # HTTP metrics and health endpoints
+    environment:
+      # Chain configuration (from host .env)
+      MANTLE_CHAIN_ID: ${MANTLE_CHAIN_ID}
+      MANTLE_RPC_VTE: ${MANTLE_RPC_VTE}
+      MANTLE_LOCKER: ${MANTLE_LOCKER}
+      ETHEREUM_CHAIN_ID: ${ETHEREUM_CHAIN_ID}
+      ETHEREUM_RPC_VTE: ${ETHEREUM_RPC_VTE}
+      ETH_RECEIVER: ${ETH_RECEIVER}
+
+      # DVN credentials
+      DVN1_PRIVATE_KEY: ${DVN1_PRIVATE_KEY}
+      DVN1_ADDRESS: ${DVN1_ADDRESS}
+
+      # Logging
+      LOG_LEVEL: debug
+      LOG_FORMAT: json
+      LOG_FILE: /app/data/relayer.log
+      LOG_MAX_SIZE: 100
+      LOG_MAX_BACKUPS: 3
+      LOG_MAX_AGE: 7
+
+      # HTTP server
+      HTTP_PORT: 8080
+
+      # Tracing
+      TRACING_ENABLED: "true"
+      TRACING_ENDPOINT: jaeger:4317
+      TRACING_SERVICE_NAME: xrwa-dvn-relayer
+      ENVIRONMENT: development
+
+      # Relayer settings
+      RELAYER_MAX_RETRIES: 5
+      RELAYER_ENABLE_BACKOFF: "true"
+      RELAYER_HEALTH_CHECK_INTERVAL: 30
+      RELAYER_PERSISTENCE_ENABLED: "true"
+      RELAYER_PERSISTENCE_FILE: /app/data/processed_locks.json
+    volumes:
+      - relayer-data:/app/data
+    networks:
+      - xrwa-network
+    depends_on:
+      - jaeger
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.66
+    container_name: xrwa-jaeger
+    restart: unless-stopped
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "16686:16686" # Jaeger UI
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    networks:
+      - xrwa-network
+
+  # Prometheus for metrics (optional)
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    container_name: xrwa-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - xrwa-network
+    depends_on:
+      - relayer
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:11.5.0
+    container_name: xrwa-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - xrwa-network
+    depends_on:
+      - prometheus
+
+networks:
+  xrwa-network:
+    driver: bridge
+
+volumes:
+  relayer-data:
+  prometheus-data:
+  grafana-data:
