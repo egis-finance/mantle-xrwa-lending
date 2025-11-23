@@ -5,50 +5,64 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/internal/contracts"
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/chain"
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/config"
+	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/interfaces"
+	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/logger"
+	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/observability"
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/persistence"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Relayer monitors Mantle for Locked events and submits attestations to Ethereum
 type Relayer struct {
 	cfg            *config.Config
-	mantleClient   *ethclient.Client
-	ethereumClient *ethclient.Client
+	mantleClient   interfaces.EthClient
+	ethereumClient interfaces.EthClient
 	signer         *EIP712Signer
 	lockerABI      abi.ABI
 	receiverABI    abi.ABI
 	store          *persistence.Store
+	metrics        *observability.Metrics
 
 	// Track processed lock IDs in memory (redundant with persistence for fast lookups)
 	processedLocks map[[32]byte]bool
+	mu             sync.RWMutex
 
 	// Performance metrics
-	eventCount     uint64
-	lastEventTime  time.Time
+	eventCount    uint64
+	lastEventTime time.Time
+
+	// Health status
+	healthyMantle  bool
+	healthyEth     bool
+	healthMu       sync.RWMutex
 }
 
 // NewRelayer creates a new DVN relayer instance
-func NewRelayer(cfg *config.Config) (*Relayer, error) {
+func NewRelayer(cfg *config.Config, metrics *observability.Metrics) (*Relayer, error) {
 	// Connect to Mantle
-	mantleClient, err := ethclient.Dial(cfg.Mantle.RPCURL)
+	mantleRawClient, err := ethclient.Dial(cfg.Mantle.RPCURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Mantle: %w", err)
 	}
+	mantleClient := interfaces.NewEthClientAdapter(mantleRawClient)
 
 	// Connect to Ethereum
-	ethereumClient, err := ethclient.Dial(cfg.Ethereum.RPCURL)
+	ethereumRawClient, err := ethclient.Dial(cfg.Ethereum.RPCURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Ethereum: %w", err)
 	}
+	ethereumClient := interfaces.NewEthClientAdapter(ethereumRawClient)
 
 	// Initialize EIP-712 signer
 	signer, err := NewEIP712Signer(
@@ -77,13 +91,13 @@ func NewRelayer(cfg *config.Config) (*Relayer, error) {
 		var err error
 		store, err = persistence.NewStore(cfg.Persistence.FilePath)
 		if err != nil {
-			log.Warn("Failed to initialize persistence store, continuing without persistence", "error", err)
+			logger.Warnw("Failed to initialize persistence store, continuing without persistence", "error", err)
 		} else {
-			log.Info("Persistence enabled", "file", cfg.Persistence.FilePath, "previously_processed", store.Count())
+			logger.Infow("Persistence enabled", "file", cfg.Persistence.FilePath, "previously_processed", store.Count())
 		}
 	}
 
-	log.Info("DVN relayer initialized",
+	logger.Infow("DVN relayer initialized",
 		"dvn_address", signer.GetSignerAddress(),
 		"mantle_locker", cfg.Mantle.LockerAddress,
 		"ethereum_receiver", cfg.Ethereum.ReceiverAddress,
@@ -99,9 +113,12 @@ func NewRelayer(cfg *config.Config) (*Relayer, error) {
 		lockerABI:      lockerABI,
 		receiverABI:    receiverABI,
 		store:          store,
+		metrics:        metrics,
 		processedLocks: make(map[[32]byte]bool),
 		eventCount:     0,
 		lastEventTime:  time.Now(),
+		healthyMantle:  false,
+		healthyEth:     false,
 	}
 
 	// Load previously processed locks into memory map
@@ -114,7 +131,7 @@ func NewRelayer(cfg *config.Config) (*Relayer, error) {
 				relayer.processedLocks[lockIdArray] = true
 			}
 		}
-		log.Info("Loaded processed locks from persistence", "count", len(relayer.processedLocks))
+		logger.Infow("Loaded processed locks from persistence", "count", len(relayer.processedLocks))
 	}
 
 	return relayer, nil
@@ -122,7 +139,10 @@ func NewRelayer(cfg *config.Config) (*Relayer, error) {
 
 // Start begins monitoring for Locked events
 func (r *Relayer) Start(ctx context.Context) error {
-	log.Info("Starting event monitoring on Mantle")
+	logger.Info("Starting event monitoring on Mantle")
+
+	// Initial health check to set baseline status
+	r.performHealthCheck(ctx)
 
 	// Start health check goroutine
 	if r.cfg.Retry.HealthCheckInterval > 0 {
@@ -137,7 +157,7 @@ func (r *Relayer) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the relayer
 func (r *Relayer) Stop(ctx context.Context) error {
-	log.Info("Stopping relayer...")
+	logger.Info("Stopping relayer...")
 	r.mantleClient.Close()
 	r.ethereumClient.Close()
 	return nil
@@ -151,21 +171,23 @@ func (r *Relayer) monitorEvents(ctx context.Context) {
 	logs := make(chan types.Log)
 	sub, err := r.mantleClient.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
-		log.Error("Failed to subscribe to logs", "error", err)
+		logger.Errorw("Failed to subscribe to logs", "error", err)
+		r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscribe_filter_logs").Inc()
 		// Fallback to polling if subscription fails
 		r.pollEvents(ctx)
 		return
 	}
 	defer sub.Unsubscribe()
 
-	log.Info("Subscribed to Locked events", "contract", r.cfg.Mantle.LockerAddress)
+	logger.Infow("Subscribed to Locked events", "contract", r.cfg.Mantle.LockerAddress)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case err := <-sub.Err():
-			log.Error("Subscription error", "error", err)
+			logger.Errorw("Subscription error", "error", err)
+			r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscription").Inc()
 			// Attempt to resubscribe
 			time.Sleep(5 * time.Second)
 			r.monitorEvents(ctx)
@@ -178,28 +200,36 @@ func (r *Relayer) monitorEvents(ctx context.Context) {
 
 // pollEvents falls back to polling when subscription isn't available
 func (r *Relayer) pollEvents(ctx context.Context) {
-	ticker := time.NewTicker(12 * time.Second) // Poll every block (~12s)
+	ticker := time.NewTicker(12 * time.Second)
 	defer ticker.Stop()
 
 	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
 	fromBlock := uint64(0)
 
-	log.Info("Polling mode active", "interval", "12s", "starting_block", fromBlock)
+	logger.Infow("Polling mode active", "interval", "12s", "starting_block", fromBlock)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			// Get latest block with retry
+			// Get latest block with retry and timeout
 			var latestBlock uint64
-			err := chain.RetryWithBackoff(ctx, r.cfg.Retry.MaxRetries, "get_latest_block", func() error {
+			blockCtx, blockCancel := context.WithTimeout(ctx, 30*time.Second)
+			err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.metrics, "get_latest_block", func() error {
 				var err error
-				latestBlock, err = r.mantleClient.BlockNumber(ctx)
+				latestBlock, err = r.mantleClient.BlockNumber(blockCtx)
+				if err != nil {
+					r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
+				} else {
+					r.metrics.RPCCallsTotal.WithLabelValues("mantle", "block_number").Inc()
+				}
 				return err
 			})
+			blockCancel()
+
 			if err != nil {
-				log.Error("Failed to get latest block after retries", "error", err)
+				logger.Errorw("Failed to get latest block after retries", "error", err)
 				continue
 			}
 
@@ -208,12 +238,12 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 				if latestBlock > 100 {
 					fromBlock = latestBlock - 100
 				}
-				log.Info("Starting block scan", "from_block", fromBlock, "to_block", latestBlock)
+				logger.Infow("Starting block scan", "from_block", fromBlock, "to_block", latestBlock)
 			}
 
 			// Skip if no new blocks to process
 			if fromBlock > latestBlock {
-				log.Debug("No new blocks to process", "from", fromBlock, "latest", latestBlock)
+				logger.Debugw("No new blocks to process", "from", fromBlock, "latest", latestBlock)
 				continue
 			}
 
@@ -222,24 +252,32 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 			query.ToBlock = big.NewInt(int64(latestBlock))
 
 			var logs []types.Log
-			err = chain.RetryWithBackoff(ctx, r.cfg.Retry.MaxRetries, "filter_logs", func() error {
+			logsCtx, logsCancel := context.WithTimeout(ctx, 30*time.Second)
+			err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.metrics, "filter_logs", func() error {
 				var err error
-				logs, err = r.mantleClient.FilterLogs(ctx, query)
+				logs, err = r.mantleClient.FilterLogs(logsCtx, query)
+				if err != nil {
+					r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "filter_logs").Inc()
+				} else {
+					r.metrics.RPCCallsTotal.WithLabelValues("mantle", "filter_logs").Inc()
+				}
 				return err
 			})
+			logsCancel()
+
 			if err != nil {
-				log.Error("Failed to filter logs after retries", "error", err, "from", fromBlock, "to", latestBlock)
+				logger.Errorw("Failed to filter logs after retries", "error", err, "from", fromBlock, "to", latestBlock)
 				continue
 			}
 
 			if len(logs) > 0 {
-				log.Info("Found lock events in block range",
+				logger.Infow("Found lock events in block range",
 					"from_block", fromBlock,
 					"to_block", latestBlock,
 					"event_count", len(logs),
 				)
 			} else {
-				log.Debug("No events in block range", "from", fromBlock, "to", latestBlock)
+				logger.Debugw("No events in block range", "from", fromBlock, "to", latestBlock)
 			}
 
 			for _, vLog := range logs {
@@ -255,30 +293,62 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	startTime := time.Now()
 
+	// Start parent tracing span
+	spanCtx, span := observability.StartSpan(ctx, "relayer", "processLockedEvent",
+		trace.WithAttributes(
+			attribute.String("tx_hash", vLog.TxHash.Hex()),
+			attribute.Int64("block_number", int64(vLog.BlockNumber)),
+		),
+	)
+	defer span.End()
+
 	// Parse the event
 	event, err := contracts.ParseLockedEvent(vLog, r.lockerABI)
 	if err != nil {
-		log.Error("Failed to parse Locked event", "error", err, "tx", vLog.TxHash, "block", vLog.BlockNumber)
+		logger.Errorw("Failed to parse Locked event",
+			"error", err,
+			"tx", vLog.TxHash,
+			"block", vLog.BlockNumber,
+		)
+		r.metrics.LocksFailed.Inc()
+		observability.RecordError(spanCtx, err)
 		return
 	}
 
+	// Add event details to span
+	span.SetAttributes(
+		attribute.String("lock_id", common.Bytes2Hex(event.LockId[:])),
+		attribute.String("borrower", event.Borrower.Hex()),
+		attribute.String("amount", event.Amount.String()),
+	)
+
 	// Check if already processed (memory-first for speed)
-	if r.processedLocks[event.LockId] {
-		log.Debug("Lock already processed (memory cache)", "lock_id", common.Bytes2Hex(event.LockId[:]))
+	r.mu.RLock()
+	alreadyProcessed := r.processedLocks[event.LockId]
+	r.mu.RUnlock()
+
+	if alreadyProcessed {
+		logger.Debugw("Lock already processed (memory cache)", "lock_id", common.Bytes2Hex(event.LockId[:]))
+		r.metrics.LocksDuplicate.Inc()
 		return
 	}
 
 	// Double-check persistence store
 	if r.store != nil && r.store.IsProcessed(event.LockId) {
-		log.Debug("Lock already processed (persistence)", "lock_id", common.Bytes2Hex(event.LockId[:]))
-		r.processedLocks[event.LockId] = true // Update memory cache
+		logger.Debugw("Lock already processed (persistence)", "lock_id", common.Bytes2Hex(event.LockId[:]))
+		r.mu.Lock()
+		r.processedLocks[event.LockId] = true
+		r.mu.Unlock()
+		r.metrics.LocksDuplicate.Inc()
 		return
 	}
 
+	r.mu.Lock()
 	r.eventCount++
 	r.lastEventTime = time.Now()
+	r.mu.Unlock()
 
-	log.Info("New lock detected",
+	logger.Infow("New lock detected",
 		"borrower", event.Borrower,
 		"lock_id", common.Bytes2Hex(event.LockId[:]),
 		"amount", event.Amount,
@@ -301,39 +371,71 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		VcHash:        event.VcHash,
 	}
 
-	// Sign the message with retry
+	// Sign the message with retry and tracing
+	signStart := time.Now()
+	signCtx, signSpan := observability.StartSpan(spanCtx, "relayer", "signLockMessage",
+		trace.WithAttributes(
+			attribute.String("lock_id", common.Bytes2Hex(event.LockId[:])),
+		),
+	)
+
 	var v uint8
 	var rSig, sSig [32]byte
-	err = chain.RetryWithBackoff(ctx, 3, "sign_lock_message", func() error {
+	err = chain.RetryWithBackoff(signCtx, 3, r.metrics, "sign_lock_message", func() error {
 		var err error
 		v, rSig, sSig, err = r.signer.SignLockMessage(lockMsg)
 		return err
 	})
+
+	signSpan.End()
+	r.metrics.SignatureDuration.Observe(time.Since(signStart).Seconds())
+
 	if err != nil {
-		log.Error("Failed to sign lock message after retries", "error", err, "lock_id", common.Bytes2Hex(event.LockId[:]))
+		logger.Errorw("Failed to sign lock message after retries",
+			"error", err,
+			"lock_id", common.Bytes2Hex(event.LockId[:]),
+		)
+		r.metrics.LocksFailed.Inc()
+		observability.RecordError(spanCtx, err)
 		return
 	}
 
-	log.Info("Lock message signed",
+	logger.Infow("Lock message signed",
 		"lock_id", common.Bytes2Hex(event.LockId[:]),
 		"v", v,
 		"signer", r.signer.GetSignerAddress(),
 	)
 
-	// Submit attestation to Ethereum with retry
+	// Submit attestation to Ethereum with retry and tracing
+	submitCtx, submitSpan := observability.StartSpan(spanCtx, "relayer", "submitAttestation",
+		trace.WithAttributes(
+			attribute.String("lock_id", common.Bytes2Hex(event.LockId[:])),
+		),
+	)
+
 	var ethTxHash common.Hash
-	err = chain.RetryWithBackoff(ctx, r.cfg.Retry.MaxRetries, "submit_attestation", func() error {
+	err = chain.RetryWithBackoff(submitCtx, r.cfg.Retry.MaxRetries, r.metrics, "submit_attestation", func() error {
 		var err error
-		ethTxHash, err = r.submitAttestationWithHash(ctx, lockMsg, v, rSig, sSig)
+		ethTxHash, err = r.submitAttestationWithHash(submitCtx, lockMsg, v, rSig, sSig)
 		return err
 	})
+
+	submitSpan.End()
+
 	if err != nil {
-		log.Error("Failed to submit attestation after retries", "error", err, "lock_id", common.Bytes2Hex(event.LockId[:]))
+		logger.Errorw("Failed to submit attestation after retries",
+			"error", err,
+			"lock_id", common.Bytes2Hex(event.LockId[:]),
+		)
+		r.metrics.LocksFailed.Inc()
+		observability.RecordError(spanCtx, err)
 		return
 	}
 
 	// Mark as processed in memory
+	r.mu.Lock()
 	r.processedLocks[event.LockId] = true
+	r.mu.Unlock()
 
 	// Persist to disk
 	if r.store != nil {
@@ -346,24 +448,24 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 			ethTxHash,
 			vLog.BlockNumber,
 		); err != nil {
-			log.Warn("Failed to persist processed lock", "error", err, "lock_id", common.Bytes2Hex(event.LockId[:]))
+			logger.Warnw("Failed to persist processed lock",
+				"error", err,
+				"lock_id", common.Bytes2Hex(event.LockId[:]),
+			)
 		}
 	}
 
 	processingTime := time.Since(startTime)
-	log.Info("Attestation submitted successfully",
+	r.metrics.ProcessingDuration.Observe(processingTime.Seconds())
+	r.metrics.LocksProcessed.Inc()
+
+	logger.Infow("Attestation submitted successfully",
 		"lock_id", common.Bytes2Hex(event.LockId[:]),
 		"borrower", event.Borrower,
 		"eth_tx", ethTxHash,
 		"processing_time", processingTime,
 		"total_processed", r.eventCount,
 	)
-}
-
-// submitAttestation sends the signed attestation to XRWAReceiver
-func (r *Relayer) submitAttestation(ctx context.Context, msg contracts.LockMessage, v uint8, rSig, sSig [32]byte) error {
-	_, err := r.submitAttestationWithHash(ctx, msg, v, rSig, sSig)
-	return err
 }
 
 // submitAttestationWithHash sends the signed attestation and returns the transaction hash
@@ -374,26 +476,33 @@ func (r *Relayer) submitAttestationWithHash(ctx context.Context, msg contracts.L
 		return common.Hash{}, fmt.Errorf("failed to pack function call: %w", err)
 	}
 
-	log.Debug("Submitting attestation transaction",
+	logger.Debugw("Submitting attestation transaction",
 		"receiver", r.cfg.Ethereum.ReceiverAddress,
 		"data_size", len(data),
 	)
 
 	// Submit transaction using chain helper
-	txHash, err := chain.SubmitTransaction(
+	txHash, gasUsed, err := chain.SubmitTransaction(
 		ctx,
 		r.ethereumClient,
 		r.cfg.DVN.PrivateKey,
 		r.cfg.Ethereum.ReceiverAddress,
 		data,
+		r.metrics,
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", err)
 	}
 
-	log.Info("Attestation transaction submitted",
+	// Record gas used
+	if gasUsed > 0 {
+		r.metrics.GasUsed.WithLabelValues("mint_with_attestation").Observe(float64(gasUsed))
+	}
+
+	logger.Infow("Attestation transaction submitted",
 		"tx_hash", txHash,
 		"receiver", r.cfg.Ethereum.ReceiverAddress,
+		"gas_used", gasUsed,
 	)
 
 	return txHash, nil
@@ -404,7 +513,7 @@ func (r *Relayer) runHealthChecks(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(r.cfg.Retry.HealthCheckInterval) * time.Second)
 	defer ticker.Stop()
 
-	log.Info("Health checks started", "interval", fmt.Sprintf("%ds", r.cfg.Retry.HealthCheckInterval))
+	logger.Infow("Health checks started", "interval", fmt.Sprintf("%ds", r.cfg.Retry.HealthCheckInterval))
 
 	for {
 		select {
@@ -418,29 +527,91 @@ func (r *Relayer) runHealthChecks(ctx context.Context) {
 
 // performHealthCheck checks connectivity to both chains
 func (r *Relayer) performHealthCheck(ctx context.Context) {
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	// Check Mantle connection
-	mantleBlock, err := r.mantleClient.BlockNumber(ctx)
+	mantleBlock, err := r.mantleClient.BlockNumber(checkCtx)
+	r.healthMu.Lock()
 	if err != nil {
-		log.Warn("Mantle health check failed", "error", err)
+		r.healthyMantle = false
+		r.metrics.HealthCheckStatus.WithLabelValues("mantle").Set(0)
+		logger.Warnw("Mantle health check failed", "error", err)
 	} else {
-		log.Debug("Mantle health check OK", "latest_block", mantleBlock)
+		r.healthyMantle = true
+		r.metrics.HealthCheckStatus.WithLabelValues("mantle").Set(1)
+		logger.Debugw("Mantle health check OK", "latest_block", mantleBlock)
 	}
+	r.healthMu.Unlock()
 
 	// Check Ethereum connection
-	ethBlock, err := r.ethereumClient.BlockNumber(ctx)
+	ethBlock, err := r.ethereumClient.BlockNumber(checkCtx)
+	r.healthMu.Lock()
 	if err != nil {
-		log.Warn("Ethereum health check failed", "error", err)
+		r.healthyEth = false
+		r.metrics.HealthCheckStatus.WithLabelValues("ethereum").Set(0)
+		logger.Warnw("Ethereum health check failed", "error", err)
 	} else {
-		log.Debug("Ethereum health check OK", "latest_block", ethBlock)
+		r.healthyEth = true
+		r.metrics.HealthCheckStatus.WithLabelValues("ethereum").Set(1)
+		logger.Debugw("Ethereum health check OK", "latest_block", ethBlock)
 	}
+	r.healthMu.Unlock()
 
 	// Log performance metrics
-	if r.eventCount > 0 {
-		timeSinceLastEvent := time.Since(r.lastEventTime)
-		log.Info("Relayer metrics",
-			"total_processed", r.eventCount,
+	r.mu.RLock()
+	eventCount := r.eventCount
+	lastEventTime := r.lastEventTime
+	r.mu.RUnlock()
+
+	if eventCount > 0 {
+		timeSinceLastEvent := time.Since(lastEventTime)
+		logger.Infow("Relayer metrics",
+			"total_processed", eventCount,
 			"time_since_last_event", timeSinceLastEvent,
 			"persistence_enabled", r.store != nil,
 		)
 	}
+}
+
+// IsHealthy implements observability.HealthChecker interface
+func (r *Relayer) IsHealthy(ctx context.Context) bool {
+	// Healthy if no critical errors (always true for now, can be enhanced)
+	return true
+}
+
+// IsReady implements observability.HealthChecker interface
+func (r *Relayer) IsReady(ctx context.Context) bool {
+	r.healthMu.RLock()
+	defer r.healthMu.RUnlock()
+
+	// Ready if both RPC connections are healthy
+	return r.healthyMantle && r.healthyEth
+}
+
+// GetStats implements observability.HealthChecker interface
+func (r *Relayer) GetStats() map[string]interface{} {
+	r.mu.RLock()
+	eventCount := r.eventCount
+	lastEventTime := r.lastEventTime
+	r.mu.RUnlock()
+
+	r.healthMu.RLock()
+	healthyMantle := r.healthyMantle
+	healthyEth := r.healthyEth
+	r.healthMu.RUnlock()
+
+	stats := map[string]interface{}{
+		"event_count":          eventCount,
+		"last_event_time":      lastEventTime.Format(time.RFC3339),
+		"mantle_healthy":       healthyMantle,
+		"ethereum_healthy":     healthyEth,
+		"persistence_enabled":  r.store != nil,
+	}
+
+	if r.store != nil {
+		stats["persistence_count"] = r.store.Count()
+	}
+
+	return stats
 }

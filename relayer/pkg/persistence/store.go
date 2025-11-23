@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/logger"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // ProcessedLock represents a lock event that has been successfully processed
@@ -46,10 +46,10 @@ func NewStore(filePath string) (*Store, error) {
 
 	// Load existing data
 	if err := store.load(); err != nil {
-		log.Warn("Failed to load persistence file (will create new)", "error", err, "path", filePath)
+		logger.Warnw("Failed to load persistence file (will create new)", "error", err, "path", filePath)
 	}
 
-	log.Info("Persistence store initialized",
+	logger.Infow("Persistence store initialized",
 		"file", filePath,
 		"loaded_locks", len(store.locks),
 	)
@@ -99,7 +99,7 @@ func (s *Store) MarkProcessed(
 
 	s.locks[lockId] = lock
 
-	log.Debug("Lock marked as processed in persistence",
+	logger.Debugw("Lock marked as processed in persistence",
 		"lock_id", lock.LockId,
 		"borrower", lock.Borrower,
 		"eth_tx", lock.EthereumTxHash,
@@ -152,7 +152,7 @@ func (s *Store) load() error {
 	for _, lock := range locks {
 		lockIdBytes := common.FromHex(lock.LockId)
 		if len(lockIdBytes) != 32 {
-			log.Warn("Invalid lock ID in persistence file, skipping", "lock_id", lock.LockId)
+			logger.Warnw("Invalid lock ID in persistence file, skipping", "lock_id", lock.LockId)
 			continue
 		}
 		var lockIdArray [32]byte
@@ -183,7 +183,7 @@ func (s *Store) save() error {
 	}
 
 	if err := os.Rename(tempFile, s.filePath); err != nil {
-		os.Remove(tempFile) // Clean up temp file on failure
+		_ = os.Remove(tempFile) // Best effort cleanup
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 

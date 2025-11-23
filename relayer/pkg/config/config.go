@@ -17,6 +17,9 @@ type Config struct {
 	DVN         DVNConfig
 	Retry       RetryConfig
 	Persistence PersistenceConfig
+	Logging     LoggingConfig
+	HTTP        HTTPConfig
+	Tracing     TracingConfig
 }
 
 // RetryConfig holds retry behavior configuration
@@ -44,6 +47,29 @@ type ChainConfig struct {
 type DVNConfig struct {
 	PrivateKey string
 	Address    common.Address
+}
+
+// LoggingConfig holds logging configuration
+type LoggingConfig struct {
+	Level      string // debug, info, warn, error
+	Format     string // console, json
+	OutputPath string // file path for logs
+	MaxSize    int    // max size in MB before rotation
+	MaxBackups int    // max number of old log files
+	MaxAge     int    // max number of days to retain logs
+}
+
+// HTTPConfig holds HTTP server configuration
+type HTTPConfig struct {
+	Port int // port for metrics and health endpoints
+}
+
+// TracingConfig holds OpenTelemetry tracing configuration
+type TracingConfig struct {
+	Enabled     bool
+	Endpoint    string // OTLP endpoint
+	ServiceName string
+	Environment string
 }
 
 // Load reads configuration from environment variables
@@ -114,6 +140,38 @@ func Load() (*Config, error) {
 	cfg.Persistence.FilePath = os.Getenv("RELAYER_PERSISTENCE_FILE")
 	if cfg.Persistence.FilePath == "" {
 		cfg.Persistence.FilePath = "./data/processed_locks.json"
+	}
+
+	// Logging configuration (with defaults)
+	cfg.Logging.Level = os.Getenv("LOG_LEVEL")
+	if cfg.Logging.Level == "" {
+		cfg.Logging.Level = "info"
+	}
+	cfg.Logging.Format = os.Getenv("LOG_FORMAT")
+	if cfg.Logging.Format == "" {
+		cfg.Logging.Format = "console"
+	}
+	cfg.Logging.OutputPath = os.Getenv("LOG_FILE")
+	cfg.Logging.MaxSize = getEnvIntWithDefault("LOG_MAX_SIZE", 100)
+	cfg.Logging.MaxBackups = getEnvIntWithDefault("LOG_MAX_BACKUPS", 3)
+	cfg.Logging.MaxAge = getEnvIntWithDefault("LOG_MAX_AGE", 28)
+
+	// HTTP server configuration (with defaults)
+	cfg.HTTP.Port = getEnvIntWithDefault("HTTP_PORT", 8080)
+
+	// Tracing configuration (with defaults)
+	cfg.Tracing.Enabled = getEnvBoolWithDefault("TRACING_ENABLED", false)
+	cfg.Tracing.Endpoint = os.Getenv("TRACING_ENDPOINT")
+	if cfg.Tracing.Endpoint == "" {
+		cfg.Tracing.Endpoint = "localhost:4317"
+	}
+	cfg.Tracing.ServiceName = os.Getenv("TRACING_SERVICE_NAME")
+	if cfg.Tracing.ServiceName == "" {
+		cfg.Tracing.ServiceName = "xrwa-dvn-relayer"
+	}
+	cfg.Tracing.Environment = os.Getenv("ENVIRONMENT")
+	if cfg.Tracing.Environment == "" {
+		cfg.Tracing.Environment = "development"
 	}
 
 	return cfg, nil
