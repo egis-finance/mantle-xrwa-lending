@@ -85,16 +85,15 @@ func NewRelayer(cfg *config.Config, metrics *observability.Metrics) (*Relayer, e
 		return nil, fmt.Errorf("failed to parse receiver ABI: %w", err)
 	}
 
-	// Initialize persistence store
+	// Initialize persistence store (fatal if enabled but fails)
 	var store *persistence.Store
 	if cfg.Persistence.Enabled {
 		var err error
 		store, err = persistence.NewStore(cfg.Persistence.FilePath)
 		if err != nil {
-			logger.Warnw("Failed to initialize persistence store, continuing without persistence", "error", err)
-		} else {
-			logger.Infow("Persistence enabled", "file", cfg.Persistence.FilePath, "previously_processed", store.Count())
+			return nil, fmt.Errorf("persistence enabled but failed to initialize: %w", err)
 		}
+		logger.Infow("Persistence enabled", "file", cfg.Persistence.FilePath, "previously_processed", store.Count())
 	}
 
 	logger.Infow("DVN relayer initialized",
@@ -121,8 +120,9 @@ func NewRelayer(cfg *config.Config, metrics *observability.Metrics) (*Relayer, e
 		healthyEth:     false,
 	}
 
-	// Load previously processed locks into memory map
+	// Load previously processed locks into memory map (mutex for safety during future refactoring)
 	if store != nil {
+		relayer.mu.Lock()
 		for _, lock := range store.GetAllProcessed() {
 			lockIdBytes := common.FromHex(lock.LockId)
 			if len(lockIdBytes) == 32 {
@@ -131,6 +131,7 @@ func NewRelayer(cfg *config.Config, metrics *observability.Metrics) (*Relayer, e
 				relayer.processedLocks[lockIdArray] = true
 			}
 		}
+		relayer.mu.Unlock()
 		logger.Infow("Loaded processed locks from persistence", "count", len(relayer.processedLocks))
 	}
 
@@ -163,19 +164,55 @@ func (r *Relayer) Stop(ctx context.Context) error {
 	return nil
 }
 
-// monitorEvents subscribes to Locked events and processes them
+// monitorEvents subscribes to Locked events with automatic reconnection
 func (r *Relayer) monitorEvents(ctx context.Context) {
+	backoff := r.cfg.Retry.BaseRetryDelay
+	if backoff == 0 {
+		backoff = time.Second
+	}
+	maxBackoff := 30 * time.Second
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		err := r.runSubscription(ctx)
+		if err == nil {
+			return // Clean shutdown via context cancellation
+		}
+
+		logger.Warnw("Subscription failed, retrying with backoff", "error", err, "backoff", backoff)
+		r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscription").Inc()
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+			// Exponential backoff capped at maxBackoff
+			backoff = backoff * 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
+}
+
+// runSubscription attempts to subscribe and process events, returns error on failure
+func (r *Relayer) runSubscription(ctx context.Context) error {
 	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
 
 	// Subscribe to new logs
 	logs := make(chan types.Log)
 	sub, err := r.mantleClient.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
-		logger.Errorw("Failed to subscribe to logs", "error", err)
+		logger.Errorw("Failed to subscribe to logs, falling back to polling", "error", err)
 		r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscribe_filter_logs").Inc()
-		// Fallback to polling if subscription fails
+		// Fallback to polling mode
 		r.pollEvents(ctx)
-		return
+		return nil // pollEvents handles its own loop until context done
 	}
 	defer sub.Unsubscribe()
 
@@ -184,29 +221,31 @@ func (r *Relayer) monitorEvents(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case err := <-sub.Err():
-			logger.Errorw("Subscription error", "error", err)
-			r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscription").Inc()
-			// Attempt to resubscribe
-			time.Sleep(5 * time.Second)
-			r.monitorEvents(ctx)
-			return
+			return fmt.Errorf("subscription error: %w", err)
 		case vLog := <-logs:
-			r.processLockedEvent(ctx, vLog)
+			// Process with timeout to prevent blocking
+			processCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+			r.processLockedEvent(processCtx, vLog)
+			cancel()
 		}
 	}
 }
 
 // pollEvents falls back to polling when subscription isn't available
 func (r *Relayer) pollEvents(ctx context.Context) {
-	ticker := time.NewTicker(12 * time.Second)
+	pollInterval := r.cfg.Relayer.PollInterval
+	if pollInterval == 0 {
+		pollInterval = 12 * time.Second
+	}
+	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
 	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
 	fromBlock := uint64(0)
 
-	logger.Infow("Polling mode active", "interval", "12s", "starting_block", fromBlock)
+	logger.Infow("Polling mode active", "interval", pollInterval, "starting_block", fromBlock)
 
 	for {
 		select {
@@ -216,7 +255,7 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 			// Get latest block with retry and timeout
 			var latestBlock uint64
 			blockCtx, blockCancel := context.WithTimeout(ctx, 30*time.Second)
-			err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.metrics, "get_latest_block", func() error {
+			err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "get_latest_block", func() error {
 				var err error
 				latestBlock, err = r.mantleClient.BlockNumber(blockCtx)
 				if err != nil {
@@ -235,8 +274,12 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 
 			if fromBlock == 0 {
 				// Start from recent blocks to avoid scanning entire history
-				if latestBlock > 100 {
-					fromBlock = latestBlock - 100
+				blockLookback := r.cfg.Relayer.BlockLookback
+				if blockLookback == 0 {
+					blockLookback = 100
+				}
+				if latestBlock > blockLookback {
+					fromBlock = latestBlock - blockLookback
 				}
 				logger.Infow("Starting block scan", "from_block", fromBlock, "to_block", latestBlock)
 			}
@@ -253,7 +296,7 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 
 			var logs []types.Log
 			logsCtx, logsCancel := context.WithTimeout(ctx, 30*time.Second)
-			err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.metrics, "filter_logs", func() error {
+			err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "filter_logs", func() error {
 				var err error
 				logs, err = r.mantleClient.FilterLogs(logsCtx, query)
 				if err != nil {
@@ -381,7 +424,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 
 	var v uint8
 	var rSig, sSig [32]byte
-	err = chain.RetryWithBackoff(signCtx, 3, r.metrics, "sign_lock_message", func() error {
+	err = chain.RetryWithBackoff(signCtx, 3, r.cfg.Retry.BaseRetryDelay, r.metrics, "sign_lock_message", func() error {
 		var err error
 		v, rSig, sSig, err = r.signer.SignLockMessage(lockMsg)
 		return err
@@ -414,7 +457,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	)
 
 	var ethTxHash common.Hash
-	err = chain.RetryWithBackoff(submitCtx, r.cfg.Retry.MaxRetries, r.metrics, "submit_attestation", func() error {
+	err = chain.RetryWithBackoff(submitCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "submit_attestation", func() error {
 		var err error
 		ethTxHash, err = r.submitAttestationWithHash(submitCtx, lockMsg, v, rSig, sSig)
 		return err
@@ -489,6 +532,10 @@ func (r *Relayer) submitAttestationWithHash(ctx context.Context, msg contracts.L
 		r.cfg.Ethereum.ReceiverAddress,
 		data,
 		r.metrics,
+		chain.SubmitTransactionOpts{
+			RPCTimeout:       r.cfg.Retry.RPCTimeout,
+			GasBufferPercent: r.cfg.Relayer.GasBufferPercent,
+		},
 	)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to submit transaction: %w", err)
@@ -530,35 +577,43 @@ func (r *Relayer) performHealthCheck(ctx context.Context) {
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// Check Mantle connection
-	mantleBlock, err := r.mantleClient.BlockNumber(checkCtx)
-	r.healthMu.Lock()
-	if err != nil {
-		r.healthyMantle = false
-		r.metrics.HealthCheckStatus.WithLabelValues("mantle").Set(0)
-		logger.Warnw("Mantle health check failed", "error", err)
-	} else {
-		r.healthyMantle = true
-		r.metrics.HealthCheckStatus.WithLabelValues("mantle").Set(1)
-		logger.Debugw("Mantle health check OK", "latest_block", mantleBlock)
-	}
-	r.healthMu.Unlock()
+	// Check both chain connections
+	mantleBlock, mantleErr := r.mantleClient.BlockNumber(checkCtx)
+	ethBlock, ethErr := r.ethereumClient.BlockNumber(checkCtx)
 
-	// Check Ethereum connection
-	ethBlock, err := r.ethereumClient.BlockNumber(checkCtx)
-	r.healthMu.Lock()
-	if err != nil {
-		r.healthyEth = false
-		r.metrics.HealthCheckStatus.WithLabelValues("ethereum").Set(0)
-		logger.Warnw("Ethereum health check failed", "error", err)
-	} else {
-		r.healthyEth = true
-		r.metrics.HealthCheckStatus.WithLabelValues("ethereum").Set(1)
-		logger.Debugw("Ethereum health check OK", "latest_block", ethBlock)
-	}
-	r.healthMu.Unlock()
+	r.updateHealthStatus("mantle", mantleErr == nil, mantleBlock, mantleErr)
+	r.updateHealthStatus("ethereum", ethErr == nil, ethBlock, ethErr)
 
-	// Log performance metrics
+	// Log periodic performance metrics
+	r.logPerformanceMetrics()
+}
+
+// updateHealthStatus updates health state and metrics for a chain
+func (r *Relayer) updateHealthStatus(chain string, healthy bool, block uint64, err error) {
+	r.healthMu.Lock()
+	defer r.healthMu.Unlock()
+
+	status := 0.0
+	if healthy {
+		status = 1.0
+	}
+
+	if chain == "mantle" {
+		r.healthyMantle = healthy
+	} else {
+		r.healthyEth = healthy
+	}
+	r.metrics.HealthCheckStatus.WithLabelValues(chain).Set(status)
+
+	if err != nil {
+		logger.Warnw(chain+" health check failed", "error", err)
+	} else {
+		logger.Debugw(chain+" health check OK", "latest_block", block)
+	}
+}
+
+// logPerformanceMetrics logs periodic relayer statistics
+func (r *Relayer) logPerformanceMetrics() {
 	r.mu.RLock()
 	eventCount := r.eventCount
 	lastEventTime := r.lastEventTime
