@@ -1,8 +1,15 @@
 package observability
 
 import (
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	metricsInstance *Metrics
+	metricsOnce     sync.Once
 )
 
 // Metrics holds all Prometheus metrics for the relayer
@@ -33,8 +40,16 @@ type Metrics struct {
 	HealthCheckStatus *prometheus.GaugeVec
 }
 
-// NewMetrics creates and registers all Prometheus metrics
+// NewMetrics returns the singleton metrics instance, creating it on first call
 func NewMetrics() *Metrics {
+	metricsOnce.Do(func() {
+		metricsInstance = createMetrics()
+	})
+	return metricsInstance
+}
+
+// createMetrics instantiates all Prometheus metrics (called once via sync.Once)
+func createMetrics() *Metrics {
 	return &Metrics{
 		LocksProcessed: promauto.NewCounter(prometheus.CounterOpts{
 			Name: "relayer_locks_processed_total",

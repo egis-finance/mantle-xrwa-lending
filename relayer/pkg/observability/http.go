@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -23,6 +25,7 @@ type HealthChecker interface {
 // Server handles HTTP endpoints for metrics and health checks
 type Server struct {
 	port          int
+	portMu        sync.RWMutex
 	healthChecker HealthChecker
 	server        *http.Server
 }
@@ -33,6 +36,13 @@ func NewServer(port int, healthChecker HealthChecker) *Server {
 		port:          port,
 		healthChecker: healthChecker,
 	}
+}
+
+// Port returns the current port (thread-safe for dynamic port assignment)
+func (s *Server) Port() int {
+	s.portMu.RLock()
+	defer s.portMu.RUnlock()
+	return s.port
 }
 
 // Start starts the HTTP server
@@ -51,15 +61,25 @@ func (s *Server) Start() error {
 	// General health endpoint with detailed stats
 	mux.HandleFunc("/health", s.handleHealth)
 
+	// Create listener first to get actual port (supports port 0 for auto-assignment)
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
+	if err != nil {
+		return fmt.Errorf("failed to create listener: %w", err)
+	}
+
+	// Update port with actual assigned port (important for port 0 case)
+	s.portMu.Lock()
+	s.port = listener.Addr().(*net.TCPAddr).Port
+	s.portMu.Unlock()
+
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", s.port),
 		Handler:      mux,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
-	return s.server.ListenAndServe()
+	return s.server.Serve(listener)
 }
 
 // Stop gracefully shuts down the HTTP server
