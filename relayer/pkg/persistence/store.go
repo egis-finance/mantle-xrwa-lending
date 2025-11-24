@@ -183,7 +183,13 @@ func (s *Store) save() error {
 	}
 
 	if err := os.Rename(tempFile, s.filePath); err != nil {
-		_ = os.Remove(tempFile) // Best effort cleanup
+		if removeErr := os.Remove(tempFile); removeErr != nil {
+			logger.Warnw("Failed to clean up temp file after rename failure",
+				"temp_file", tempFile,
+				"rename_error", err,
+				"remove_error", removeErr,
+			)
+		}
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
