@@ -20,6 +20,7 @@ wallets/*.json
 # Go build artifacts
 go/bin/
 relayer/bin/
+*.out
 
 # Go runtime state and data
 go/data/
