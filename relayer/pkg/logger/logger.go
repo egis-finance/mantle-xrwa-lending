@@ -4,13 +4,17 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var global *zap.SugaredLogger
+var (
+	global   *zap.SugaredLogger
+	globalMu sync.RWMutex
+)
 
 // Config holds logger configuration
 type Config struct {
@@ -64,7 +68,9 @@ func Init(cfg Config) error {
 	}
 
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	globalMu.Lock()
 	global = logger.Sugar()
+	globalMu.Unlock()
 
 	return nil
 }
@@ -101,8 +107,20 @@ func getEncoder(format string) zapcore.Encoder {
 
 // Get returns the global logger instance
 func Get() *zap.SugaredLogger {
+	globalMu.RLock()
+	l := global
+	globalMu.RUnlock()
+
+	if l != nil {
+		return l
+	}
+
+	// Initialize fallback logger under write lock
+	globalMu.Lock()
+	defer globalMu.Unlock()
+
+	// Double-check after acquiring write lock
 	if global == nil {
-		// Fallback to development logger if not initialized
 		logger, _ := zap.NewDevelopment()
 		global = logger.Sugar()
 	}
@@ -111,8 +129,12 @@ func Get() *zap.SugaredLogger {
 
 // Sync flushes any buffered log entries
 func Sync() error {
-	if global != nil {
-		return global.Sync()
+	globalMu.RLock()
+	l := global
+	globalMu.RUnlock()
+
+	if l != nil {
+		return l.Sync()
 	}
 	return nil
 }
