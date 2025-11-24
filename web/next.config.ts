@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['wagmi', '@rainbow-me/rainbowkit', 'viem', '@tanstack/react-query'],
+  transpilePackages: ['wagmi', 'viem', '@tanstack/react-query', '@reown/appkit', '@reown/appkit-adapter-wagmi'],
   webpack: (config) => {
     config.resolve.alias = {
       ...config.resolve.alias,

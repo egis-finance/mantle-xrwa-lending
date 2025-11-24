@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { cn } from '@/lib/utils';
+import { SafeAutoConnect } from '@/components/SafeAutoConnect';
 
 const navItems = [
     { name: 'Borrow', href: '/dashboard' },
@@ -53,13 +53,8 @@ export function Navbar() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <ConnectButton
-                        showBalance={false}
-                        accountStatus={{
-                            smallScreen: 'avatar',
-                            largeScreen: 'full',
-                        }}
-                    />
+                    <SafeAutoConnect />
+                    <w3m-button />
                 </div>
             </div>
         </nav>

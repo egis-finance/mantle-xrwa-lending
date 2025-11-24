@@ -14,7 +14,7 @@ const customJestConfig = {
         '^@/(.*)$': '<rootDir>/$1',
     },
     transformIgnorePatterns: [
-        'node_modules/(?!(wagmi|@rainbow-me|rainbowkit|viem|@tanstack|ox)/)',
+        'node_modules/(?!(wagmi|@wagmi|@rainbow-me|rainbowkit|@reown|viem|@tanstack|ox)/)',
     ],
 }
 

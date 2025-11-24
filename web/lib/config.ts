@@ -1,12 +1,6 @@
-import { http, createConfig } from 'wagmi'
-import { mainnet, mantle } from 'wagmi/chains'
-import { connectorsForWallets } from '@rainbow-me/rainbowkit'
-import {
-    rainbowWallet,
-    metaMaskWallet,
-    safeWallet,
-} from '@rainbow-me/rainbowkit/wallets'
-import { safe } from 'wagmi/connectors'
+import { cookieStorage, createStorage } from '@wagmi/core'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { mainnet, mantle } from '@reown/appkit/networks'
 import { type Chain } from 'viem'
 
 if (typeof window === 'undefined') {
@@ -33,38 +27,21 @@ const ethereumVTE = {
     },
 } as const satisfies Chain
 
-const connectors = connectorsForWallets(
-    [
-        {
-            groupName: 'Recommended',
-            wallets: [
-                safeWallet,
-                rainbowWallet,
-                metaMaskWallet,
-            ],
-        },
-    ],
-    {
-        appName: 'Egis Finance',
-        projectId: '38ab5a2e51b9757e06fe37a5261e800a',
-    }
-)
+export const projectId = '38ab5a2e51b9757e06fe37a5261e800a'
 
-export const config = createConfig({
-    chains: [mainnet, mantle, mantleVTE, ethereumVTE],
-    connectors: [
-        // Safe connector for iframe support (auto-detects Safe App)
-        safe({
-            debug: false,
-            shimDisconnect: true,
-        }),
-        ...connectors,
-    ],
-    transports: {
-        [mainnet.id]: http(),
-        [mantle.id]: http(),
-        [mantleVTE.id]: http(),
-        [ethereumVTE.id]: http(),
-    },
+if (!projectId) {
+    throw new Error('Project ID is not defined')
+}
+
+export const networks = [mainnet, mantle, mantleVTE, ethereumVTE]
+
+export const wagmiAdapter = new WagmiAdapter({
+    storage: createStorage({
+        storage: cookieStorage
+    }),
     ssr: true,
+    projectId,
+    networks
 })
+
+export const config = wagmiAdapter.wagmiConfig
