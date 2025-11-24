@@ -27,6 +27,34 @@ func CreateLockedEventQuery(lockerAddress common.Address) ethereum.FilterQuery {
 	}
 }
 
+// withRPCTimeout executes a function with a timeout context, reducing boilerplate
+func withRPCTimeout[T any](ctx context.Context, timeout time.Duration, fn func(context.Context) (T, error)) (T, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return fn(timeoutCtx)
+}
+
+// withRPCTimeoutNoReturn executes a function with timeout that returns only error
+func withRPCTimeoutNoReturn(ctx context.Context, timeout time.Duration, fn func(context.Context) error) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return fn(timeoutCtx)
+}
+
+// SubmitTransactionOpts holds configurable options for transaction submission
+type SubmitTransactionOpts struct {
+	RPCTimeout       time.Duration
+	GasBufferPercent int
+}
+
+// DefaultSubmitOpts returns default options (30s timeout, 20% gas buffer)
+func DefaultSubmitOpts() SubmitTransactionOpts {
+	return SubmitTransactionOpts{
+		RPCTimeout:       30 * time.Second,
+		GasBufferPercent: 20,
+	}
+}
+
 // SubmitTransaction submits a transaction to the Ethereum network and returns tx hash and gas used
 func SubmitTransaction(
 	ctx context.Context,
@@ -35,6 +63,7 @@ func SubmitTransaction(
 	to common.Address,
 	data []byte,
 	metrics *observability.Metrics,
+	opts SubmitTransactionOpts,
 ) (common.Hash, uint64, error) {
 	// Parse private key
 	if len(privateKeyHex) > 2 && privateKeyHex[:2] == "0x" {
@@ -53,105 +82,102 @@ func SubmitTransaction(
 	}
 	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	// Get nonce with timeout
-	nonceCtx, nonceCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer nonceCancel()
+	timeout := opts.RPCTimeout
 
-	nonce, err := client.PendingNonceAt(nonceCtx, fromAddress)
-	if err != nil {
-		if metrics != nil {
+	// Get nonce with timeout
+	nonce, err := withRPCTimeout(ctx, timeout, func(tctx context.Context) (uint64, error) {
+		n, e := client.PendingNonceAt(tctx, fromAddress)
+		if e != nil && metrics != nil {
 			metrics.RPCErrorsTotal.WithLabelValues("ethereum", "pending_nonce_at").Inc()
+		} else if metrics != nil {
+			metrics.RPCCallsTotal.WithLabelValues("ethereum", "pending_nonce_at").Inc()
 		}
+		return n, e
+	})
+	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to get nonce: %w", err)
-	}
-	if metrics != nil {
-		metrics.RPCCallsTotal.WithLabelValues("ethereum", "pending_nonce_at").Inc()
 	}
 
 	// Get gas price with timeout
-	gasPriceCtx, gasPriceCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer gasPriceCancel()
-
-	gasPrice, err := client.SuggestGasPrice(gasPriceCtx)
-	if err != nil {
-		if metrics != nil {
+	gasPrice, err := withRPCTimeout(ctx, timeout, func(tctx context.Context) (*big.Int, error) {
+		p, e := client.SuggestGasPrice(tctx)
+		if e != nil && metrics != nil {
 			metrics.RPCErrorsTotal.WithLabelValues("ethereum", "suggest_gas_price").Inc()
+		} else if metrics != nil {
+			metrics.RPCCallsTotal.WithLabelValues("ethereum", "suggest_gas_price").Inc()
 		}
+		return p, e
+	})
+	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to get gas price: %w", err)
-	}
-	if metrics != nil {
-		metrics.RPCCallsTotal.WithLabelValues("ethereum", "suggest_gas_price").Inc()
 	}
 
 	// Estimate gas limit with timeout
-	estimateCtx, estimateCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer estimateCancel()
-
 	msg := ethereum.CallMsg{
 		From: fromAddress,
 		To:   &to,
 		Data: data,
 	}
-	gasLimit, err := client.EstimateGas(estimateCtx, msg)
-	if err != nil {
-		if metrics != nil {
+	gasLimit, err := withRPCTimeout(ctx, timeout, func(tctx context.Context) (uint64, error) {
+		g, e := client.EstimateGas(tctx, msg)
+		if e != nil && metrics != nil {
 			metrics.RPCErrorsTotal.WithLabelValues("ethereum", "estimate_gas").Inc()
+		} else if metrics != nil {
+			metrics.RPCCallsTotal.WithLabelValues("ethereum", "estimate_gas").Inc()
 		}
+		return g, e
+	})
+	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to estimate gas: %w", err)
 	}
-	if metrics != nil {
-		metrics.RPCCallsTotal.WithLabelValues("ethereum", "estimate_gas").Inc()
-	}
 
-	// Add 20% buffer to gas limit
-	gasLimit = gasLimit * 120 / 100
+	// Apply gas buffer
+	gasLimit = gasLimit * uint64(100+opts.GasBufferPercent) / 100
 
 	// Get chain ID with timeout
-	chainIDCtx, chainIDCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer chainIDCancel()
-
-	chainID, err := client.NetworkID(chainIDCtx)
-	if err != nil {
-		if metrics != nil {
+	chainID, err := withRPCTimeout(ctx, timeout, func(tctx context.Context) (*big.Int, error) {
+		id, e := client.NetworkID(tctx)
+		if e != nil && metrics != nil {
 			metrics.RPCErrorsTotal.WithLabelValues("ethereum", "network_id").Inc()
+		} else if metrics != nil {
+			metrics.RPCCallsTotal.WithLabelValues("ethereum", "network_id").Inc()
 		}
+		return id, e
+	})
+	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to get chain ID: %w", err)
 	}
-	if metrics != nil {
-		metrics.RPCCallsTotal.WithLabelValues("ethereum", "network_id").Inc()
-	}
 
-	// Create transaction
+	// Create and sign transaction
 	tx := types.NewTransaction(nonce, to, big.NewInt(0), gasLimit, gasPrice, data)
-
-	// Sign transaction
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
 	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to sign transaction: %w", err)
 	}
 
 	// Send transaction with timeout
-	sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer sendCancel()
-
-	err = client.SendTransaction(sendCtx, signedTx)
-	if err != nil {
-		if metrics != nil {
+	err = withRPCTimeoutNoReturn(ctx, timeout, func(tctx context.Context) error {
+		e := client.SendTransaction(tctx, signedTx)
+		if e != nil && metrics != nil {
 			metrics.RPCErrorsTotal.WithLabelValues("ethereum", "send_transaction").Inc()
+		} else if metrics != nil {
+			metrics.RPCCallsTotal.WithLabelValues("ethereum", "send_transaction").Inc()
 		}
+		return e
+	})
+	if err != nil {
 		return common.Hash{}, 0, fmt.Errorf("failed to send transaction: %w", err)
-	}
-	if metrics != nil {
-		metrics.RPCCallsTotal.WithLabelValues("ethereum", "send_transaction").Inc()
 	}
 
 	return signedTx.Hash(), gasLimit, nil
 }
 
 // RetryWithBackoff executes a function with exponential backoff retry logic
-func RetryWithBackoff(ctx context.Context, maxRetries int, metrics *observability.Metrics, operation string, fn func() error) error {
+func RetryWithBackoff(ctx context.Context, maxRetries int, baseDelay time.Duration, metrics *observability.Metrics, operation string, fn func() error) error {
 	var lastErr error
-	baseDelay := 1 * time.Second
+	if baseDelay == 0 {
+		baseDelay = time.Second // default to 1 second
+	}
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		err := fn()

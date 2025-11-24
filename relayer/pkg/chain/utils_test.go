@@ -59,7 +59,7 @@ func TestSubmitTransaction_Success(t *testing.T) {
 		return nil
 	}
 
-	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.NoError(t, err)
 	require.NotEqual(t, common.Hash{}, txHash)
@@ -84,7 +84,7 @@ func TestSubmitTransaction_InvalidPrivateKey(t *testing.T) {
 	to := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	data := []byte{0x01, 0x02, 0x03}
 
-	_, _, err := SubmitTransaction(ctx, mockClient, invalidPrivateKey, to, data, metrics)
+	_, _, err := SubmitTransaction(ctx, mockClient, invalidPrivateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid private key")
@@ -112,7 +112,7 @@ func TestSubmitTransaction_GasEstimationFailure(t *testing.T) {
 		return 0, errors.New("gas estimation failed")
 	}
 
-	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to estimate gas")
@@ -134,7 +134,7 @@ func TestSubmitTransaction_NonceFailure(t *testing.T) {
 		return 0, errors.New("nonce retrieval failed")
 	}
 
-	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to get nonce")
@@ -168,7 +168,7 @@ func TestSubmitTransaction_SendTransactionFailure(t *testing.T) {
 		return errors.New("transaction rejected")
 	}
 
-	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	_, _, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to send transaction")
@@ -192,7 +192,7 @@ func TestSubmitTransaction_GasBuffer(t *testing.T) {
 		return estimatedGas, nil
 	}
 
-	_, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	_, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.NoError(t, err)
 	require.Equal(t, expectedGasWithBuffer, gasUsed)
@@ -210,7 +210,7 @@ func TestRetryWithBackoff_Success(t *testing.T) {
 		return nil
 	}
 
-	err := RetryWithBackoff(ctx, 3, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 3, time.Second, metrics, "test_operation", operation)
 
 	require.NoError(t, err)
 	require.Equal(t, 1, callCount, "should succeed on first try")
@@ -231,7 +231,7 @@ func TestRetryWithBackoff_SuccessAfterRetries(t *testing.T) {
 		return nil
 	}
 
-	err := RetryWithBackoff(ctx, 5, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 5, time.Second, metrics, "test_operation", operation)
 
 	require.NoError(t, err)
 	require.Equal(t, 3, callCount, "should succeed on third try")
@@ -250,7 +250,7 @@ func TestRetryWithBackoff_MaxRetriesExceeded(t *testing.T) {
 	}
 
 	maxRetries := 3
-	err := RetryWithBackoff(ctx, maxRetries, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, maxRetries, time.Second, metrics, "test_operation", operation)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "operation failed after")
@@ -273,7 +273,7 @@ func TestRetryWithBackoff_ContextCancellation(t *testing.T) {
 		return errors.New("failure")
 	}
 
-	err := RetryWithBackoff(ctx, 10, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 10, time.Second, metrics, "test_operation", operation)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context cancelled")
@@ -295,7 +295,7 @@ func TestRetryWithBackoff_ExponentialDelay(t *testing.T) {
 		return nil
 	}
 
-	err := RetryWithBackoff(ctx, 5, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 5, time.Second, metrics, "test_operation", operation)
 
 	require.NoError(t, err)
 	require.Len(t, attempts, 4)
@@ -328,7 +328,7 @@ func TestRetryWithBackoff_MetricsRecorded(t *testing.T) {
 		return nil
 	}
 
-	err := RetryWithBackoff(ctx, 5, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 5, time.Second, metrics, "test_operation", operation)
 
 	require.NoError(t, err)
 
@@ -348,7 +348,7 @@ func TestRetryWithBackoff_ZeroRetries(t *testing.T) {
 		return errors.New("failure")
 	}
 
-	err := RetryWithBackoff(ctx, 0, metrics, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 0, time.Second, metrics, "test_operation", operation)
 
 	require.Error(t, err)
 	require.Equal(t, 1, callCount, "should try once with zero retries")
@@ -366,7 +366,7 @@ func TestSubmitTransaction_WithHexPrefix(t *testing.T) {
 	to := common.HexToAddress("0x2222222222222222222222222222222222222222")
 	data := []byte{0x01, 0x02, 0x03}
 
-	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics)
+	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, metrics, DefaultSubmitOpts())
 
 	require.NoError(t, err)
 	require.NotEqual(t, common.Hash{}, txHash)
@@ -384,7 +384,7 @@ func TestSubmitTransaction_NilMetrics(t *testing.T) {
 	data := []byte{0x01, 0x02, 0x03}
 
 	// Should not panic with nil metrics
-	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, nil)
+	txHash, gasUsed, err := SubmitTransaction(ctx, mockClient, privateKey, to, data, nil, DefaultSubmitOpts())
 
 	require.NoError(t, err)
 	require.NotEqual(t, common.Hash{}, txHash)
@@ -403,7 +403,7 @@ func TestRetryWithBackoff_NilMetrics(t *testing.T) {
 	}
 
 	// Should not panic with nil metrics
-	err := RetryWithBackoff(ctx, 3, nil, "test_operation", operation)
+	err := RetryWithBackoff(ctx, 3, time.Second, nil, "test_operation", operation)
 
 	require.NoError(t, err)
 	require.Equal(t, 1, callCount)
