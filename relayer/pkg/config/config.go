@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/joho/godotenv"
@@ -16,6 +17,7 @@ type Config struct {
 	Ethereum    ChainConfig
 	DVN         DVNConfig
 	Retry       RetryConfig
+	Relayer     RelayerConfig
 	Persistence PersistenceConfig
 	Logging     LoggingConfig
 	HTTP        HTTPConfig
@@ -24,9 +26,18 @@ type Config struct {
 
 // RetryConfig holds retry behavior configuration
 type RetryConfig struct {
-	MaxRetries     int
-	EnableBackoff  bool
-	HealthCheckInterval int // seconds
+	MaxRetries          int
+	EnableBackoff       bool
+	HealthCheckInterval int           // seconds
+	BaseRetryDelay      time.Duration // base delay for exponential backoff
+	RPCTimeout          time.Duration // timeout for RPC calls
+}
+
+// RelayerConfig holds relayer-specific tuning parameters
+type RelayerConfig struct {
+	PollInterval     time.Duration // polling interval when subscription unavailable
+	BlockLookback    uint64        // blocks to scan on startup in polling mode
+	GasBufferPercent int           // percentage buffer added to gas estimates
 }
 
 // PersistenceConfig holds persistence settings
@@ -134,6 +145,13 @@ func Load() (*Config, error) {
 	cfg.Retry.MaxRetries = getEnvIntWithDefault("RELAYER_MAX_RETRIES", 5)
 	cfg.Retry.EnableBackoff = getEnvBoolWithDefault("RELAYER_ENABLE_BACKOFF", true)
 	cfg.Retry.HealthCheckInterval = getEnvIntWithDefault("RELAYER_HEALTH_CHECK_INTERVAL", 30)
+	cfg.Retry.BaseRetryDelay = time.Duration(getEnvIntWithDefault("RELAYER_BASE_RETRY_DELAY", 1)) * time.Second
+	cfg.Retry.RPCTimeout = time.Duration(getEnvIntWithDefault("RELAYER_RPC_TIMEOUT", 30)) * time.Second
+
+	// Relayer tuning configuration (with defaults)
+	cfg.Relayer.PollInterval = time.Duration(getEnvIntWithDefault("RELAYER_POLL_INTERVAL", 12)) * time.Second
+	cfg.Relayer.BlockLookback = uint64(getEnvIntWithDefault("RELAYER_BLOCK_LOOKBACK", 100))
+	cfg.Relayer.GasBufferPercent = getEnvIntWithDefault("RELAYER_GAS_BUFFER_PERCENT", 20)
 
 	// Persistence configuration (with defaults)
 	cfg.Persistence.Enabled = getEnvBoolWithDefault("RELAYER_PERSISTENCE_ENABLED", true)
