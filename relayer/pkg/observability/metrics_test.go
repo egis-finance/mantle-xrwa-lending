@@ -9,8 +9,6 @@ import (
 )
 
 func TestNewMetrics(t *testing.T) {
-	t.Parallel()
-
 	metrics := NewMetrics()
 	require.NotNil(t, metrics)
 
@@ -155,8 +153,6 @@ func TestMetrics_Gauges(t *testing.T) {
 }
 
 func TestMetrics_Integration(t *testing.T) {
-	t.Parallel()
-
 	// Test metrics in a more realistic scenario
 	metrics := NewMetrics()
 
@@ -175,8 +171,6 @@ func TestMetrics_Integration(t *testing.T) {
 }
 
 func TestMetrics_FailureScenario(t *testing.T) {
-	t.Parallel()
-
 	metrics := NewMetrics()
 
 	// Simulate failures
@@ -192,8 +186,6 @@ func TestMetrics_FailureScenario(t *testing.T) {
 }
 
 func TestMetrics_DuplicateDetection(t *testing.T) {
-	t.Parallel()
-
 	metrics := NewMetrics()
 
 	// Simulate duplicate lock events
@@ -206,8 +198,6 @@ func TestMetrics_DuplicateDetection(t *testing.T) {
 }
 
 func TestMetrics_HealthChecks(t *testing.T) {
-	t.Parallel()
-
 	metrics := NewMetrics()
 
 	// Set health check statuses
@@ -224,8 +214,6 @@ func TestMetrics_HealthChecks(t *testing.T) {
 }
 
 func TestMetrics_RPCDuration(t *testing.T) {
-	t.Parallel()
-
 	metrics := NewMetrics()
 
 	// Record RPC call durations

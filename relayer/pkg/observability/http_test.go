@@ -42,13 +42,11 @@ func TestNewServer(t *testing.T) {
 
 	server := NewServer(8080, checker)
 	require.NotNil(t, server)
-	require.Equal(t, 8080, server.port)
+	require.Equal(t, 8080, server.Port())
 	require.Equal(t, checker, server.healthChecker)
 }
 
 func TestServer_LivenessEndpoint_Healthy(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: true}
 	server := NewServer(0, checker) // Port 0 for automatic assignment
 
@@ -66,9 +64,9 @@ func TestServer_LivenessEndpoint_Healthy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to liveness endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -78,8 +76,6 @@ func TestServer_LivenessEndpoint_Healthy(t *testing.T) {
 }
 
 func TestServer_LivenessEndpoint_Unhealthy(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: false}
 	server := NewServer(0, checker)
 
@@ -97,16 +93,14 @@ func TestServer_LivenessEndpoint_Unhealthy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to liveness endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestServer_ReadinessEndpoint_Ready(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{ready: true}
 	server := NewServer(0, checker)
 
@@ -124,9 +118,9 @@ func TestServer_ReadinessEndpoint_Ready(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to readiness endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/ready", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/ready", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -136,8 +130,6 @@ func TestServer_ReadinessEndpoint_Ready(t *testing.T) {
 }
 
 func TestServer_ReadinessEndpoint_NotReady(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{ready: false}
 	server := NewServer(0, checker)
 
@@ -155,16 +147,14 @@ func TestServer_ReadinessEndpoint_NotReady(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to readiness endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/ready", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/ready", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 }
 
 func TestServer_HealthEndpoint_Healthy(t *testing.T) {
-	t.Parallel()
-
 	stats := map[string]interface{}{
 		"event_count":     42,
 		"mantle_healthy":  true,
@@ -192,9 +182,9 @@ func TestServer_HealthEndpoint_Healthy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to health endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
@@ -214,8 +204,6 @@ func TestServer_HealthEndpoint_Healthy(t *testing.T) {
 }
 
 func TestServer_HealthEndpoint_Unhealthy(t *testing.T) {
-	t.Parallel()
-
 	stats := map[string]interface{}{
 		"event_count":     10,
 		"mantle_healthy":  false,
@@ -243,9 +231,9 @@ func TestServer_HealthEndpoint_Unhealthy(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to health endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
@@ -259,8 +247,6 @@ func TestServer_HealthEndpoint_Unhealthy(t *testing.T) {
 }
 
 func TestServer_MetricsEndpoint(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: true, ready: true}
 	server := NewServer(0, checker)
 
@@ -278,9 +264,9 @@ func TestServer_MetricsEndpoint(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make request to metrics endpoint
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", server.Port()))
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -295,8 +281,6 @@ func TestServer_MetricsEndpoint(t *testing.T) {
 }
 
 func TestServer_MethodNotAllowed(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: true, ready: true}
 	server := NewServer(0, checker)
 
@@ -314,16 +298,14 @@ func TestServer_MethodNotAllowed(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Make POST request to liveness endpoint (should only accept GET)
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/health/live", server.port), "text/plain", nil)
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/health/live", server.Port()), "text/plain", nil)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	require.Equal(t, http.StatusMethodNotAllowed, resp.StatusCode)
 }
 
 func TestServer_GracefulShutdown(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: true, ready: true}
 	server := NewServer(0, checker)
 
@@ -336,9 +318,9 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify server is responding
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.Port()))
 	require.NoError(t, err)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	// Gracefully shutdown
@@ -350,13 +332,11 @@ func TestServer_GracefulShutdown(t *testing.T) {
 
 	// Server should no longer respond
 	time.Sleep(100 * time.Millisecond)
-	_, err = http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.port))
+	_, err = http.Get(fmt.Sprintf("http://localhost:%d/health/live", server.Port()))
 	require.Error(t, err)
 }
 
 func TestServer_StopWithoutStart(t *testing.T) {
-	t.Parallel()
-
 	checker := &mockHealthChecker{healthy: true, ready: true}
 	server := NewServer(8080, checker)
 
@@ -369,8 +349,6 @@ func TestServer_StopWithoutStart(t *testing.T) {
 }
 
 func TestServer_MultipleEndpoints(t *testing.T) {
-	t.Parallel()
-
 	stats := map[string]interface{}{
 		"total_processed": 100,
 		"last_event":      "2024-01-01T00:00:00Z",
@@ -400,9 +378,9 @@ func TestServer_MultipleEndpoints(t *testing.T) {
 	endpoints := []string{"/health/live", "/health/ready", "/health", "/metrics"}
 
 	for _, endpoint := range endpoints {
-		resp, err := http.Get(fmt.Sprintf("http://localhost:%d%s", server.port, endpoint))
+		resp, err := http.Get(fmt.Sprintf("http://localhost:%d%s", server.Port(), endpoint))
 		require.NoError(t, err, "endpoint: %s", endpoint)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "endpoint: %s", endpoint)
 	}
 }

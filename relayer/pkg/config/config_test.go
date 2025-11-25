@@ -8,8 +8,6 @@ import (
 )
 
 func TestLoad_Success(t *testing.T) {
-	t.Parallel()
-
 	// Set all required environment variables
 	envVars := map[string]string{
 		"MANTLE_CHAIN_ID":    "15000",
@@ -24,7 +22,7 @@ func TestLoad_Success(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -52,8 +50,6 @@ func TestLoad_Success(t *testing.T) {
 }
 
 func TestLoad_MissingMantleChainID(t *testing.T) {
-	t.Parallel()
-
 	// Clear environment
 	os.Clearenv()
 
@@ -63,12 +59,10 @@ func TestLoad_MissingMantleChainID(t *testing.T) {
 }
 
 func TestLoad_MissingMantleRPC(t *testing.T) {
-	t.Parallel()
-
 	// Set partial environment
 	os.Clearenv()
 	require.NoError(t, os.Setenv("MANTLE_CHAIN_ID", "15000"))
-	defer os.Unsetenv("MANTLE_CHAIN_ID")
+	defer func() { _ = os.Unsetenv("MANTLE_CHAIN_ID") }()
 
 	_, err := Load()
 	require.Error(t, err)
@@ -76,13 +70,11 @@ func TestLoad_MissingMantleRPC(t *testing.T) {
 }
 
 func TestLoad_MissingMantleLocker(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 	require.NoError(t, os.Setenv("MANTLE_CHAIN_ID", "15000"))
 	require.NoError(t, os.Setenv("MANTLE_RPC_VTE", "https://mantle-rpc.example.com"))
-	defer os.Unsetenv("MANTLE_CHAIN_ID")
-	defer os.Unsetenv("MANTLE_RPC_VTE")
+	defer func() { _ = os.Unsetenv("MANTLE_CHAIN_ID") }()
+	defer func() { _ = os.Unsetenv("MANTLE_RPC_VTE") }()
 
 	_, err := Load()
 	require.Error(t, err)
@@ -90,15 +82,13 @@ func TestLoad_MissingMantleLocker(t *testing.T) {
 }
 
 func TestLoad_MissingEthereumChainID(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 	require.NoError(t, os.Setenv("MANTLE_CHAIN_ID", "15000"))
 	require.NoError(t, os.Setenv("MANTLE_RPC_VTE", "https://mantle-rpc.example.com"))
 	require.NoError(t, os.Setenv("MANTLE_LOCKER", "0x1111111111111111111111111111111111111111"))
-	defer os.Unsetenv("MANTLE_CHAIN_ID")
-	defer os.Unsetenv("MANTLE_RPC_VTE")
-	defer os.Unsetenv("MANTLE_LOCKER")
+	defer func() { _ = os.Unsetenv("MANTLE_CHAIN_ID") }()
+	defer func() { _ = os.Unsetenv("MANTLE_RPC_VTE") }()
+	defer func() { _ = os.Unsetenv("MANTLE_LOCKER") }()
 
 	_, err := Load()
 	require.Error(t, err)
@@ -106,8 +96,6 @@ func TestLoad_MissingEthereumChainID(t *testing.T) {
 }
 
 func TestLoad_MissingDVNPrivateKey(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 	envVars := map[string]string{
 		"MANTLE_CHAIN_ID":   "15000",
@@ -120,7 +108,7 @@ func TestLoad_MissingDVNPrivateKey(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	_, err := Load()
@@ -129,8 +117,6 @@ func TestLoad_MissingDVNPrivateKey(t *testing.T) {
 }
 
 func TestLoad_WithDefaults(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables
@@ -147,7 +133,7 @@ func TestLoad_WithDefaults(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -172,11 +158,9 @@ func TestLoad_WithDefaults(t *testing.T) {
 }
 
 func TestLoad_InvalidChainID(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 	require.NoError(t, os.Setenv("MANTLE_CHAIN_ID", "invalid"))
-	defer os.Unsetenv("MANTLE_CHAIN_ID")
+	defer func() { _ = os.Unsetenv("MANTLE_CHAIN_ID") }()
 
 	_, err := Load()
 	require.Error(t, err)
@@ -184,8 +168,6 @@ func TestLoad_InvalidChainID(t *testing.T) {
 }
 
 func TestLoad_LoggingConfig(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables plus logging config
@@ -208,7 +190,7 @@ func TestLoad_LoggingConfig(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -224,8 +206,6 @@ func TestLoad_LoggingConfig(t *testing.T) {
 }
 
 func TestLoad_HTTPConfig(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables plus HTTP config
@@ -243,7 +223,7 @@ func TestLoad_HTTPConfig(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -254,8 +234,6 @@ func TestLoad_HTTPConfig(t *testing.T) {
 }
 
 func TestLoad_TracingConfig(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables plus tracing config
@@ -276,7 +254,7 @@ func TestLoad_TracingConfig(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -290,8 +268,6 @@ func TestLoad_TracingConfig(t *testing.T) {
 }
 
 func TestLoad_CustomRetryConfig(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables plus custom retry config
@@ -311,7 +287,7 @@ func TestLoad_CustomRetryConfig(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
@@ -324,8 +300,6 @@ func TestLoad_CustomRetryConfig(t *testing.T) {
 }
 
 func TestLoad_CustomPersistenceConfig(t *testing.T) {
-	t.Parallel()
-
 	os.Clearenv()
 
 	// Set all required environment variables plus custom persistence config
@@ -344,7 +318,7 @@ func TestLoad_CustomPersistenceConfig(t *testing.T) {
 
 	for key, value := range envVars {
 		require.NoError(t, os.Setenv(key, value))
-		defer os.Unsetenv(key)
+		defer func(k string) { _ = os.Unsetenv(k) }(key)
 	}
 
 	cfg, err := Load()
