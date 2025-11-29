@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # DVN Relayer service
   relayer:
@@ -10,6 +8,7 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"  # HTTP metrics and health endpoints
+    env_file: ../.env
     environment:
       # Chain configuration (from host .env)
       MANTLE_CHAIN_ID: ${MANTLE_CHAIN_ID}
@@ -61,7 +60,7 @@ services:
 
   # Jaeger for distributed tracing
   jaeger:
-    image: jaegertracing/all-in-one:1.66
+    image: jaegertracing/all-in-one:1.55
     container_name: xrwa-jaeger
     restart: unless-stopped
     ports:

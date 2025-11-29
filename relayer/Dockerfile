@@ -27,6 +27,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o /relayer \
     ./cmd/relayer
 
+# Create empty data directory for persistence
+RUN mkdir -p /app/data
+
 # Runtime stage with distroless
 FROM gcr.io/distroless/static-debian12:nonroot
 
@@ -57,6 +60,9 @@ FROM gcr.io/distroless/base-debian12:nonroot AS final
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /relayer /relayer
+
+# Create data directory with correct ownership (nonroot user has uid 65532)
+COPY --from=builder --chown=65532:65532 /app/data /app/data
 
 USER nonroot:nonroot
 WORKDIR /app

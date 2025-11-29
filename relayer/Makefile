@@ -1,3 +1,7 @@
+# Load environment from parent directory
+-include ../.env
+export
+
 .PHONY: help build test lint clean run docker-build docker-up docker-down docker-logs integration-test
 
 # Default target
@@ -73,6 +77,10 @@ docker-build:
 	docker build -t xrwa-dvn-relayer:latest .
 
 docker-up:
+	@echo "Starting Docker Compose stack..."
+	docker-compose up
+
+docker-up-d:
 	@echo "Starting Docker Compose stack..."
 	docker-compose up -d
 
