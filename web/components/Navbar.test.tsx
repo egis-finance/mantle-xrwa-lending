@@ -15,7 +15,7 @@ describe('Navbar', () => {
 
     expect(screen.getByText('Borrow')).toBeInTheDocument()
     expect(screen.getByText('Earn')).toBeInTheDocument()
-    expect(screen.getByText('Admin')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
   })
 
   it('renders the logo', () => {
@@ -34,8 +34,9 @@ describe('Navbar', () => {
   it('highlights active navigation item', () => {
     render(<Navbar />)
 
-    const borrowLink = screen.getByText('Borrow')
-    expect(borrowLink.className).toContain('text-brand-DEFAULT')
-    expect(borrowLink.className).toContain('font-semibold')
+    // Mock pathname is /dashboard, so Dashboard link should be active
+    const dashboardLink = screen.getByText('Dashboard')
+    expect(dashboardLink.className).toContain('text-brand-DEFAULT')
+    expect(dashboardLink.className).toContain('font-semibold')
   })
 })

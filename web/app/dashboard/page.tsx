@@ -3,173 +3,155 @@
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';
-
+import { Activity, Link as LinkIcon, RefreshCw } from 'lucide-react';
 
 export default function DashboardPage() {
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
             <Navbar />
 
-            <main className="flex-1 container max-w-screen-2xl py-8 space-y-8">
+            <main className="flex-1 container max-w-screen-2xl py-8 space-y-6">
                 {/* Header */}
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-serif font-bold text-brand-dark">Borrower Terminal</h1>
-                    <p className="text-brand-muted">Manage your cross-chain collateral and Morpho Blue positions.</p>
+                    <h1 className="text-3xl font-serif font-bold text-brand-dark">Mission Control</h1>
+                    <p className="text-brand-muted">System monitoring and risk management operations.</p>
                 </div>
 
-                {/* Cross-Chain Asset Bridge Card */}
-                <Card className="overflow-hidden border-none shadow-soft-xl">
-                    <div className="grid md:grid-cols-[1fr_auto_1fr] gap-0">
+                {/* Global Health Bar */}
+                <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl">
+                    <CardContent className="p-6 flex flex-wrap items-center justify-between gap-6">
 
-                        {/* Mantle Side */}
-                        <div className="bg-mantle-light/30 p-8 flex flex-col gap-6 border-r border-brand-light">
-                            <div className="flex items-center gap-3">
-                                <div className="relative h-8 w-8">
-                                    {/* Placeholder for Mantle Icon */}
-                                    <div className="w-8 h-8 bg-mantle rounded-full flex items-center justify-center text-white font-bold text-xs">M</div>
-                                </div>
-                                <h3 className="text-xl font-semibold text-brand-dark">Mantle Vault</h3>
-                            </div>
-
+                        <div className="flex items-center gap-8">
                             <div className="space-y-1">
-                                <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Available Balance</p>
-                                <p className="text-4xl font-bold text-brand-dark">150,000.00 <span className="text-xl text-brand-muted font-normal">USDY</span></p>
-                            </div>
-
-                            <div className="mt-auto space-y-3">
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        placeholder="Amount to lock"
-                                        className="w-full h-12 pl-4 pr-12 rounded-lg border border-input bg-white focus:ring-2 focus:ring-mantle/50 outline-none transition-all"
-                                    />
-                                    <button className="absolute right-2 top-2 text-xs font-medium text-mantle hover:text-mantle-dark px-2 py-1 rounded bg-mantle-light">MAX</button>
+                                <p className="text-xs text-brand-muted uppercase tracking-wider">Cross-Chain TVL Peg</p>
+                                <div className="flex items-center gap-3">
+                                    <span className="font-mono font-bold text-brand-dark">$25.00M <span className="text-xs text-mantle font-normal">Mantle</span></span>
+                                    <LinkIcon className="h-4 w-4 text-success-DEFAULT" />
+                                    <span className="font-mono font-bold text-brand-dark">$25.00M <span className="text-xs text-eth font-normal">Eth</span></span>
                                 </div>
-                                <Button variant="mantle" className="w-full h-12 text-lg shadow-mantle/20">
-                                    <Lock className="mr-2 h-4 w-4" /> Propose Lock & Bridge
-                                </Button>
                             </div>
+                            <span className="bg-success-light text-success-DEFAULT text-xs font-bold px-3 py-1 rounded-full border border-success-DEFAULT/20">
+                                System Balanced
+                            </span>
                         </div>
 
-                        {/* Bridge Visual */}
-                        <div className="relative flex items-center justify-center p-4 bg-white/50 backdrop-blur-sm min-h-[100px] md:min-h-auto">
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-full h-[1px] bg-gradient-to-r from-mantle/30 via-brand/30 to-eth/30"></div>
-                            </div>
-                            <div className="relative z-10 bg-white p-3 rounded-full shadow-floating border border-brand-light">
-                                <ArrowRightLeft className="h-6 w-6 text-brand-muted" />
-                            </div>
-                        </div>
+                        <div className="h-10 w-px bg-border hidden md:block"></div>
 
-                        {/* Ethereum Side */}
-                        <div className="bg-eth-light/30 p-8 flex flex-col gap-6 border-l border-brand-light">
-                            <div className="flex items-center gap-3">
-                                <div className="relative h-8 w-8">
-                                    {/* Placeholder for Eth Icon */}
-                                    <div className="w-8 h-8 bg-eth rounded-full flex items-center justify-center text-white font-bold text-xs">E</div>
-                                </div>
-                                <h3 className="text-xl font-semibold text-brand-dark">Ethereum Collateral</h3>
-                            </div>
-
-                            <div className="space-y-1">
-                                <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Minted Collateral</p>
-                                <p className="text-4xl font-bold text-brand-dark">0.00 <span className="text-xl text-brand-muted font-normal">AcUSDY</span></p>
-                            </div>
-
-                            <div className="mt-auto">
-                                <div className="p-4 rounded-lg bg-white/60 border border-brand-light/50 text-center space-y-3">
-                                    <p className="text-sm text-brand-muted">No pending attestations</p>
-                                    <Button disabled variant="secondary" className="w-full opacity-50 cursor-not-allowed">
-                                        Propose Mint
-                                    </Button>
+                        <div className="flex items-center gap-4">
+                            <div className="space-y-1 text-right">
+                                <p className="text-xs text-brand-muted uppercase tracking-wider">Oracle Heartbeat</p>
+                                <div className="flex items-center gap-2 justify-end">
+                                    <span className="text-sm font-medium text-brand-dark">Last Update: 2m ago</span>
+                                    <span className="relative flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-DEFAULT opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-success-DEFAULT"></span>
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
-                    </div>
+                    </CardContent>
                 </Card>
 
-                {/* Lower Section: Transaction Builder & Health */}
-                <div className="grid lg:grid-cols-[3fr_2fr] gap-8">
+                {/* Main Ops Tables */}
+                <div className="grid lg:grid-cols-[3fr_2fr] gap-6">
 
-                    {/* Safe Transaction Builder */}
+                    {/* Liquidation Radar */}
                     <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Wallet className="h-5 w-5 text-brand-DEFAULT" />
-                                Safe Transaction Builder
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Activity className="h-5 w-5 text-brand-DEFAULT" /> Liquidation Radar
                             </CardTitle>
+                            <Button variant="outline" size="sm"><RefreshCw className="h-4 w-4" /></Button>
                         </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="space-y-4">
-                                <label className="text-sm font-medium text-brand-dark">Borrow Amount (USDC)</label>
-                                <div className="flex gap-4">
-                                    <input
-                                        type="number"
-                                        className="flex-1 h-12 px-4 rounded-lg border border-input bg-white focus:ring-2 focus:ring-brand/50 outline-none"
-                                        placeholder="0.00"
-                                    />
-                                    <Button size="lg">Add to Batch</Button>
-                                </div>
-                            </div>
-
-                            <div className="bg-brand-light/30 rounded-xl p-6 space-y-4 border border-brand-light">
-                                <h4 className="text-sm font-semibold text-brand-muted uppercase tracking-wider">Proposed Batch Actions</h4>
-                                <div className="space-y-3">
-                                    {[1, 2, 3].map((step) => (
-                                        <div key={step} className="flex items-center gap-4 p-3 bg-white rounded-lg border border-brand-light/50 shadow-sm">
-                                            <div className="h-6 w-6 rounded-full bg-brand-light text-brand-DEFAULT flex items-center justify-center text-xs font-bold border border-brand/20">
-                                                {step}
-                                            </div>
-                                            <span className="text-sm font-medium text-brand-dark">
-                                                {step === 1 ? 'Approve AcUSDY Manager' : step === 2 ? 'Supply AcUSDY Collateral' : 'Borrow USDC'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="pt-4 flex gap-4">
-                                    <Button variant="outline" className="flex-1">Simulate Batch</Button>
-                                    <Button className="flex-[2]">Propose Transaction</Button>
-                                </div>
+                        <CardContent>
+                            <div className="rounded-lg border border-border overflow-hidden">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-brand-light/50 text-brand-muted font-medium uppercase text-xs">
+                                        <tr>
+                                            <th className="p-4">Safe Address</th>
+                                            <th className="p-4">Health Factor</th>
+                                            <th className="p-4">Debt</th>
+                                            <th className="p-4 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        <tr className="bg-white">
+                                            <td className="p-4 font-mono text-brand-dark">0xab...45</td>
+                                            <td className="p-4 text-success-DEFAULT font-bold">1.66</td>
+                                            <td className="p-4">$60,000</td>
+                                            <td className="p-4 text-right text-brand-muted">-</td>
+                                        </tr>
+                                        <tr className="bg-warning-light/10">
+                                            <td className="p-4 font-mono text-brand-dark">0xcd...89</td>
+                                            <td className="p-4 text-warning-DEFAULT font-bold">1.17</td>
+                                            <td className="p-4">$85,000</td>
+                                            <td className="p-4 text-right text-brand-muted">-</td>
+                                        </tr>
+                                        <tr className="bg-danger-light/10">
+                                            <td className="p-4 font-mono text-brand-dark">0xef...12</td>
+                                            <td className="p-4 text-danger-DEFAULT font-bold">1.02</td>
+                                            <td className="p-4">$98,000</td>
+                                            <td className="p-4 text-right">
+                                                <Button size="sm" variant="destructive" className="h-8">Trigger Liq</Button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Loan Health Monitor */}
+                    {/* Release Queue */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <ShieldCheck className="h-5 w-5 text-success" />
-                                Loan Health
-                            </CardTitle>
+                            <CardTitle className="text-lg">Release Queue</CardTitle>
                         </CardHeader>
-                        <CardContent className="flex flex-col items-center justify-center py-8 space-y-8">
-                            {/* Gauge Placeholder */}
-                            <div className="relative w-48 h-24 bg-gradient-to-t from-brand-light to-white rounded-t-full border-t-8 border-x-8 border-brand-light flex items-end justify-center overflow-hidden">
-                                <div className="absolute bottom-0 w-full text-center pb-2">
-                                    <span className="text-3xl font-bold text-brand-dark">65%</span>
-                                    <p className="text-xs text-brand-muted">Current LTV</p>
-                                </div>
-                                {/* Needle */}
-                                <div className="absolute bottom-0 left-1/2 w-1 h-20 bg-brand-dark origin-bottom transform -rotate-45 rounded-full"></div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-8 w-full pt-4 border-t border-brand-light">
-                                <div className="text-center space-y-1">
-                                    <p className="text-xs text-brand-muted uppercase">Collateral Value</p>
-                                    <p className="text-xl font-bold text-brand-dark">$150,000</p>
-                                </div>
-                                <div className="text-center space-y-1">
-                                    <p className="text-xs text-brand-muted uppercase">Total Debt</p>
-                                    <p className="text-xl font-bold text-brand-dark">$97,500</p>
-                                </div>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {[1, 2].map((i) => (
+                                    <div key={i} className="flex items-center justify-between p-4 rounded-lg border border-border bg-white shadow-sm">
+                                        <div className="space-y-1">
+                                            <p className="font-mono text-sm text-brand-dark">0xab...45</p>
+                                            <p className="text-xs text-brand-muted">Request: <span className="font-bold text-brand-dark">50,000 USDY</span></p>
+                                        </div>
+                                        {i === 1 ? (
+                                            <Button size="sm" variant="outline" className="text-brand-DEFAULT border-brand-DEFAULT hover:bg-brand-light">
+                                                Process Release
+                                            </Button>
+                                        ) : (
+                                            <Button size="sm" disabled variant="secondary">
+                                                Waiting...
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </CardContent>
                     </Card>
 
                 </div>
+
+                {/* System Params */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg">System Parameters</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                        {[
+                            { label: 'Max LTV', value: '75%' },
+                            { label: 'Liquidation Threshold', value: '80%' },
+                            { label: 'Liquidation Bonus', value: '15%' },
+                            { label: 'Emergency Mode', value: 'Disabled', color: 'text-success-DEFAULT' },
+                        ].map((param) => (
+                            <div key={param.label} className="space-y-1">
+                                <p className="text-xs text-brand-muted uppercase">{param.label}</p>
+                                <p className={`text-lg font-bold ${param.color || 'text-brand-dark'}`}>{param.value}</p>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+
             </main>
         </div>
     );

@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 import { SafeAutoConnect } from '@/components/SafeAutoConnect';
 
 const navItems = [
-    { name: 'Borrow', href: '/dashboard' },
+    { name: 'Dashboard', href: '/dashboard' },
+    { name: 'Borrow', href: '/borrow' },
     { name: 'Earn', href: '/earn' },
-    { name: 'Admin', href: '/admin' },
 ];
 
 export function Navbar() {

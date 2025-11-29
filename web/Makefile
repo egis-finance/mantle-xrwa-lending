@@ -1,3 +1,7 @@
+# Load environment from parent directory
+-include ../.env
+export
+
 .PHONY: install dev build start lint test clean
 
 # Install dependencies (legacy-peer-deps required for Safe SDK)
