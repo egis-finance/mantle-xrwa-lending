@@ -18,6 +18,7 @@ type MockEthClient struct {
 	SuggestGasPriceFunc        func(ctx context.Context) (*big.Int, error)
 	EstimateGasFunc            func(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 	SendTransactionFunc        func(ctx context.Context, tx *types.Transaction) error
+	CallContractFunc           func(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 	FilterLogsFunc             func(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
 	SubscribeFilterLogsFunc    func(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error)
 	CloseFunc                  func()
@@ -29,6 +30,7 @@ type MockEthClient struct {
 	SuggestGasPriceCalls        int
 	EstimateGasCalls            int
 	SendTransactionCalls        int
+	CallContractCalls           int
 	FilterLogsCalls             int
 	SubscribeFilterLogsCalls    int
 	CloseCalls                  int
@@ -54,6 +56,9 @@ func NewMockEthClient() *MockEthClient {
 		},
 		SendTransactionFunc: func(ctx context.Context, tx *types.Transaction) error {
 			return nil
+		},
+		CallContractFunc: func(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+			return []byte{}, nil
 		},
 		FilterLogsFunc: func(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {
 			return []types.Log{}, nil
@@ -117,6 +122,15 @@ func (m *MockEthClient) SendTransaction(ctx context.Context, tx *types.Transacti
 		return m.SendTransactionFunc(ctx, tx)
 	}
 	return nil
+}
+
+// CallContract implements interfaces.EthClient
+func (m *MockEthClient) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	m.CallContractCalls++
+	if m.CallContractFunc != nil {
+		return m.CallContractFunc(ctx, msg, blockNumber)
+	}
+	return []byte{}, nil
 }
 
 // FilterLogs implements interfaces.EthClient

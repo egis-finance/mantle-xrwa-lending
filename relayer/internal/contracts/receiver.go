@@ -51,6 +51,13 @@ const XRWAReceiverABI = `[
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
+	},
+	{
+		"inputs": [{"internalType": "bytes32", "name": "", "type": "bytes32"}],
+		"name": "consumed",
+		"outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+		"stateMutability": "view",
+		"type": "function"
 	}
 ]`
 

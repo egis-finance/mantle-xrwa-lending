@@ -44,6 +44,10 @@ func (a *EthClientAdapter) SendTransaction(ctx context.Context, tx *types.Transa
 	return a.client.SendTransaction(ctx, tx)
 }
 
+func (a *EthClientAdapter) CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return a.client.CallContract(ctx, msg, blockNumber)
+}
+
 func (a *EthClientAdapter) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {
 	return a.client.FilterLogs(ctx, q)
 }

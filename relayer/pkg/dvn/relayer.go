@@ -15,6 +15,7 @@ import (
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/logger"
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/observability"
 	"github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/persistence"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -386,6 +387,25 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		return
 	}
 
+	// Check on-chain consumed status (authoritative source of truth)
+	// This handles cases where persistence was lost but minting already occurred
+	consumed, err := r.isConsumedOnChain(spanCtx, event.LockId)
+	if err != nil {
+		logger.Warnw("Failed to check on-chain consumed status, proceeding with submission",
+			"error", err,
+			"lock_id", common.Bytes2Hex(event.LockId[:]),
+		)
+	} else if consumed {
+		logger.Infow("Lock already consumed on-chain, marking as processed",
+			"lock_id", common.Bytes2Hex(event.LockId[:]),
+		)
+		r.mu.Lock()
+		r.processedLocks[event.LockId] = true
+		r.mu.Unlock()
+		r.metrics.LocksDuplicate.Inc()
+		return
+	}
+
 	r.mu.Lock()
 	r.eventCount++
 	r.lastEventTime = time.Now()
@@ -669,4 +689,34 @@ func (r *Relayer) GetStats() map[string]interface{} {
 	}
 
 	return stats
+}
+
+// isConsumedOnChain checks if a lockId has already been consumed on Ethereum
+// This is the authoritative source of truth for whether AcUSDY was minted
+func (r *Relayer) isConsumedOnChain(ctx context.Context, lockId [32]byte) (bool, error) {
+	// Pack the consumed(bytes32) call
+	data, err := r.receiverABI.Pack("consumed", lockId)
+	if err != nil {
+		return false, fmt.Errorf("failed to pack consumed call: %w", err)
+	}
+
+	// Call the contract
+	receiverAddr := r.cfg.Ethereum.ReceiverAddress
+	callMsg := ethereum.CallMsg{
+		To:   &receiverAddr,
+		Data: data,
+	}
+	result, err := r.ethereumClient.CallContract(ctx, callMsg, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to call consumed: %w", err)
+	}
+
+	// Unpack the result
+	var consumed bool
+	err = r.receiverABI.UnpackIntoInterface(&consumed, "consumed", result)
+	if err != nil {
+		return false, fmt.Errorf("failed to unpack consumed result: %w", err)
+	}
+
+	return consumed, nil
 }
