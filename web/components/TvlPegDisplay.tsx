@@ -1,0 +1,68 @@
+'use client'
+import { Link as LinkIcon, AlertTriangle, Loader2 } from 'lucide-react'
+import { useTvlPeg } from '@/hooks/useTvlPeg'
+import { formatTvl } from '@/lib/format'
+
+export function TvlPegDisplay() {
+  const { mantle, ethereum, isLoading, isError, isBalanced } = useTvlPeg()
+
+  const renderStatus = () => {
+    if (isLoading) {
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-brand-light/30 text-brand-muted text-sm">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading
+        </span>
+      )
+    }
+    if (isError) {
+      return (
+        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-danger-DEFAULT/10 text-danger-DEFAULT text-sm">
+          <AlertTriangle className="h-3 w-3" />
+          Error
+        </span>
+      )
+    }
+    if (isBalanced) {
+      return (
+        <span className="px-3 py-1 rounded-full bg-success-DEFAULT/10 text-success-DEFAULT text-sm">
+          System Balanced
+        </span>
+      )
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-danger-DEFAULT/10 text-danger-DEFAULT text-sm">
+        <AlertTriangle className="h-3 w-3" />
+        Peg Deviation
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="space-y-1">
+        <p className="text-xs text-brand-muted uppercase tracking-wider">Cross-Chain TVL Peg</p>
+        <div className="flex items-center gap-3">
+          <span
+            className="font-mono font-bold text-brand-dark"
+            data-testid="mantle-tvl"
+            data-value={mantle.value ?? ''}
+          >
+            {isLoading ? '...' : formatTvl(mantle.value)}{' '}
+            <span className="text-xs text-mantle font-normal">Mantle</span>
+          </span>
+          <LinkIcon className="h-4 w-4 text-success-DEFAULT" />
+          <span
+            className="font-mono font-bold text-brand-dark"
+            data-testid="eth-tvl"
+            data-value={ethereum.value ?? ''}
+          >
+            {isLoading ? '...' : formatTvl(ethereum.value)}{' '}
+            <span className="text-xs text-eth font-normal">Eth</span>
+          </span>
+        </div>
+      </div>
+      {renderStatus()}
+    </div>
+  )
+}

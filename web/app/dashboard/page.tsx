@@ -3,7 +3,8 @@
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Activity, Link as LinkIcon, RefreshCw } from 'lucide-react';
+import { TvlPegDisplay } from '@/components/TvlPegDisplay';
+import { Activity, RefreshCw } from 'lucide-react';
 
 export default function DashboardPage() {
     return (
@@ -22,17 +23,7 @@ export default function DashboardPage() {
                     <CardContent className="p-6 flex flex-wrap items-center justify-between gap-6">
 
                         <div className="flex items-center gap-8">
-                            <div className="space-y-1">
-                                <p className="text-xs text-brand-muted uppercase tracking-wider">Cross-Chain TVL Peg</p>
-                                <div className="flex items-center gap-3">
-                                    <span className="font-mono font-bold text-brand-dark">$25.00M <span className="text-xs text-mantle font-normal">Mantle</span></span>
-                                    <LinkIcon className="h-4 w-4 text-success-DEFAULT" />
-                                    <span className="font-mono font-bold text-brand-dark">$25.00M <span className="text-xs text-eth font-normal">Eth</span></span>
-                                </div>
-                            </div>
-                            <span className="bg-success-light text-success-DEFAULT text-xs font-bold px-3 py-1 rounded-full border border-success-DEFAULT/20">
-                                System Balanced
-                            </span>
+                            <TvlPegDisplay />
                         </div>
 
                         <div className="h-10 w-px bg-border hidden md:block"></div>
