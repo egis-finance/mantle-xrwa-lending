@@ -9,6 +9,10 @@ via_ir = true
 evm_version = "paris"
 remappings = ["@solmate/=lib/solmate/src/"]
 
+# Deterministic bytecode (enables same address across chains via CREATE2)
+bytecode_hash = "none"
+cbor_metadata = false
+
 # Lint configuration: exclude code-size suggestions and specific lints we intentionally ignore
 [profile.default.lint]
 # Only include severities we care about; omit "code-size" to silence code size suggestions
