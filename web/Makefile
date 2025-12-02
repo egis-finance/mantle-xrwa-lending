@@ -2,23 +2,29 @@
 -include ../.env
 export
 
-.PHONY: install dev build start lint test clean
+.PHONY: install dev build start serve prod lint test clean
 
 # Install dependencies (legacy-peer-deps required for Safe SDK)
 install:
 	npm install --legacy-peer-deps
 
-# Run development server
+# Hot-reloading dev server - changes reflect instantly in browser
 dev:
 	npm run dev
 
-# Build for production
+# Build optimized production bundle (run before 'serve')
 build:
 	npm run build
 
-# Start production server
-start:
+# Serve pre-built production bundle (requires 'build' first)
+serve:
 	npm run start
+
+# Build and serve production bundle in one step
+prod: build serve
+
+# Alias for 'serve' (legacy compatibility)
+start: serve
 
 # Run linting
 lint:
