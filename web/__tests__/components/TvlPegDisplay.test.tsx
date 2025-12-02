@@ -44,8 +44,10 @@ describe('TvlPegDisplay', () => {
 
     expect(screen.getAllByText('$25.00M')).toHaveLength(2)
     expect(screen.getByText('System Balanced')).toBeInTheDocument()
-    expect(screen.getByText('Mantle')).toBeInTheDocument()
-    expect(screen.getByText('Eth')).toBeInTheDocument()
+    expect(screen.getByText('USDY')).toBeInTheDocument()
+    expect(screen.getByText('AcUSDY')).toBeInTheDocument()
+    expect(screen.getByText(/on Mantle/)).toBeInTheDocument()
+    expect(screen.getByText(/on Eth/)).toBeInTheDocument()
   })
 
   it('shows warning on peg deviation', () => {

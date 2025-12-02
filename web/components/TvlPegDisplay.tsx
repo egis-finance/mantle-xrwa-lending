@@ -49,7 +49,10 @@ export function TvlPegDisplay() {
             data-value={mantle.value ?? ''}
           >
             {isLoading ? '...' : formatTvl(mantle.value)}{' '}
-            <span className="text-xs text-mantle font-normal">Mantle</span>
+            <span className="text-xs font-normal">
+              <span className="text-brand-dark">USDY</span>
+              <span className="text-mantle"> on Mantle</span>
+            </span>
           </span>
           <LinkIcon className="h-4 w-4 text-success-DEFAULT" />
           <span
@@ -58,7 +61,10 @@ export function TvlPegDisplay() {
             data-value={ethereum.value ?? ''}
           >
             {isLoading ? '...' : formatTvl(ethereum.value)}{' '}
-            <span className="text-xs text-eth font-normal">Eth</span>
+            <span className="text-xs font-normal">
+              <span className="text-brand-dark">AcUSDY</span>
+              <span className="text-eth"> on Eth</span>
+            </span>
           </span>
         </div>
       </div>
