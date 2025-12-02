@@ -8,15 +8,16 @@ import (
 )
 
 // LockMessage represents the EIP-712 typed data for cross-chain attestation
-// struct LockMessage {
-//     address borrower;
-//     bytes32 lockId;
-//     uint256 amount;
-//     uint256 sourceChainId;
-//     address sourceLocker;
-//     uint64 validUntil;
-//     bytes32 vcHash;
-// }
+//
+//	struct LockMessage {
+//	    address borrower;
+//	    bytes32 lockId;
+//	    uint256 amount;
+//	    uint256 sourceChainId;
+//	    address sourceLocker;
+//	    uint64 validUntil;
+//	    bytes32 vcHash;
+//	}
 type LockMessage struct {
 	Borrower      common.Address
 	LockId        [32]byte

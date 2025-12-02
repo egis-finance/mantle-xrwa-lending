@@ -247,7 +247,7 @@ func TestSignLockMessage_DifferentMessages(t *testing.T) {
 
 	msg2 := contracts.LockMessage{
 		Borrower:      common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
-		LockId:        [32]byte{0x02},  // Different lock ID
+		LockId:        [32]byte{0x02}, // Different lock ID
 		Amount:        big.NewInt(1000000),
 		SourceChainId: big.NewInt(15000),
 		SourceLocker:  common.HexToAddress("0x1111111111111111111111111111111111111111"),

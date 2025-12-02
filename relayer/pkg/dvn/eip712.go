@@ -45,11 +45,13 @@ func NewEIP712Signer(privateKeyHex string, receiverAddress common.Address, chain
 
 // computeDomainSeparator calculates the EIP-712 domain separator
 // keccak256(abi.encode(
-//     keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-//     keccak256("XRWAReceiver"),
-//     keccak256("1"),
-//     chainId,
-//     address(this)
+//
+//	keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+//	keccak256("XRWAReceiver"),
+//	keccak256("1"),
+//	chainId,
+//	address(this)
+//
 // ))
 func (s *EIP712Signer) computeDomainSeparator() [32]byte {
 	domainTypeHash := crypto.Keccak256Hash([]byte("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"))

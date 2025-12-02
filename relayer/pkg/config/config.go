@@ -48,9 +48,9 @@ type PersistenceConfig struct {
 
 // ChainConfig holds chain-specific configuration
 type ChainConfig struct {
-	ChainID       *big.Int
-	RPCURL        string
-	LockerAddress common.Address // Mantle only
+	ChainID         *big.Int
+	RPCURL          string
+	LockerAddress   common.Address // Mantle only
 	ReceiverAddress common.Address // Ethereum only
 }
 

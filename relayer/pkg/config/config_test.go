@@ -10,14 +10,14 @@ import (
 func TestLoad_Success(t *testing.T) {
 	// Set all required environment variables
 	envVars := map[string]string{
-		"MANTLE_CHAIN_ID":    "15000",
-		"MANTLE_RPC_VTE":     "https://mantle-rpc.example.com",
-		"MANTLE_LOCKER":      "0x1111111111111111111111111111111111111111",
-		"ETHEREUM_CHAIN_ID":  "10001",
-		"ETHEREUM_RPC_VTE":   "https://ethereum-rpc.example.com",
-		"ETH_RECEIVER":       "0x2222222222222222222222222222222222222222",
-		"DVN1_PRIVATE_KEY":   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-		"DVN1_ADDRESS":       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+		"MANTLE_CHAIN_ID":   "15000",
+		"MANTLE_RPC_VTE":    "https://mantle-rpc.example.com",
+		"MANTLE_LOCKER":     "0x1111111111111111111111111111111111111111",
+		"ETHEREUM_CHAIN_ID": "10001",
+		"ETHEREUM_RPC_VTE":  "https://ethereum-rpc.example.com",
+		"ETH_RECEIVER":      "0x2222222222222222222222222222222222222222",
+		"DVN1_PRIVATE_KEY":  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		"DVN1_ADDRESS":      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 	}
 
 	for key, value := range envVars {
@@ -121,14 +121,14 @@ func TestLoad_WithDefaults(t *testing.T) {
 
 	// Set all required environment variables
 	envVars := map[string]string{
-		"MANTLE_CHAIN_ID":    "15000",
-		"MANTLE_RPC_VTE":     "https://mantle-rpc.example.com",
-		"MANTLE_LOCKER":      "0x1111111111111111111111111111111111111111",
-		"ETHEREUM_CHAIN_ID":  "10001",
-		"ETHEREUM_RPC_VTE":   "https://ethereum-rpc.example.com",
-		"ETH_RECEIVER":       "0x2222222222222222222222222222222222222222",
-		"DVN1_PRIVATE_KEY":   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-		"DVN1_ADDRESS":       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+		"MANTLE_CHAIN_ID":   "15000",
+		"MANTLE_RPC_VTE":    "https://mantle-rpc.example.com",
+		"MANTLE_LOCKER":     "0x1111111111111111111111111111111111111111",
+		"ETHEREUM_CHAIN_ID": "10001",
+		"ETHEREUM_RPC_VTE":  "https://ethereum-rpc.example.com",
+		"ETH_RECEIVER":      "0x2222222222222222222222222222222222222222",
+		"DVN1_PRIVATE_KEY":  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		"DVN1_ADDRESS":      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 	}
 
 	for key, value := range envVars {
@@ -172,20 +172,20 @@ func TestLoad_LoggingConfig(t *testing.T) {
 
 	// Set all required environment variables plus logging config
 	envVars := map[string]string{
-		"MANTLE_CHAIN_ID":    "15000",
-		"MANTLE_RPC_VTE":     "https://mantle-rpc.example.com",
-		"MANTLE_LOCKER":      "0x1111111111111111111111111111111111111111",
-		"ETHEREUM_CHAIN_ID":  "10001",
-		"ETHEREUM_RPC_VTE":   "https://ethereum-rpc.example.com",
-		"ETH_RECEIVER":       "0x2222222222222222222222222222222222222222",
-		"DVN1_PRIVATE_KEY":   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-		"DVN1_ADDRESS":       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-		"LOG_LEVEL":          "debug",
-		"LOG_FORMAT":         "json",
-		"LOG_FILE":           "/tmp/relayer.log",
-		"LOG_MAX_SIZE":       "200",
-		"LOG_MAX_BACKUPS":    "5",
-		"LOG_MAX_AGE":        "14",
+		"MANTLE_CHAIN_ID":   "15000",
+		"MANTLE_RPC_VTE":    "https://mantle-rpc.example.com",
+		"MANTLE_LOCKER":     "0x1111111111111111111111111111111111111111",
+		"ETHEREUM_CHAIN_ID": "10001",
+		"ETHEREUM_RPC_VTE":  "https://ethereum-rpc.example.com",
+		"ETH_RECEIVER":      "0x2222222222222222222222222222222222222222",
+		"DVN1_PRIVATE_KEY":  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		"DVN1_ADDRESS":      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+		"LOG_LEVEL":         "debug",
+		"LOG_FORMAT":        "json",
+		"LOG_FILE":          "/tmp/relayer.log",
+		"LOG_MAX_SIZE":      "200",
+		"LOG_MAX_BACKUPS":   "5",
+		"LOG_MAX_AGE":       "14",
 	}
 
 	for key, value := range envVars {
@@ -210,15 +210,15 @@ func TestLoad_HTTPConfig(t *testing.T) {
 
 	// Set all required environment variables plus HTTP config
 	envVars := map[string]string{
-		"MANTLE_CHAIN_ID":    "15000",
-		"MANTLE_RPC_VTE":     "https://mantle-rpc.example.com",
-		"MANTLE_LOCKER":      "0x1111111111111111111111111111111111111111",
-		"ETHEREUM_CHAIN_ID":  "10001",
-		"ETHEREUM_RPC_VTE":   "https://ethereum-rpc.example.com",
-		"ETH_RECEIVER":       "0x2222222222222222222222222222222222222222",
-		"DVN1_PRIVATE_KEY":   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-		"DVN1_ADDRESS":       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-		"HTTP_PORT":          "9090",
+		"MANTLE_CHAIN_ID":   "15000",
+		"MANTLE_RPC_VTE":    "https://mantle-rpc.example.com",
+		"MANTLE_LOCKER":     "0x1111111111111111111111111111111111111111",
+		"ETHEREUM_CHAIN_ID": "10001",
+		"ETHEREUM_RPC_VTE":  "https://ethereum-rpc.example.com",
+		"ETH_RECEIVER":      "0x2222222222222222222222222222222222222222",
+		"DVN1_PRIVATE_KEY":  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		"DVN1_ADDRESS":      "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+		"HTTP_PORT":         "9090",
 	}
 
 	for key, value := range envVars {
@@ -304,16 +304,16 @@ func TestLoad_CustomPersistenceConfig(t *testing.T) {
 
 	// Set all required environment variables plus custom persistence config
 	envVars := map[string]string{
-		"MANTLE_CHAIN_ID":              "15000",
-		"MANTLE_RPC_VTE":               "https://mantle-rpc.example.com",
-		"MANTLE_LOCKER":                "0x1111111111111111111111111111111111111111",
-		"ETHEREUM_CHAIN_ID":            "10001",
-		"ETHEREUM_RPC_VTE":             "https://ethereum-rpc.example.com",
-		"ETH_RECEIVER":                 "0x2222222222222222222222222222222222222222",
-		"DVN1_PRIVATE_KEY":             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-		"DVN1_ADDRESS":                 "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-		"RELAYER_PERSISTENCE_ENABLED":  "false",
-		"RELAYER_PERSISTENCE_FILE":     "/tmp/custom_locks.json",
+		"MANTLE_CHAIN_ID":             "15000",
+		"MANTLE_RPC_VTE":              "https://mantle-rpc.example.com",
+		"MANTLE_LOCKER":               "0x1111111111111111111111111111111111111111",
+		"ETHEREUM_CHAIN_ID":           "10001",
+		"ETHEREUM_RPC_VTE":            "https://ethereum-rpc.example.com",
+		"ETH_RECEIVER":                "0x2222222222222222222222222222222222222222",
+		"DVN1_PRIVATE_KEY":            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+		"DVN1_ADDRESS":                "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+		"RELAYER_PERSISTENCE_ENABLED": "false",
+		"RELAYER_PERSISTENCE_FILE":    "/tmp/custom_locks.json",
 	}
 
 	for key, value := range envVars {

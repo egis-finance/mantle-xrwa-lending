@@ -12,28 +12,28 @@ import (
 // MockEthClient is a mock implementation of interfaces.EthClient for testing
 type MockEthClient struct {
 	// Function mocks for controlling behavior
-	BlockNumberFunc            func(ctx context.Context) (uint64, error)
-	NetworkIDFunc              func(ctx context.Context) (*big.Int, error)
-	PendingNonceAtFunc         func(ctx context.Context, account common.Address) (uint64, error)
-	SuggestGasPriceFunc        func(ctx context.Context) (*big.Int, error)
-	EstimateGasFunc            func(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
-	SendTransactionFunc        func(ctx context.Context, tx *types.Transaction) error
-	CallContractFunc           func(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
-	FilterLogsFunc             func(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
-	SubscribeFilterLogsFunc    func(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error)
-	CloseFunc                  func()
+	BlockNumberFunc         func(ctx context.Context) (uint64, error)
+	NetworkIDFunc           func(ctx context.Context) (*big.Int, error)
+	PendingNonceAtFunc      func(ctx context.Context, account common.Address) (uint64, error)
+	SuggestGasPriceFunc     func(ctx context.Context) (*big.Int, error)
+	EstimateGasFunc         func(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	SendTransactionFunc     func(ctx context.Context, tx *types.Transaction) error
+	CallContractFunc        func(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+	FilterLogsFunc          func(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
+	SubscribeFilterLogsFunc func(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error)
+	CloseFunc               func()
 
 	// Call counters for verification
-	BlockNumberCalls            int
-	NetworkIDCalls              int
-	PendingNonceAtCalls         int
-	SuggestGasPriceCalls        int
-	EstimateGasCalls            int
-	SendTransactionCalls        int
-	CallContractCalls           int
-	FilterLogsCalls             int
-	SubscribeFilterLogsCalls    int
-	CloseCalls                  int
+	BlockNumberCalls         int
+	NetworkIDCalls           int
+	PendingNonceAtCalls      int
+	SuggestGasPriceCalls     int
+	EstimateGasCalls         int
+	SendTransactionCalls     int
+	CallContractCalls        int
+	FilterLogsCalls          int
+	SubscribeFilterLogsCalls int
+	CloseCalls               int
 }
 
 // NewMockEthClient creates a new mock client with default implementations
@@ -161,7 +161,7 @@ func (m *MockEthClient) Close() {
 
 // MockSubscription is a mock implementation of ethereum.Subscription
 type MockSubscription struct {
-	ErrChan chan error
+	ErrChan          chan error
 	UnsubscribeCalls int
 }
 

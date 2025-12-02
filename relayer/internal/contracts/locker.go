@@ -10,12 +10,14 @@ import (
 
 // LockedEvent represents the Locked event from CollateralLocker
 // event Locked(
-//     address indexed borrower,
-//     bytes32 indexed lockId,
-//     uint256 amount,
-//     uint256 sourceChainId,
-//     uint64 validUntil,
-//     bytes32 vcHash
+//
+//	address indexed borrower,
+//	bytes32 indexed lockId,
+//	uint256 amount,
+//	uint256 sourceChainId,
+//	uint64 validUntil,
+//	bytes32 vcHash
+//
 // )
 type LockedEvent struct {
 	Borrower      common.Address
