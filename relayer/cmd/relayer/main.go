@@ -114,6 +114,9 @@ func main() {
 	<-sigChan
 	logger.Info("Shutdown signal received, stopping relayer...")
 
+	// Cancel context to signal goroutines to exit
+	cancel()
+
 	// Give relayer 10 seconds to stop gracefully
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -123,7 +126,7 @@ func main() {
 		logger.Errorw("Error stopping HTTP server", "error", err)
 	}
 
-	// Stop relayer
+	// Stop relayer (flushes persistence and closes connections)
 	if err := relayer.Stop(shutdownCtx); err != nil {
 		logger.Errorw("Error during relayer shutdown", "error", err)
 	}
