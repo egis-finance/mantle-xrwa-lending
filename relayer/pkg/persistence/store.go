@@ -24,11 +24,18 @@ type ProcessedLock struct {
 	BlockNumber    uint64    `json:"blockNumber"`
 }
 
-// Store provides persistent storage for processed lock events
+// persistedState represents the full JSON structure on disk
+type persistedState struct {
+	LastProcessedBlock uint64          `json:"lastProcessedBlock"`
+	Locks              []ProcessedLock `json:"locks"`
+}
+
+// Store provides persistent storage for processed lock events and block cursor
 type Store struct {
-	filePath string
-	locks    map[[32]byte]ProcessedLock
-	mu       sync.RWMutex
+	filePath           string
+	locks              map[[32]byte]ProcessedLock
+	lastProcessedBlock uint64
+	mu                 sync.RWMutex
 }
 
 // NewStore creates a new persistence store
@@ -52,9 +59,32 @@ func NewStore(filePath string) (*Store, error) {
 	logger.Infow("Persistence store initialized",
 		"file", filePath,
 		"loaded_locks", len(store.locks),
+		"last_processed_block", store.lastProcessedBlock,
 	)
 
 	return store, nil
+}
+
+// GetLastProcessedBlock returns the last block that was fully processed
+func (s *Store) GetLastProcessedBlock() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastProcessedBlock
+}
+
+// SetLastProcessedBlock updates the cursor and persists immediately
+func (s *Store) SetLastProcessedBlock(block uint64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.lastProcessedBlock = block
+
+	if err := s.save(); err != nil {
+		return fmt.Errorf("failed to persist block cursor: %w", err)
+	}
+
+	logger.Debugw("Block cursor updated", "block", block)
+	return nil
 }
 
 // IsProcessed checks if a lock ID has already been processed
@@ -133,6 +163,7 @@ func (s *Store) Count() int {
 }
 
 // load reads the persistence file from disk
+// Handles both legacy format (array of locks) and new format (object with cursor)
 func (s *Store) load() error {
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
@@ -142,13 +173,30 @@ func (s *Store) load() error {
 		return err
 	}
 
+	// Try new format first (object with lastProcessedBlock and locks)
+	var state persistedState
+	if err := json.Unmarshal(data, &state); err == nil && state.Locks != nil {
+		s.lastProcessedBlock = state.LastProcessedBlock
+		s.locks = s.locksSliceToMap(state.Locks)
+		return nil
+	}
+
+	// Fall back to legacy format (array of locks)
 	var locks []ProcessedLock
 	if err := json.Unmarshal(data, &locks); err != nil {
 		return fmt.Errorf("failed to unmarshal persistence data: %w", err)
 	}
 
-	// Convert slice to map
-	s.locks = make(map[[32]byte]ProcessedLock, len(locks))
+	s.locks = s.locksSliceToMap(locks)
+	s.lastProcessedBlock = 0 // No cursor in legacy format
+	logger.Infow("Migrated from legacy persistence format")
+
+	return nil
+}
+
+// locksSliceToMap converts a slice of ProcessedLock to a map keyed by lockId
+func (s *Store) locksSliceToMap(locks []ProcessedLock) map[[32]byte]ProcessedLock {
+	result := make(map[[32]byte]ProcessedLock, len(locks))
 	for _, lock := range locks {
 		lockIdBytes := common.FromHex(lock.LockId)
 		if len(lockIdBytes) != 32 {
@@ -157,10 +205,9 @@ func (s *Store) load() error {
 		}
 		var lockIdArray [32]byte
 		copy(lockIdArray[:], lockIdBytes)
-		s.locks[lockIdArray] = lock
+		result[lockIdArray] = lock
 	}
-
-	return nil
+	return result
 }
 
 // save writes the persistence data to disk atomically
@@ -171,7 +218,12 @@ func (s *Store) save() error {
 		locks = append(locks, lock)
 	}
 
-	data, err := json.MarshalIndent(locks, "", "  ")
+	state := persistedState{
+		LastProcessedBlock: s.lastProcessedBlock,
+		Locks:              locks,
+	}
+
+	data, err := json.MarshalIndent(state, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal persistence data: %w", err)
 	}

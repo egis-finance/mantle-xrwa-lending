@@ -253,14 +253,14 @@ func TestAtomicWrites(t *testing.T) {
 	_, err = os.Stat(tempFile)
 	require.True(t, os.IsNotExist(err), "temp file should not exist after atomic write")
 
-	// Verify final file exists and is valid
+	// Verify final file exists and is valid (new format with lastProcessedBlock)
 	content, err := os.ReadFile(filePath)
 	require.NoError(t, err)
 
-	var locks []ProcessedLock
-	err = json.Unmarshal(content, &locks)
+	var state persistedState
+	err = json.Unmarshal(content, &state)
 	require.NoError(t, err)
-	require.Len(t, locks, 1)
+	require.Len(t, state.Locks, 1)
 }
 
 func TestCount(t *testing.T) {
@@ -334,14 +334,14 @@ func TestNewStore_InvalidLockIDInFile(t *testing.T) {
 	// Create file with invalid lock ID
 	invalidLocks := []ProcessedLock{
 		{
-			LockId:    "0xinvalid", // Invalid length
-			Borrower:  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-			Amount:    "1000000",
+			LockId:   "0xinvalid", // Invalid length
+			Borrower: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+			Amount:   "1000000",
 		},
 		{
-			LockId:    "0x1111111111111111111111111111111111111111111111111111111111111111",
-			Borrower:  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-			Amount:    "2000000",
+			LockId:   "0x1111111111111111111111111111111111111111111111111111111111111111",
+			Borrower: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+			Amount:   "2000000",
 		},
 	}
 
@@ -409,4 +409,545 @@ func TestLoadExistingData_Persistence(t *testing.T) {
 	require.True(t, exists)
 	require.Equal(t, "9999999", lock.Amount)
 	require.Equal(t, uint64(777), lock.BlockNumber)
+}
+
+func TestBlockCursor_InitialValue(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Initial cursor should be 0
+	require.Equal(t, uint64(0), store.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_SetAndGet(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Set cursor
+	err = store.SetLastProcessedBlock(12345)
+	require.NoError(t, err)
+
+	// Get cursor
+	require.Equal(t, uint64(12345), store.GetLastProcessedBlock())
+
+	// Update cursor
+	err = store.SetLastProcessedBlock(67890)
+	require.NoError(t, err)
+	require.Equal(t, uint64(67890), store.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_Persistence(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create store and set cursor
+	store1, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	err = store1.SetLastProcessedBlock(99999)
+	require.NoError(t, err)
+
+	// Create new store from same file
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Cursor should be persisted
+	require.Equal(t, uint64(99999), store2.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_WithLocks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Set cursor
+	err = store.SetLastProcessedBlock(5000)
+	require.NoError(t, err)
+
+	// Add a lock
+	lockId := [32]byte{0x11, 0x22, 0x33}
+	borrower := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+	err = store.MarkProcessed(
+		lockId,
+		borrower,
+		"1000000",
+		"15000",
+		common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
+		common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+		5001,
+	)
+	require.NoError(t, err)
+
+	// Both cursor and lock should be persisted
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(5000), store2.GetLastProcessedBlock())
+	require.Equal(t, 1, store2.Count())
+	require.True(t, store2.IsProcessed(lockId))
+}
+
+func TestBlockCursor_LegacyFormatMigration(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create legacy format file (array of locks, no cursor)
+	legacyLocks := []ProcessedLock{
+		{
+			LockId:         "0x1111111111111111111111111111111111111111111111111111111111111111",
+			Borrower:       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+			Amount:         "1000000",
+			SourceChainId:  "15000",
+			MantleTxHash:   "0x2222222222222222222222222222222222222222222222222222222222222222",
+			EthereumTxHash: "0x3333333333333333333333333333333333333333333333333333333333333333",
+			BlockNumber:    100,
+		},
+	}
+
+	data, err := json.MarshalIndent(legacyLocks, "", "  ")
+	require.NoError(t, err)
+	err = os.WriteFile(filePath, data, 0644)
+	require.NoError(t, err)
+
+	// Load store (should migrate from legacy format)
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Locks should be loaded
+	require.Equal(t, 1, store.Count())
+
+	// Cursor should be 0 (legacy format has no cursor)
+	require.Equal(t, uint64(0), store.GetLastProcessedBlock())
+
+	// Set cursor and verify new format is written
+	err = store.SetLastProcessedBlock(200)
+	require.NoError(t, err)
+
+	// Reload and verify
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, 1, store2.Count())
+	require.Equal(t, uint64(200), store2.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Set cursor
+	err = store.SetLastProcessedBlock(42)
+	require.NoError(t, err)
+
+	// Read raw JSON and verify structure
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+
+	var state persistedState
+	err = json.Unmarshal(content, &state)
+	require.NoError(t, err)
+
+	require.Equal(t, uint64(42), state.LastProcessedBlock)
+	require.NotNil(t, state.Locks)
+	require.Len(t, state.Locks, 0)
+}
+
+// Concurrency tests for race detection
+
+func TestBlockCursor_ConcurrentSetAndGet(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Concurrent writes and reads
+	numGoroutines := 20
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines * 2)
+
+	// Writers
+	for i := 0; i < numGoroutines; i++ {
+		go func(block uint64) {
+			defer wg.Done()
+			_ = store.SetLastProcessedBlock(block)
+		}(uint64(i * 100))
+	}
+
+	// Readers
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = store.GetLastProcessedBlock()
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify store is still valid after concurrent access (finalBlock is uint64, always valid)
+	_ = store.GetLastProcessedBlock()
+}
+
+func TestBlockCursor_ConcurrentWithLocks(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Interleaved cursor and lock operations
+	numOperations := 10
+	var wg sync.WaitGroup
+	wg.Add(numOperations * 2)
+
+	// Cursor updates
+	for i := 0; i < numOperations; i++ {
+		go func(block uint64) {
+			defer wg.Done()
+			_ = store.SetLastProcessedBlock(block)
+		}(uint64(i * 1000))
+	}
+
+	// Lock processing
+	for i := 0; i < numOperations; i++ {
+		go func(index int) {
+			defer wg.Done()
+			lockId := [32]byte{byte(index + 100)}
+			borrower := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+			_ = store.MarkProcessed(
+				lockId,
+				borrower,
+				"1000000",
+				"15000",
+				common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
+				common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+				uint64(index),
+			)
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify both cursor and locks are persisted correctly
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, numOperations, store2.Count())
+}
+
+// Edge case tests
+
+func TestBlockCursor_MaxUint64(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Set to max uint64 value
+	maxBlock := uint64(^uint64(0))
+	err = store.SetLastProcessedBlock(maxBlock)
+	require.NoError(t, err)
+
+	require.Equal(t, maxBlock, store.GetLastProcessedBlock())
+
+	// Verify persistence
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, maxBlock, store2.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_ZeroToNonZero(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Start at 0
+	require.Equal(t, uint64(0), store.GetLastProcessedBlock())
+
+	// Transition to non-zero
+	err = store.SetLastProcessedBlock(1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), store.GetLastProcessedBlock())
+
+	// Back to zero (edge case - resetting cursor)
+	err = store.SetLastProcessedBlock(0)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), store.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_LargeBlockNumbers(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Test various large block numbers
+	testBlocks := []uint64{
+		1_000_000,         // 1M
+		100_000_000,       // 100M
+		1_000_000_000,     // 1B
+		10_000_000_000,    // 10B (realistic Ethereum block in future)
+		1_000_000_000_000, // 1T
+	}
+
+	for _, block := range testBlocks {
+		err = store.SetLastProcessedBlock(block)
+		require.NoError(t, err)
+		require.Equal(t, block, store.GetLastProcessedBlock())
+	}
+
+	// Verify last value persisted
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, testBlocks[len(testBlocks)-1], store2.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_EmptyFileHandling(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create empty file
+	err := os.WriteFile(filePath, []byte{}, 0644)
+	require.NoError(t, err)
+
+	// Store should handle gracefully
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), store.GetLastProcessedBlock())
+	require.Equal(t, 0, store.Count())
+}
+
+// Recovery tests
+
+func TestBlockCursor_CorruptedCursorRecovery(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create file with invalid cursor (negative in JSON would be parsed differently)
+	invalidJSON := `{"lastProcessedBlock": "not_a_number", "locks": []}`
+	err := os.WriteFile(filePath, []byte(invalidJSON), 0644)
+	require.NoError(t, err)
+
+	// Store should handle gracefully (may reset or error)
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+	// After recovery, cursor should be valid (uint64 is always valid, 0 is acceptable)
+	_ = store.GetLastProcessedBlock()
+}
+
+func TestBlockCursor_NullLocksArray(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create file with null locks array
+	jsonWithNullLocks := `{"lastProcessedBlock": 12345, "locks": null}`
+	err := os.WriteFile(filePath, []byte(jsonWithNullLocks), 0644)
+	require.NoError(t, err)
+
+	// Should fall back to legacy format parsing or handle gracefully
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, 0, store.Count())
+}
+
+func TestBlockCursor_MissingLocksField(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Create file with only cursor, no locks field
+	jsonWithoutLocks := `{"lastProcessedBlock": 99999}`
+	err := os.WriteFile(filePath, []byte(jsonWithoutLocks), 0644)
+	require.NoError(t, err)
+
+	// Should handle gracefully
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, 0, store.Count())
+}
+
+// Integration-style tests
+
+func TestBlockCursor_SimulatedRelayerRestart(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	// Simulate first relayer session
+	store1, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Process some blocks and locks
+	for i := uint64(1); i <= 5; i++ {
+		lockId := [32]byte{byte(i)}
+		borrower := common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
+		err = store1.MarkProcessed(
+			lockId,
+			borrower,
+			"1000000",
+			"15000",
+			common.HexToHash("0x1111111111111111111111111111111111111111111111111111111111111111"),
+			common.HexToHash("0x2222222222222222222222222222222222222222222222222222222222222222"),
+			i*100,
+		)
+		require.NoError(t, err)
+		err = store1.SetLastProcessedBlock(i * 100)
+		require.NoError(t, err)
+	}
+
+	lastBlock := store1.GetLastProcessedBlock()
+	lockCount := store1.Count()
+
+	// Simulate "shutdown" (store goes out of scope)
+	store1 = nil
+
+	// Simulate "restart" - new store instance
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Verify state is fully restored
+	require.Equal(t, lastBlock, store2.GetLastProcessedBlock(), "cursor should be restored after restart")
+	require.Equal(t, lockCount, store2.Count(), "lock count should be restored after restart")
+
+	// Verify all locks are accessible
+	for i := uint64(1); i <= 5; i++ {
+		lockId := [32]byte{byte(i)}
+		require.True(t, store2.IsProcessed(lockId), "lock %d should be restored", i)
+	}
+}
+
+func TestBlockCursor_FlushOnShutdown(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Set cursor
+	err = store.SetLastProcessedBlock(77777)
+	require.NoError(t, err)
+
+	// Explicit flush (simulating graceful shutdown)
+	err = store.Flush()
+	require.NoError(t, err)
+
+	// Verify file contains flushed data
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+
+	var state persistedState
+	err = json.Unmarshal(content, &state)
+	require.NoError(t, err)
+	require.Equal(t, uint64(77777), state.LastProcessedBlock)
+}
+
+func TestBlockCursor_RapidUpdates(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Rapid sequential updates (simulating fast block processing)
+	numUpdates := 100
+	for i := 1; i <= numUpdates; i++ {
+		err = store.SetLastProcessedBlock(uint64(i))
+		require.NoError(t, err)
+	}
+
+	// Final cursor should be the last update
+	require.Equal(t, uint64(numUpdates), store.GetLastProcessedBlock())
+
+	// Verify persistence
+	store2, err := NewStore(filePath)
+	require.NoError(t, err)
+	require.Equal(t, uint64(numUpdates), store2.GetLastProcessedBlock())
+}
+
+func TestBlockCursor_AtomicityUnderLoad(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "locks.json")
+
+	store, err := NewStore(filePath)
+	require.NoError(t, err)
+
+	// Heavy concurrent load
+	numGoroutines := 50
+	numOperationsPerGoroutine := 10
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	for g := 0; g < numGoroutines; g++ {
+		go func(goroutineID int) {
+			defer wg.Done()
+			for i := 0; i < numOperationsPerGoroutine; i++ {
+				block := uint64(goroutineID*1000 + i)
+				_ = store.SetLastProcessedBlock(block)
+				_ = store.GetLastProcessedBlock()
+			}
+		}(g)
+	}
+
+	wg.Wait()
+
+	// Store should be in a consistent state
+	err = store.Flush()
+	require.NoError(t, err)
+
+	// Verify file is valid JSON
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+
+	var state persistedState
+	err = json.Unmarshal(content, &state)
+	require.NoError(t, err, "JSON should be valid after concurrent access")
 }

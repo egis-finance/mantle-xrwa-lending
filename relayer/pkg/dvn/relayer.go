@@ -44,9 +44,9 @@ type Relayer struct {
 	lastEventTime time.Time
 
 	// Health status
-	healthyMantle  bool
-	healthyEth     bool
-	healthMu       sync.RWMutex
+	healthyMantle bool
+	healthyEth    bool
+	healthMu      sync.RWMutex
 }
 
 // NewRelayer creates a new DVN relayer instance
@@ -160,6 +160,16 @@ func (r *Relayer) Start(ctx context.Context) error {
 // Stop gracefully shuts down the relayer
 func (r *Relayer) Stop(ctx context.Context) error {
 	logger.Info("Stopping relayer...")
+
+	// Flush persistence before closing connections
+	if r.store != nil {
+		if err := r.store.Flush(); err != nil {
+			logger.Errorw("Failed to flush persistence on shutdown", "error", err)
+		} else {
+			logger.Info("Persistence flushed successfully")
+		}
+	}
+
 	r.mantleClient.Close()
 	r.ethereumClient.Close()
 	return nil
@@ -234,101 +244,133 @@ func (r *Relayer) runSubscription(ctx context.Context) error {
 	}
 }
 
-// pollEvents falls back to polling when subscription isn't available
+// pollEvents uses cursor-based polling with persistence
 func (r *Relayer) pollEvents(ctx context.Context) {
-	pollInterval := r.cfg.Relayer.PollInterval
-	if pollInterval == 0 {
-		pollInterval = 12 * time.Second
-	}
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
 	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
-	fromBlock := uint64(0)
 
-	logger.Infow("Polling mode active", "interval", pollInterval, "starting_block", fromBlock)
+	// Load cursor from persistence, or initialize to current block
+	fromBlock := r.getInitialFromBlock(ctx)
+	logger.Infow("Polling mode active", "starting_block", fromBlock)
+
+	for {
+		// Wait for new blocks
+		latestBlock, err := r.waitForNewBlock(ctx, fromBlock)
+		if err != nil {
+			if ctx.Err() != nil {
+				return // Context cancelled, clean shutdown
+			}
+			logger.Errorw("Error waiting for new block", "error", err)
+			continue
+		}
+
+		// Query logs from cursor to latest
+		query.FromBlock = big.NewInt(int64(fromBlock))
+		query.ToBlock = big.NewInt(int64(latestBlock))
+
+		var logs []types.Log
+		logsCtx, logsCancel := context.WithTimeout(ctx, 30*time.Second)
+		err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "filter_logs", func() error {
+			var filterErr error
+			logs, filterErr = r.mantleClient.FilterLogs(logsCtx, query)
+			if filterErr != nil {
+				r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "filter_logs").Inc()
+			} else {
+				r.metrics.RPCCallsTotal.WithLabelValues("mantle", "filter_logs").Inc()
+			}
+			return filterErr
+		})
+		logsCancel()
+
+		if err != nil {
+			logger.Errorw("Failed to filter logs after retries", "error", err, "from", fromBlock, "to", latestBlock)
+			continue
+		}
+
+		if len(logs) > 0 {
+			logger.Infow("Found lock events in block range",
+				"from_block", fromBlock,
+				"to_block", latestBlock,
+				"event_count", len(logs),
+			)
+		} else {
+			logger.Debugw("No events in block range", "from", fromBlock, "to", latestBlock)
+		}
+
+		for _, vLog := range logs {
+			r.processLockedEvent(ctx, vLog)
+		}
+
+		// Update cursor and persist
+		fromBlock = latestBlock + 1
+		if r.store != nil {
+			if err := r.store.SetLastProcessedBlock(latestBlock); err != nil {
+				logger.Errorw("Failed to persist block cursor", "error", err, "block", latestBlock)
+			}
+		}
+	}
+}
+
+// getInitialFromBlock returns the starting block for polling
+func (r *Relayer) getInitialFromBlock(ctx context.Context) uint64 {
+	// Try to load from persistence
+	if r.store != nil {
+		cursor := r.store.GetLastProcessedBlock()
+		if cursor > 0 {
+			logger.Infow("Resuming from persisted cursor", "block", cursor)
+			return cursor + 1
+		}
+	}
+
+	// First run: start from current block
+	blockCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var latestBlock uint64
+	err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "get_latest_block", func() error {
+		var blockErr error
+		latestBlock, blockErr = r.mantleClient.BlockNumber(blockCtx)
+		if blockErr != nil {
+			r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
+		} else {
+			r.metrics.RPCCallsTotal.WithLabelValues("mantle", "block_number").Inc()
+		}
+		return blockErr
+	})
+
+	if err != nil {
+		logger.Warnw("Failed to get current block, starting from 0", "error", err)
+		return 0
+	}
+
+	logger.Infow("First run, starting from current block", "block", latestBlock)
+	return latestBlock
+}
+
+// waitForNewBlock blocks until a new block is available or context is cancelled
+func (r *Relayer) waitForNewBlock(ctx context.Context, lastProcessedBlock uint64) (uint64, error) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return 0, ctx.Err()
 		case <-ticker.C:
-			// Get latest block with retry and timeout
-			var latestBlock uint64
-			blockCtx, blockCancel := context.WithTimeout(ctx, 30*time.Second)
-			err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "get_latest_block", func() error {
-				var err error
-				latestBlock, err = r.mantleClient.BlockNumber(blockCtx)
-				if err != nil {
-					r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
-				} else {
-					r.metrics.RPCCallsTotal.WithLabelValues("mantle", "block_number").Inc()
-				}
-				return err
-			})
-			blockCancel()
+			blockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			current, err := r.mantleClient.BlockNumber(blockCtx)
+			cancel()
 
 			if err != nil {
-				logger.Errorw("Failed to get latest block after retries", "error", err)
+				r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
+				logger.Warnw("Failed to get block number while waiting", "error", err)
 				continue
 			}
 
-			if fromBlock == 0 {
-				// Start from recent blocks to avoid scanning entire history
-				blockLookback := r.cfg.Relayer.BlockLookback
-				if blockLookback == 0 {
-					blockLookback = 100
-				}
-				if latestBlock > blockLookback {
-					fromBlock = latestBlock - blockLookback
-				}
-				logger.Infow("Starting block scan", "from_block", fromBlock, "to_block", latestBlock)
+			r.metrics.RPCCallsTotal.WithLabelValues("mantle", "block_number").Inc()
+
+			if current >= lastProcessedBlock {
+				return current, nil
 			}
-
-			// Skip if no new blocks to process
-			if fromBlock > latestBlock {
-				logger.Debugw("No new blocks to process", "from", fromBlock, "latest", latestBlock)
-				continue
-			}
-
-			// Query logs from last processed block to latest
-			query.FromBlock = big.NewInt(int64(fromBlock))
-			query.ToBlock = big.NewInt(int64(latestBlock))
-
-			var logs []types.Log
-			logsCtx, logsCancel := context.WithTimeout(ctx, 30*time.Second)
-			err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "filter_logs", func() error {
-				var err error
-				logs, err = r.mantleClient.FilterLogs(logsCtx, query)
-				if err != nil {
-					r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "filter_logs").Inc()
-				} else {
-					r.metrics.RPCCallsTotal.WithLabelValues("mantle", "filter_logs").Inc()
-				}
-				return err
-			})
-			logsCancel()
-
-			if err != nil {
-				logger.Errorw("Failed to filter logs after retries", "error", err, "from", fromBlock, "to", latestBlock)
-				continue
-			}
-
-			if len(logs) > 0 {
-				logger.Infow("Found lock events in block range",
-					"from_block", fromBlock,
-					"to_block", latestBlock,
-					"event_count", len(logs),
-				)
-			} else {
-				logger.Debugw("No events in block range", "from", fromBlock, "to", latestBlock)
-			}
-
-			for _, vLog := range logs {
-				r.processLockedEvent(ctx, vLog)
-			}
-
-			fromBlock = latestBlock + 1
 		}
 	}
 }
@@ -677,11 +719,11 @@ func (r *Relayer) GetStats() map[string]interface{} {
 	r.healthMu.RUnlock()
 
 	stats := map[string]interface{}{
-		"event_count":          eventCount,
-		"last_event_time":      lastEventTime.Format(time.RFC3339),
-		"mantle_healthy":       healthyMantle,
-		"ethereum_healthy":     healthyEth,
-		"persistence_enabled":  r.store != nil,
+		"event_count":         eventCount,
+		"last_event_time":     lastEventTime.Format(time.RFC3339),
+		"mantle_healthy":      healthyMantle,
+		"ethereum_healthy":    healthyEth,
+		"persistence_enabled": r.store != nil,
 	}
 
 	if r.store != nil {
