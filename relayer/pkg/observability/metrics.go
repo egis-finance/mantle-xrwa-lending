@@ -64,13 +64,13 @@ func createMetrics() *Metrics {
 			Help: "Total number of duplicate lock events skipped",
 		}),
 		ProcessingDuration: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name: "relayer_processing_duration_seconds",
-			Help: "Time taken to process a lock event end-to-end",
+			Name:    "relayer_processing_duration_seconds",
+			Help:    "Time taken to process a lock event end-to-end",
 			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10, 30},
 		}),
 		SignatureDuration: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name: "relayer_signature_duration_seconds",
-			Help: "Time taken to generate EIP-712 signature",
+			Name:    "relayer_signature_duration_seconds",
+			Help:    "Time taken to generate EIP-712 signature",
 			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5},
 		}),
 		RPCCallsTotal: promauto.NewCounterVec(
@@ -89,16 +89,16 @@ func createMetrics() *Metrics {
 		),
 		RPCDuration: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "relayer_rpc_duration_seconds",
-				Help: "Duration of RPC calls by chain and method",
+				Name:    "relayer_rpc_duration_seconds",
+				Help:    "Duration of RPC calls by chain and method",
 				Buckets: []float64{.01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 			},
 			[]string{"chain", "method"},
 		),
 		GasUsed: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name: "relayer_gas_used",
-				Help: "Gas used for transactions by type",
+				Name:    "relayer_gas_used",
+				Help:    "Gas used for transactions by type",
 				Buckets: prometheus.ExponentialBuckets(50000, 2, 10),
 			},
 			[]string{"tx_type"},

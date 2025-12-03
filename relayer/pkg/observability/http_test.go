@@ -156,8 +156,8 @@ func TestServer_ReadinessEndpoint_NotReady(t *testing.T) {
 
 func TestServer_HealthEndpoint_Healthy(t *testing.T) {
 	stats := map[string]interface{}{
-		"event_count":     42,
-		"mantle_healthy":  true,
+		"event_count":      42,
+		"mantle_healthy":   true,
 		"ethereum_healthy": true,
 	}
 
@@ -205,8 +205,8 @@ func TestServer_HealthEndpoint_Healthy(t *testing.T) {
 
 func TestServer_HealthEndpoint_Unhealthy(t *testing.T) {
 	stats := map[string]interface{}{
-		"event_count":     10,
-		"mantle_healthy":  false,
+		"event_count":      10,
+		"mantle_healthy":   false,
 		"ethereum_healthy": true,
 	}
 
