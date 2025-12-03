@@ -14,7 +14,12 @@ const mantleVTE = {
     name: 'Mantle VTE',
     nativeCurrency: { name: 'Mantle', symbol: 'MNT', decimals: 18 },
     rpcUrls: {
-        default: { http: ['https://virtual.mantle.eu.rpc.tenderly.co/2646db6c-77aa-4a11-97ac-79a7fe731bf4'] },
+        default: {
+            http: [
+                process.env.NEXT_PUBLIC_MANTLE_RPC_VTE ||
+                'https://virtual.mantle.eu.rpc.tenderly.co/2646db6c-77aa-4a11-97ac-79a7fe731bf4'
+            ]
+        },
     },
 } as const satisfies Chain
 

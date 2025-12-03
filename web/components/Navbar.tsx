@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { SafeAutoConnect } from '@/components/SafeAutoConnect';
+import { UsdyBalanceBadge } from '@/components/UsdyBalanceBadge';
 
 const navItems = [
     { name: 'Dashboard', href: '/dashboard' },
@@ -53,6 +54,8 @@ export function Navbar() {
                 </div>
 
                 <div className="flex items-center gap-4">
+                    {/* USDY balance badge - hidden for now */}
+                    {/* {process.env.NODE_ENV === 'development' && <UsdyBalanceBadge />} */}
                     <SafeAutoConnect />
                     <w3m-button />
                 </div>

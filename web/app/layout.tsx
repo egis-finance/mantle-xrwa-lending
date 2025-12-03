@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import { headers } from "next/headers";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -16,13 +15,14 @@ export const metadata: Metadata = {
   description: "Real-world assets as verified collateral for DeFi.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const headersObj = await headers();
-  const cookies = headersObj.get('cookie');
+  // For static export (Firebase Hosting), we cannot use headers() or cookies() server-side.
+  // Wagmi will hydration on the client side.
+  const cookies = null; 
 
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable}`}>

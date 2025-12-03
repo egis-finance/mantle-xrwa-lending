@@ -12,7 +12,9 @@ const queryClient = new QueryClient()
 const metadata = {
     name: 'Egis Finance',
     description: 'Cross-chain lending protocol enabling USDY collateral for DeFi',
-    url: 'https://egis.finance',
+    // In development we should match the current origin (e.g. http://localhost:3000)
+    // WalletConnect warns or may misbehave if this does not match the page URL.
+    url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
     icons: ['https://egis.finance/icon.png']
 }
 

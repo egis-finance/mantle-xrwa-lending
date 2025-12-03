@@ -23,6 +23,13 @@ export function useTvlPeg() {
   const isLoading = mantleTvl.isLoading || ethTvl.isLoading
   const isError = mantleTvl.isError || ethTvl.isError
 
+  if (mantleTvl.isError) {
+    console.error('Mantle TVL Error:', mantleTvl.error)
+  }
+  if (ethTvl.isError) {
+    console.error('ETH TVL Error:', ethTvl.error)
+  }
+
   // Both USDY and AcUSDY use 18 decimals
   // Use !== undefined to handle BigInt(0) correctly
   const mantleValue = mantleTvl.data !== undefined ? formatUnits(mantleTvl.data, 18) : null
