@@ -1,10 +1,10 @@
 'use client'
-import { Link as LinkIcon, AlertTriangle, Loader2 } from 'lucide-react'
+import { Link as LinkIcon, AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 import { formatTvl } from '@/lib/format'
 
 export function TvlPegDisplay() {
-  const { mantle, ethereum, isLoading, isError, isBalanced } = useTvlPeg()
+  const { mantle, ethereum, isLoading, isError, isBalanced, isRefetching, refetch } = useTvlPeg()
 
   const renderStatus = () => {
     if (isLoading) {
@@ -68,7 +68,20 @@ export function TvlPegDisplay() {
           </span>
         </div>
       </div>
-      {renderStatus()}
+      <div className="flex items-center gap-2">
+        {renderStatus()}
+        <button
+          onClick={refetch}
+          disabled={isLoading || isRefetching}
+          className="p-1.5 hover:bg-brand-light/50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Refresh TVL data"
+          data-testid="refresh-tvl"
+        >
+          <RefreshCw
+            className={`h-4 w-4 text-brand-muted ${isRefetching ? 'animate-spin' : ''}`}
+          />
+        </button>
+      </div>
     </div>
   )
 }

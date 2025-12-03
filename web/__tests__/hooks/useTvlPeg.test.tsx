@@ -132,4 +132,44 @@ describe('useTvlPeg', () => {
     // 0.004% difference should still be within tolerance
     expect(result.current.isBalanced).toBe(true)
   })
+
+  it('exposes refetch function that triggers both queries', () => {
+    const mockRefetch = jest.fn()
+    mockUseReadContract.mockReturnValue({
+      data: BigInt(0),
+      isLoading: false,
+      isError: false,
+      isRefetching: false,
+      refetch: mockRefetch,
+    })
+
+    const { result } = renderHook(() => useTvlPeg())
+
+    result.current.refetch()
+
+    // Both queries should have been triggered
+    expect(mockRefetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns isRefetching when any query is refetching', () => {
+    mockUseReadContract
+      .mockReturnValueOnce({
+        data: BigInt(0),
+        isLoading: false,
+        isError: false,
+        isRefetching: true,
+        refetch: jest.fn(),
+      })
+      .mockReturnValueOnce({
+        data: BigInt(0),
+        isLoading: false,
+        isError: false,
+        isRefetching: false,
+        refetch: jest.fn(),
+      })
+
+    const { result } = renderHook(() => useTvlPeg())
+
+    expect(result.current.isRefetching).toBe(true)
+  })
 })

@@ -38,11 +38,20 @@ export function useTvlPeg() {
     return Math.abs(mantleNum - ethNum) / mantleNum < 0.0001
   })()
 
+  const isRefetching = mantleTvl.isRefetching || ethTvl.isRefetching
+
+  const refetch = () => {
+    mantleTvl.refetch()
+    ethTvl.refetch()
+  }
+
   return {
     mantle: { value: mantleValue, ...mantleTvl },
     ethereum: { value: ethValue, ...ethTvl },
     isLoading,
     isError,
     isBalanced,
+    isRefetching,
+    refetch,
   }
 }

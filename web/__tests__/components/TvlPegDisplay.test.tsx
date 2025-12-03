@@ -2,7 +2,7 @@
  * Component tests for TvlPegDisplay
  */
 
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { TvlPegDisplay } from '@/components/TvlPegDisplay'
 
 const mockUseTvlPeg = jest.fn()
@@ -23,6 +23,8 @@ describe('TvlPegDisplay', () => {
       isLoading: true,
       isError: false,
       isBalanced: null,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -38,6 +40,8 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: false,
       isBalanced: true,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -57,6 +61,8 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: false,
       isBalanced: false,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -73,6 +79,8 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: true,
       isBalanced: null,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -87,6 +95,8 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: false,
       isBalanced: true,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -105,6 +115,8 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: false,
       isBalanced: true,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
@@ -119,11 +131,102 @@ describe('TvlPegDisplay', () => {
       isLoading: false,
       isError: false,
       isBalanced: true,
+      isRefetching: false,
+      refetch: jest.fn(),
     })
 
     render(<TvlPegDisplay />)
 
     expect(screen.getAllByText('$0.00')).toHaveLength(2)
     expect(screen.getByText('System Balanced')).toBeInTheDocument()
+  })
+
+  it('renders refresh button with correct aria-label', () => {
+    mockUseTvlPeg.mockReturnValue({
+      mantle: { value: '10000000', isLoading: false, isError: false },
+      ethereum: { value: '10000000', isLoading: false, isError: false },
+      isLoading: false,
+      isError: false,
+      isBalanced: true,
+      isRefetching: false,
+      refetch: jest.fn(),
+    })
+
+    render(<TvlPegDisplay />)
+
+    const refreshButton = screen.getByTestId('refresh-tvl')
+    expect(refreshButton).toHaveAttribute('aria-label', 'Refresh TVL data')
+  })
+
+  it('calls refetch when refresh button is clicked', () => {
+    const mockRefetch = jest.fn()
+    mockUseTvlPeg.mockReturnValue({
+      mantle: { value: '10000000', isLoading: false, isError: false },
+      ethereum: { value: '10000000', isLoading: false, isError: false },
+      isLoading: false,
+      isError: false,
+      isBalanced: true,
+      isRefetching: false,
+      refetch: mockRefetch,
+    })
+
+    render(<TvlPegDisplay />)
+
+    const refreshButton = screen.getByTestId('refresh-tvl')
+    fireEvent.click(refreshButton)
+
+    expect(mockRefetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables refresh button during loading', () => {
+    mockUseTvlPeg.mockReturnValue({
+      mantle: { value: null, isLoading: true, isError: false },
+      ethereum: { value: null, isLoading: true, isError: false },
+      isLoading: true,
+      isError: false,
+      isBalanced: null,
+      isRefetching: false,
+      refetch: jest.fn(),
+    })
+
+    render(<TvlPegDisplay />)
+
+    const refreshButton = screen.getByTestId('refresh-tvl')
+    expect(refreshButton).toBeDisabled()
+  })
+
+  it('disables refresh button during refetching', () => {
+    mockUseTvlPeg.mockReturnValue({
+      mantle: { value: '10000000', isLoading: false, isError: false },
+      ethereum: { value: '10000000', isLoading: false, isError: false },
+      isLoading: false,
+      isError: false,
+      isBalanced: true,
+      isRefetching: true,
+      refetch: jest.fn(),
+    })
+
+    render(<TvlPegDisplay />)
+
+    const refreshButton = screen.getByTestId('refresh-tvl')
+    expect(refreshButton).toBeDisabled()
+  })
+
+  it('shows spinning animation during refetch', () => {
+    mockUseTvlPeg.mockReturnValue({
+      mantle: { value: '10000000', isLoading: false, isError: false },
+      ethereum: { value: '10000000', isLoading: false, isError: false },
+      isLoading: false,
+      isError: false,
+      isBalanced: true,
+      isRefetching: true,
+      refetch: jest.fn(),
+    })
+
+    render(<TvlPegDisplay />)
+
+    const refreshButton = screen.getByTestId('refresh-tvl')
+    const icon = refreshButton.querySelector('svg')
+    expect(icon).toHaveClass('animate-spin')
   })
 })
