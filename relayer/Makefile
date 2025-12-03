@@ -2,15 +2,15 @@
 -include ../.env
 export
 
-.PHONY: help build test lint clean run docker-build docker-up docker-down docker-logs integration-test
+.PHONY: help build test test-race lint clean run docker-build docker-up docker-down docker-logs
 
 # Default target
 help:
 	@echo "Available targets:"
 	@echo "  build           - Build the relayer binary"
 	@echo "  test            - Run unit tests"
+	@echo "  test-race       - Run tests with race detector"
 	@echo "  test-coverage   - Run tests with coverage"
-	@echo "  integration     - Run integration tests with Anvil"
 	@echo "  lint            - Run golangci-lint"
 	@echo "  clean           - Remove build artifacts"
 	@echo "  run             - Run the relayer locally"
@@ -31,17 +31,17 @@ test:
 	@echo "Running tests..."
 	go test -v -race ./...
 
+# Run tests with race detector (explicit target for CI visibility)
+test-race:
+	@echo "Running tests with race detector..."
+	go test -v -race -count=1 ./...
+
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
-
-# Run integration tests (requires Foundry Anvil)
-integration:
-	@echo "Running integration tests..."
-	go test -v -tags=integration ./test/integration/...
 
 # Run linter
 lint:
