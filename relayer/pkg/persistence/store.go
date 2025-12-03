@@ -83,7 +83,7 @@ func (s *Store) SetLastProcessedBlock(block uint64) error {
 		return fmt.Errorf("failed to persist block cursor: %w", err)
 	}
 
-	logger.Debugw("Block cursor updated", "block", block)
+	logger.Debugw("Block cursor updated", "chain", "mantle", "block", block)
 	return nil
 }
 

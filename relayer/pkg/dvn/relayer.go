@@ -195,7 +195,8 @@ func (r *Relayer) monitorEvents(ctx context.Context) {
 			return // Clean shutdown via context cancellation
 		}
 
-		logger.Warnw("Subscription failed, retrying with backoff", "error", err, "backoff", backoff)
+		logger.Warnw("Subscription failed, retrying with backoff", "chain", "mantle",
+			"error", err, "backoff", backoff)
 		r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "subscription").Inc()
 
 		select {
@@ -250,7 +251,7 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 
 	// Load cursor from persistence, or initialize to current block
 	fromBlock := r.getInitialFromBlock(ctx)
-	logger.Infow("Polling mode active", "starting_block", fromBlock)
+	logger.Infow("Polling mode active", "chain", "mantle", "starting_block", fromBlock)
 
 	for {
 		// Wait for new blocks
@@ -282,18 +283,20 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 		logsCancel()
 
 		if err != nil {
-			logger.Errorw("Failed to filter logs after retries", "error", err, "from", fromBlock, "to", latestBlock)
+			logger.Errorw("Failed to filter logs after retries", "chain", "mantle", "chain", "mantle",
+			"error", err, "from", fromBlock, "to", latestBlock)
 			continue
 		}
 
 		if len(logs) > 0 {
 			logger.Infow("Found lock events in block range",
+				"chain", "mantle",
 				"from_block", fromBlock,
 				"to_block", latestBlock,
 				"event_count", len(logs),
 			)
 		} else {
-			logger.Debugw("No events in block range", "from", fromBlock, "to", latestBlock)
+			logger.Debugw("No events in block range", "chain", "mantle", "from", fromBlock, "to", latestBlock)
 		}
 
 		for _, vLog := range logs {
@@ -304,7 +307,8 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 		fromBlock = latestBlock + 1
 		if r.store != nil {
 			if err := r.store.SetLastProcessedBlock(latestBlock); err != nil {
-				logger.Errorw("Failed to persist block cursor", "error", err, "block", latestBlock)
+				logger.Errorw("Failed to persist block cursor", "chain", "mantle", "chain", "mantle",
+			"error", err, "block", latestBlock)
 			}
 		}
 	}
@@ -316,7 +320,7 @@ func (r *Relayer) getInitialFromBlock(ctx context.Context) uint64 {
 	if r.store != nil {
 		cursor := r.store.GetLastProcessedBlock()
 		if cursor > 0 {
-			logger.Infow("Resuming from persisted cursor", "block", cursor)
+			logger.Infow("Resuming from persisted cursor", "chain", "mantle", "block", cursor)
 			return cursor + 1
 		}
 	}
@@ -338,11 +342,11 @@ func (r *Relayer) getInitialFromBlock(ctx context.Context) uint64 {
 	})
 
 	if err != nil {
-		logger.Warnw("Failed to get current block, starting from 0", "error", err)
+		logger.Warnw("Failed to get current block, starting from 0", "chain", "mantle", "error", err)
 		return 0
 	}
 
-	logger.Infow("First run, starting from current block", "block", latestBlock)
+	logger.Infow("First run, starting from current block", "chain", "mantle", "block", latestBlock)
 	return latestBlock
 }
 
@@ -362,7 +366,7 @@ func (r *Relayer) waitForNewBlock(ctx context.Context, lastProcessedBlock uint64
 
 			if err != nil {
 				r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
-				logger.Warnw("Failed to get block number while waiting", "error", err)
+				logger.Warnw("Failed to get block number while waiting", "chain", "mantle", "error", err)
 				continue
 			}
 
@@ -392,6 +396,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	event, err := contracts.ParseLockedEvent(vLog, r.lockerABI)
 	if err != nil {
 		logger.Errorw("Failed to parse Locked event",
+			"chain", "mantle",
 			"error", err,
 			"tx", vLog.TxHash,
 			"block", vLog.BlockNumber,
@@ -434,6 +439,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	consumed, err := r.isConsumedOnChain(spanCtx, event.LockId)
 	if err != nil {
 		logger.Warnw("Failed to check on-chain consumed status, proceeding with submission",
+			"chain", "mantle",
 			"error", err,
 			"lock_id", common.Bytes2Hex(event.LockId[:]),
 		)
@@ -454,10 +460,11 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	r.mu.Unlock()
 
 	logger.Infow("New lock detected",
+		"chain", "mantle",
 		"borrower", event.Borrower,
 		"lock_id", common.Bytes2Hex(event.LockId[:]),
 		"amount", event.Amount,
-		"chain_id", event.SourceChainId,
+		"source_chain_id", event.SourceChainId,
 		"valid_until", event.ValidUntil,
 		"vc_hash", common.Bytes2Hex(event.VcHash[:]),
 		"tx", vLog.TxHash,
@@ -497,6 +504,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 
 	if err != nil {
 		logger.Errorw("Failed to sign lock message after retries",
+			"chain", "mantle",
 			"error", err,
 			"lock_id", common.Bytes2Hex(event.LockId[:]),
 		)
@@ -529,6 +537,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 
 	if err != nil {
 		logger.Errorw("Failed to submit attestation after retries",
+			"chain", "mantle",
 			"error", err,
 			"lock_id", common.Bytes2Hex(event.LockId[:]),
 		)
@@ -554,7 +563,8 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 			vLog.BlockNumber,
 		); err != nil {
 			logger.Warnw("Failed to persist processed lock",
-				"error", err,
+				"chain", "mantle",
+			"error", err,
 				"lock_id", common.Bytes2Hex(event.LockId[:]),
 			)
 		}
@@ -668,9 +678,9 @@ func (r *Relayer) updateHealthStatus(chain string, healthy bool, block uint64, e
 	r.metrics.HealthCheckStatus.WithLabelValues(chain).Set(status)
 
 	if err != nil {
-		logger.Warnw(chain+" health check failed", "error", err)
+		logger.Warnw("Health check failed", "chain", chain, "error", err)
 	} else {
-		logger.Debugw(chain+" health check OK", "latest_block", block)
+		logger.Debugw("Health check OK", "chain", chain, "latest_block", block)
 	}
 }
 
