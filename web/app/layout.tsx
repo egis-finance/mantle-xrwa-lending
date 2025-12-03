@@ -26,7 +26,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable}`}>
-      <body>
+      <body suppressHydrationWarning>
         <Providers cookies={cookies}>{children}</Providers>
       </body>
     </html>
