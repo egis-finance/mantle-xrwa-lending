@@ -4,18 +4,27 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, ShieldCheck, Coins, Info } from 'lucide-react';
+import { HardcodedUsdyBalance } from '@/components/HardcodedUsdyBalance';
 
 export default function EarnPage() {
+    const lenderAddress = process.env.NEXT_PUBLIC_LENDER_ADDRESS as `0x${string}` | undefined;
+
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
             <Navbar />
 
             <main className="flex-1 container max-w-screen-2xl py-8 space-y-8">
                 {/* Header */}
-                <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-serif font-bold text-brand-dark">Lender Yield</h1>
-                    <p className="text-brand-muted">Supply USDC to earn yield backed by verified real-world assets.</p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex flex-col gap-2">
+                        <h1 className="text-3xl font-serif font-bold text-brand-dark">Lender Yield</h1>
+                        <p className="text-brand-muted">Supply USDC to earn yield backed by verified real-world assets.</p>
+                    </div>
+                    {lenderAddress && (
+                        <HardcodedUsdyBalance address={lenderAddress} label="Lender balance" />
+                    )}
                 </div>
+
 
                 {/* Market Stats Header */}
                 <div className="grid md:grid-cols-3 gap-6">
