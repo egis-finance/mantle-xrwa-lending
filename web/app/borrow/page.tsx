@@ -1,14 +1,23 @@
 'use client';
 
+import React from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';
 import { HardcodedUsdyBalance } from '@/components/HardcodedUsdyBalance';
+import { useTvlPeg } from '@/hooks/useTvlPeg';
+import { formatTvl } from '@/lib/format';
 
 
 export default function BorrowPage() {
     const borrowerAddress = process.env.NEXT_PUBLIC_BORROWER_ADDRESS as `0x${string}` | undefined;
+    const { mantle, ethereum, isLoading } = useTvlPeg();
+    const [isSwapped, setIsSwapped] = React.useState(false);
+
+    const handleSwap = () => {
+        setIsSwapped(!isSwapped);
+    };
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -32,7 +41,7 @@ export default function BorrowPage() {
                     <div className="grid md:grid-cols-[1fr_auto_1fr] gap-0">
 
                         {/* Mantle Side */}
-                        <div className="bg-mantle-light/30 p-8 flex flex-col gap-6 border-r border-brand-light">
+                        <div className={`bg-mantle-light/20 p-8 flex flex-col gap-6 ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out`}>
                             <div className="flex items-center gap-3">
                                 <div className="relative h-8 w-8">
                                     {/* Placeholder for Mantle Icon */}
@@ -43,7 +52,10 @@ export default function BorrowPage() {
 
                             <div className="space-y-1">
                                 <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Available Balance</p>
-                                <p className="text-4xl font-bold text-brand-dark">150,000.00 <span className="text-xl text-brand-muted font-normal">USDY</span></p>
+                                <p className="text-4xl font-bold text-brand-dark">
+                                    {isLoading ? '...' : formatTvl(mantle.value)}{' '}
+                                    <span className="text-xl text-brand-muted font-normal">USDY</span>
+                                </p>
                             </div>
 
                             <div className="mt-auto space-y-3">
@@ -62,17 +74,21 @@ export default function BorrowPage() {
                         </div>
 
                         {/* Bridge Visual */}
-                        <div className="relative flex items-center justify-center p-4 bg-white/50 backdrop-blur-sm min-h-[100px] md:min-h-auto">
+                        <div className="relative flex items-center justify-center p-4 bg-white/50 backdrop-blur-sm min-h-[100px] md:min-h-auto md:order-2">
                             <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-full h-[1px] bg-gradient-to-r from-mantle/30 via-brand/30 to-eth/30"></div>
+                                <div className={`w-full h-[1px] bg-gradient-to-r transition-all duration-500 ease-in-out ${isSwapped ? 'from-eth/30 via-brand/30 to-mantle/30' : 'from-mantle/30 via-brand/30 to-eth/30'}`}></div>
                             </div>
-                            <div className="relative z-10 bg-white p-3 rounded-full shadow-floating border border-brand-light">
-                                <ArrowRightLeft className="h-6 w-6 text-brand-muted" />
-                            </div>
+                            <button 
+                                onClick={handleSwap}
+                                className="relative z-10 bg-white p-3 rounded-full shadow-floating border border-brand-light hover:bg-brand-light/30 hover:shadow-lg hover:scale-110 transition-all duration-500 ease-out cursor-pointer active:scale-95"
+                                aria-label="Swap chain positions"
+                            >
+                                <ArrowRightLeft className={`h-6 w-6 text-brand-muted hover:text-brand-DEFAULT transition-all duration-500 ease-in-out ${isSwapped ? 'rotate-180' : 'rotate-0'}`} />
+                            </button>
                         </div>
 
                         {/* Ethereum Side */}
-                        <div className="bg-eth-light/30 p-8 flex flex-col gap-6 border-l border-brand-light">
+                        <div className={`bg-eth-light/20 p-8 flex flex-col gap-6 ${isSwapped ? 'md:order-1 border-r' : 'md:order-3 border-l'} border-brand-light transition-all duration-500 ease-in-out`}>
                             <div className="flex items-center gap-3">
                                 <div className="relative h-8 w-8">
                                     {/* Placeholder for Eth Icon */}
@@ -83,15 +99,15 @@ export default function BorrowPage() {
 
                             <div className="space-y-1">
                                 <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Minted Collateral</p>
-                                <p className="text-4xl font-bold text-brand-dark">0.00 <span className="text-xl text-brand-muted font-normal">AcUSDY</span></p>
+                                <p className="text-4xl font-bold text-brand-dark">
+                                    {isLoading ? '...' : formatTvl(ethereum.value)}{' '}
+                                    <span className="text-xl text-brand-muted font-normal">AcUSDY</span>
+                                </p>
                             </div>
 
                             <div className="mt-auto">
-                                <div className="p-4 rounded-lg bg-white/60 border border-brand-light/50 text-center space-y-3">
+                                <div className="p-4 rounded-lg bg-white/60 border border-brand-light/50 text-center">
                                     <p className="text-sm text-brand-muted">No pending attestations</p>
-                                    <Button disabled variant="secondary" className="w-full opacity-50 cursor-not-allowed">
-                                        Propose Mint
-                                    </Button>
                                 </div>
                             </div>
                         </div>
