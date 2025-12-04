@@ -34,3 +34,4 @@ relayer/*.log
 # macOS system files
 .DS_Store
 **/.DS_Store
+.env.local

@@ -4,19 +4,28 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';
+import { HardcodedUsdyBalance } from '@/components/HardcodedUsdyBalance';
 
 
 export default function BorrowPage() {
+    const borrowerAddress = process.env.NEXT_PUBLIC_BORROWER_ADDRESS as `0x${string}` | undefined;
+
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
             <Navbar />
 
             <main className="flex-1 container max-w-screen-2xl py-8 space-y-8">
                 {/* Header */}
-                <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-serif font-bold text-brand-dark">Borrower Terminal</h1>
-                    <p className="text-brand-muted">Manage your cross-chain collateral and Morpho Blue positions.</p>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex flex-col gap-2">
+                        <h1 className="text-3xl font-serif font-bold text-brand-dark">Borrower Terminal</h1>
+                        <p className="text-brand-muted">Manage your cross-chain collateral and Morpho Blue positions.</p>
+                    </div>
+                    {borrowerAddress && (
+                        <HardcodedUsdyBalance address={borrowerAddress} label="Borrower balance" />
+                    )}
                 </div>
+
 
                 {/* Cross-Chain Asset Bridge Card */}
                 <Card className="overflow-hidden border-none shadow-soft-xl">
