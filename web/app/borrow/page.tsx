@@ -14,10 +14,64 @@ export default function BorrowPage() {
     const borrowerAddress = process.env.NEXT_PUBLIC_BORROWER_ADDRESS as `0x${string}` | undefined;
     const { mantle, ethereum, isLoading } = useTvlPeg();
     const [isSwapped, setIsSwapped] = React.useState(false);
+    const [lockAmount, setLockAmount] = React.useState('');
+    const [lockError, setLockError] = React.useState('');
 
     const handleSwap = () => {
         setIsSwapped(!isSwapped);
     };
+
+    // Get the available balance as a number
+    const availableBalance = mantle.value ? parseFloat(mantle.value) : 0;
+
+    const handleLockAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setLockAmount(value);
+
+        // Clear error when user types
+        if (lockError) {
+            setLockError('');
+        }
+
+        // Validate
+        if (value === '') {
+            return;
+        }
+
+        const numValue = parseFloat(value);
+
+        if (isNaN(numValue)) {
+            setLockError('Please enter a valid number');
+            return;
+        }
+
+        if (numValue <= 0) {
+            setLockError('Amount must be greater than 0');
+            return;
+        }
+
+        if (numValue > availableBalance) {
+            setLockError(`Amount exceeds available balance of ${formatTvl(mantle.value)}`);
+            return;
+        }
+    };
+
+    const handleMaxClick = () => {
+        if (mantle.value) {
+            setLockAmount(mantle.value);
+            setLockError('');
+        }
+    };
+
+    const handlePercentageClick = (percentage: number) => {
+        if (mantle.value) {
+            const amount = (parseFloat(mantle.value) * percentage / 100).toString();
+            setLockAmount(amount);
+            setLockError('');
+        }
+    };
+
+    const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalance === 0;
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -41,33 +95,98 @@ export default function BorrowPage() {
                     <div className="grid md:grid-cols-[1fr_auto_1fr] gap-0">
 
                         {/* Mantle Side */}
-                        <div className={`bg-mantle-light/20 p-8 flex flex-col gap-6 ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out`}>
-                            <div className="flex items-center gap-3">
-                                <div className="relative h-8 w-8">
-                                    {/* Placeholder for Mantle Icon */}
-                                    <div className="w-8 h-8 bg-mantle rounded-full flex items-center justify-center text-white font-bold text-xs">M</div>
-                                </div>
-                                <h3 className="text-xl font-semibold text-brand-dark">Mantle Vault</h3>
+                        <div className={`bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 p-6 flex flex-col ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out min-h-[400px]`}>
+                            {/* Header */}
+                            <div className="pb-3">
+                                <h3 className="text-lg font-semibold text-brand-dark">Mantle Vault</h3>
                             </div>
 
-                            <div className="space-y-1">
-                                <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Available Balance</p>
-                                <p className="text-4xl font-bold text-brand-dark">
+                            {/* Divider */}
+                            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-4"></div>
+
+                            {/* Balance Display */}
+                            <div className="space-y-1 pb-4 p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
+                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Available Balance</p>
+                                <p className="text-2xl font-bold text-gray-900">
                                     {isLoading ? '...' : formatTvl(mantle.value)}{' '}
-                                    <span className="text-xl text-brand-muted font-normal">USDY</span>
+                                    <span className="text-sm text-gray-600 font-normal">USDY</span>
                                 </p>
                             </div>
 
-                            <div className="mt-auto space-y-3">
-                                <div className="relative">
-                                    <input
-                                        type="number"
-                                        placeholder="Amount to lock"
-                                        className="w-full h-12 pl-4 pr-12 rounded-lg border border-input bg-white focus:ring-2 focus:ring-mantle/50 outline-none transition-all"
-                                    />
-                                    <button className="absolute right-2 top-2 text-xs font-medium text-mantle hover:text-mantle-dark px-2 py-1 rounded bg-mantle-light">MAX</button>
+                            {/* Spacer to push input section to bottom */}
+                            <div className="flex-1"></div>
+
+                            {/* Divider */}
+                            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-3"></div>
+
+                            {/* Lock Input Section */}
+                            <div className="space-y-3 p-3 rounded-xl bg-white/80 border border-gray-200 shadow-sm">
+                                <div className="space-y-3">
+                                    {/* Percentage Buttons */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handlePercentageClick(25)}
+                                            disabled={isLoading || availableBalance === 0}
+                                            type="button"
+                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            25%
+                                        </button>
+                                        <button
+                                            onClick={() => handlePercentageClick(50)}
+                                            disabled={isLoading || availableBalance === 0}
+                                            type="button"
+                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            50%
+                                        </button>
+                                        <button
+                                            onClick={handleMaxClick}
+                                            disabled={isLoading || availableBalance === 0}
+                                            type="button"
+                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                        >
+                                            MAX
+                                        </button>
+                                    </div>
+
+                                    {/* Amount Input */}
+                                    <div className="relative">
+                                        <input
+                                            type="number"
+                                            placeholder="0.00"
+                                            value={lockAmount}
+                                            onChange={handleLockAmountChange}
+                                            min="0"
+                                            max={mantle.value || undefined}
+                                            step="0.01"
+                                            disabled={isLoading || availableBalance === 0}
+                                            className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${lockError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100`}
+                                        />
+                                    </div>
+
+                                    {/* Error Message */}
+                                    {lockError && (
+                                        <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border-2 border-red-200">
+                                            <span className="text-red-600 font-bold text-sm mt-0.5">⚠</span>
+                                            <p className="text-sm text-red-700 font-medium">{lockError}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Empty Balance Message */}
+                                    {availableBalance === 0 && !isLoading && (
+                                        <p className="text-sm text-brand-muted text-center py-2">
+                                            No USDY available to lock
+                                        </p>
+                                    )}
                                 </div>
-                                <Button variant="mantle" className="w-full h-12 text-lg shadow-mantle/20">
+
+                                {/* Lock Button */}
+                                <Button 
+                                    variant="mantle" 
+                                    disabled={isLockDisabled}
+                                    className="w-full h-12 text-sm font-semibold shadow-lg shadow-mantle/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl hover:scale-[1.01] transition-all"
+                                >
                                     <Lock className="mr-2 h-4 w-4" /> Propose Lock & Bridge
                                 </Button>
                             </div>
@@ -88,26 +207,31 @@ export default function BorrowPage() {
                         </div>
 
                         {/* Ethereum Side */}
-                        <div className={`bg-eth-light/20 p-8 flex flex-col gap-6 ${isSwapped ? 'md:order-1 border-r' : 'md:order-3 border-l'} border-brand-light transition-all duration-500 ease-in-out`}>
-                            <div className="flex items-center gap-3">
-                                <div className="relative h-8 w-8">
-                                    {/* Placeholder for Eth Icon */}
-                                    <div className="w-8 h-8 bg-eth rounded-full flex items-center justify-center text-white font-bold text-xs">E</div>
-                                </div>
-                                <h3 className="text-xl font-semibold text-brand-dark">Ethereum Collateral</h3>
+                        <div className={`bg-gradient-to-br from-gray-50 to-white p-6 flex flex-col ${isSwapped ? 'md:order-1 border-r' : 'md:order-3 border-l'} border-brand-light transition-all duration-500 ease-in-out min-h-[400px]`}>
+                            {/* Header */}
+                            <div className="pb-3">
+                                <h3 className="text-lg font-semibold text-brand-dark">Ethereum Collateral</h3>
                             </div>
 
-                            <div className="space-y-1">
-                                <p className="text-sm text-brand-muted font-medium uppercase tracking-wider">Minted Collateral</p>
-                                <p className="text-4xl font-bold text-brand-dark">
+                            {/* Divider */}
+                            <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-4"></div>
+
+                            {/* Balance Display */}
+                            <div className="space-y-1 pb-4 p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
+                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Minted Collateral</p>
+                                <p className="text-2xl font-bold text-gray-900">
                                     {isLoading ? '...' : formatTvl(ethereum.value)}{' '}
-                                    <span className="text-xl text-brand-muted font-normal">AcUSDY</span>
+                                    <span className="text-sm text-gray-600 font-normal">AcUSDY</span>
                                 </p>
                             </div>
 
+                            {/* Spacer to push status box to bottom */}
+                            <div className="flex-1"></div>
+
+                            {/* Status Box */}
                             <div className="mt-auto">
-                                <div className="p-4 rounded-lg bg-white/60 border border-brand-light/50 text-center">
-                                    <p className="text-sm text-brand-muted">No pending attestations</p>
+                                <div className="p-4 rounded-xl bg-white/80 border-2 border-gray-200 text-center shadow-sm">
+                                    <p className="text-sm text-gray-600 font-medium">No pending attestations</p>
                                 </div>
                             </div>
                         </div>
