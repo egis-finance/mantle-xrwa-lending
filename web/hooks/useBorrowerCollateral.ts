@@ -7,7 +7,8 @@ import { MorphoAbi } from '@/lib/contracts/abis/Morpho'
 
 export function useBorrowerCollateral(borrowerAddress?: `0x${string}`) {
   const marketId = getMarketId()
-  const shouldQuery = Boolean(borrowerAddress) && marketId !== '0x0'
+  const isConfigured = contracts.morpho.address !== '0x0'
+  const shouldQuery = Boolean(borrowerAddress) && marketId !== '0x0' && isConfigured
 
   const { data, isLoading, isError, refetch } = useReadContract({
     address: contracts.morpho.address,
@@ -34,4 +35,5 @@ export function useBorrowerCollateral(borrowerAddress?: `0x${string}`) {
     refetch,
   }
 }
+
 

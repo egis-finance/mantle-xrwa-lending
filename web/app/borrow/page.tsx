@@ -2,6 +2,9 @@
 
 import React from 'react';
 import { Navbar } from '@/components/Navbar';
+
+// Force dynamic rendering to avoid prerendering issues with blockchain queries
+export const dynamic = 'force-dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';

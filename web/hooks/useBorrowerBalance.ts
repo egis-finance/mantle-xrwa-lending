@@ -16,7 +16,8 @@ const ERC20_BALANCE_ABI = [
 
 export function useBorrowerBalance(borrowerAddress?: `0x${string}`) {
   const usdyAddress = (process.env.NEXT_PUBLIC_MANTLE_USDY ?? '0x5bE26527e817998A7206475496fDE1E68957c5A6') as `0x${string}`
-  const shouldQuery = Boolean(borrowerAddress)
+  const isConfigured = usdyAddress !== '0x0'
+  const shouldQuery = Boolean(borrowerAddress) && isConfigured
 
   const { data, isLoading, isError, refetch } = useReadContract({
     address: usdyAddress,
@@ -41,4 +42,5 @@ export function useBorrowerBalance(borrowerAddress?: `0x${string}`) {
     refetch,
   }
 }
+
 

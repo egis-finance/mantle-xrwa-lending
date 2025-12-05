@@ -6,11 +6,17 @@ import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker'
 import { AcUSDYAbi } from '@/lib/contracts/abis/AcUSDY'
 
 export function useTvlPeg() {
+  // Check if contracts are configured
+  const isConfigured = contracts.collateralLocker.address !== '0x0' && contracts.acUSDY.address !== '0x0'
+
   const mantleTvl = useReadContract({
     address: contracts.collateralLocker.address,
     abi: CollateralLockerAbi,
     functionName: 'getTotalLocked',
     chainId: contracts.collateralLocker.chainId,
+    query: {
+      enabled: isConfigured,
+    },
   })
 
   const ethTvl = useReadContract({
@@ -18,6 +24,9 @@ export function useTvlPeg() {
     abi: AcUSDYAbi,
     functionName: 'totalSupply',
     chainId: contracts.acUSDY.chainId,
+    query: {
+      enabled: isConfigured,
+    },
   })
 
   const isLoading = mantleTvl.isLoading || ethTvl.isLoading
