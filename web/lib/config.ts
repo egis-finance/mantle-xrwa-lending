@@ -15,10 +15,7 @@ const mantleVTE = {
     nativeCurrency: { name: 'Mantle', symbol: 'MNT', decimals: 18 },
     rpcUrls: {
         default: {
-            http: [
-                process.env.NEXT_PUBLIC_MANTLE_RPC_VTE ||
-                'https://virtual.mantle.eu.rpc.tenderly.co/2646db6c-77aa-4a11-97ac-79a7fe731bf4'
-            ]
+            http: [process.env.NEXT_PUBLIC_MANTLE_RPC_VTE || 'http://localhost:8545']
         },
     },
 } as const satisfies Chain
@@ -28,7 +25,9 @@ const ethereumVTE = {
     name: 'Ethereum VTE',
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
     rpcUrls: {
-        default: { http: ['https://virtual.mainnet.eu.rpc.tenderly.co/099a70af-6185-4e28-b190-7e65e144ec95'] },
+        default: { 
+            http: [process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE || 'http://localhost:8546'] 
+        },
     },
 } as const satisfies Chain
 
