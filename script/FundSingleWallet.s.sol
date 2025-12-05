@@ -8,7 +8,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 /**
  * Funds a single wallet with MNT and USDY
  * Used by the web frontend to fund users on demand
- * 
+ *
  * Usage:
  * forge script script/FundSingleWallet.s.sol:FundSingleWallet \
  *   --rpc-url "$MANTLE_RPC_VTE" --broadcast --legacy \
@@ -21,7 +21,7 @@ contract FundSingleWallet is Script {
 
     function run(address target) external {
         require(target != address(0), "Invalid target address");
-        
+
         HelperConfig config = new HelperConfig();
         HelperConfig.MantleConfig memory mantleConfig = config.getMantleVteConfig();
 
