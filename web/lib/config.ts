@@ -32,7 +32,7 @@ const ethereumVTE = {
     },
 } as const satisfies Chain
 
-export const projectId = '38ab5a2e51b9757e06fe37a5261e800a'
+export const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '38ab5a2e51b9757e06fe37a5261e800a'
 
 if (!projectId) {
     throw new Error('Project ID is not defined')

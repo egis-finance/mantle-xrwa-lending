@@ -7,12 +7,28 @@ import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';
 import { HardcodedUsdyBalance } from '@/components/HardcodedUsdyBalance';
 import { useTvlPeg } from '@/hooks/useTvlPeg';
+import { useBorrowerCollateral } from '@/hooks/useBorrowerCollateral';
+import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
 import { formatTvl } from '@/lib/format';
 
 
 export default function BorrowPage() {
     const borrowerAddress = process.env.NEXT_PUBLIC_BORROWER_ADDRESS as `0x${string}` | undefined;
-    const { mantle, ethereum, isLoading } = useTvlPeg();
+    const { mantle, isLoading: mantleLoading } = useTvlPeg();
+    const borrowerCollateral = useBorrowerCollateral(borrowerAddress);
+    const borrowerBalance = useBorrowerBalance(borrowerAddress);
+    const isLoading = mantleLoading || borrowerCollateral.isLoading || borrowerBalance.isLoading;
+    
+    // Calculate available balance = total balance - locked amount
+    const availableBalance = React.useMemo(() => {
+        if (borrowerBalance.value && mantle.value) {
+            const total = parseFloat(borrowerBalance.value);
+            const locked = parseFloat(mantle.value);
+            return Math.max(0, total - locked).toFixed(2);
+        }
+        return null;
+    }, [borrowerBalance.value, mantle.value]);
+    
     const [isSwapped, setIsSwapped] = React.useState(false);
     const [lockAmount, setLockAmount] = React.useState('');
     const [lockError, setLockError] = React.useState('');
@@ -21,8 +37,8 @@ export default function BorrowPage() {
         setIsSwapped(!isSwapped);
     };
 
-    // Get the available balance as a number
-    const availableBalance = mantle.value ? parseFloat(mantle.value) : 0;
+    // Get the available balance as a number for validation
+    const availableBalanceNum = availableBalance ? parseFloat(availableBalance) : 0;
 
     const handleLockAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
@@ -50,28 +66,28 @@ export default function BorrowPage() {
             return;
         }
 
-        if (numValue > availableBalance) {
-            setLockError(`Amount exceeds available balance of ${formatTvl(mantle.value)}`);
+        if (numValue > availableBalanceNum) {
+            setLockError(`Amount exceeds available balance of ${formatTvl(availableBalance)}`);
             return;
         }
     };
 
     const handleMaxClick = () => {
-        if (mantle.value) {
-            setLockAmount(mantle.value);
+        if (availableBalance) {
+            setLockAmount(availableBalance);
             setLockError('');
         }
     };
 
     const handlePercentageClick = (percentage: number) => {
-        if (mantle.value) {
-            const amount = (parseFloat(mantle.value) * percentage / 100).toString();
+        if (availableBalance) {
+            const amount = (parseFloat(availableBalance) * percentage / 100).toString();
             setLockAmount(amount);
             setLockError('');
         }
     };
 
-    const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalance === 0;
+    const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalanceNum === 0;
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -98,18 +114,18 @@ export default function BorrowPage() {
                         <div className={`bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 p-6 flex flex-col ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out min-h-[400px]`}>
                             {/* Header */}
                             <div className="pb-3">
-                                <h3 className="text-lg font-semibold text-brand-dark">Mantle Vault</h3>
+                                <h3 className="text-lg font-semibold text-brand-dark">Mantle RWA</h3>
                             </div>
 
                             {/* Divider */}
                             <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-4"></div>
 
                             {/* Balance Display */}
-                            <div className="space-y-1 pb-4 p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
-                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Available Balance</p>
-                                <p className="text-2xl font-bold text-gray-900">
+                            <div className="p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
+                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">Locked Amount</p>
+                                <p className="text-lg font-bold text-gray-900 break-words">
                                     {isLoading ? '...' : formatTvl(mantle.value)}{' '}
-                                    <span className="text-sm text-gray-600 font-normal">USDY</span>
+                                    <span className="text-xs text-gray-600 font-normal">USDY</span>
                                 </p>
                             </div>
 
@@ -122,32 +138,40 @@ export default function BorrowPage() {
                             {/* Lock Input Section */}
                             <div className="space-y-3 p-3 rounded-xl bg-white/80 border border-gray-200 shadow-sm">
                                 <div className="space-y-3">
-                                    {/* Percentage Buttons */}
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handlePercentageClick(25)}
-                                            disabled={isLoading || availableBalance === 0}
-                                            type="button"
-                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            25%
-                                        </button>
-                                        <button
-                                            onClick={() => handlePercentageClick(50)}
-                                            disabled={isLoading || availableBalance === 0}
-                                            type="button"
-                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            50%
-                                        </button>
-                                        <button
-                                            onClick={handleMaxClick}
-                                            disabled={isLoading || availableBalance === 0}
-                                            type="button"
-                                            className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                        >
-                                            MAX
-                                        </button>
+                                    {/* Percentage Buttons with Available Balance */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handlePercentageClick(25)}
+                                                disabled={isLoading || availableBalanceNum === 0}
+                                                type="button"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                            >
+                                                25%
+                                            </button>
+                                            <button
+                                                onClick={() => handlePercentageClick(50)}
+                                                disabled={isLoading || availableBalanceNum === 0}
+                                                type="button"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                            >
+                                                50%
+                                            </button>
+                                            <button
+                                                onClick={handleMaxClick}
+                                                disabled={isLoading || availableBalanceNum === 0}
+                                                type="button"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                            >
+                                                MAX
+                                            </button>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-600 font-medium">Available</p>
+                                            <p className="text-sm font-bold text-gray-900">
+                                                {isLoading ? '...' : formatTvl(availableBalance)}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     {/* Amount Input */}
@@ -158,9 +182,9 @@ export default function BorrowPage() {
                                             value={lockAmount}
                                             onChange={handleLockAmountChange}
                                             min="0"
-                                            max={mantle.value || undefined}
+                                            max={availableBalance || undefined}
                                             step="0.01"
-                                            disabled={isLoading || availableBalance === 0}
+                                            disabled={isLoading || availableBalanceNum === 0}
                                             className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${lockError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100`}
                                         />
                                     </div>
@@ -174,7 +198,7 @@ export default function BorrowPage() {
                                     )}
 
                                     {/* Empty Balance Message */}
-                                    {availableBalance === 0 && !isLoading && (
+                                    {availableBalanceNum === 0 && !isLoading && (
                                         <p className="text-sm text-brand-muted text-center py-2">
                                             No USDY available to lock
                                         </p>
@@ -187,7 +211,7 @@ export default function BorrowPage() {
                                     disabled={isLockDisabled}
                                     className="w-full h-12 text-sm font-semibold shadow-lg shadow-mantle/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl hover:scale-[1.01] transition-all"
                                 >
-                                    <Lock className="mr-2 h-4 w-4" /> Propose Lock & Bridge
+                                    <Lock className="mr-2 h-4 w-4" /> Lock and Deposit
                                 </Button>
                             </div>
                         </div>
@@ -218,9 +242,9 @@ export default function BorrowPage() {
 
                             {/* Balance Display */}
                             <div className="space-y-1 pb-4 p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
-                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Minted Collateral</p>
+                                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">Attested Collateral</p>
                                 <p className="text-2xl font-bold text-gray-900">
-                                    {isLoading ? '...' : formatTvl(ethereum.value)}{' '}
+                                    {isLoading ? '...' : formatTvl(borrowerCollateral.value)}{' '}
                                     <span className="text-sm text-gray-600 font-normal">AcUSDY</span>
                                 </p>
                             </div>
