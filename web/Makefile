@@ -16,9 +16,9 @@ dev:
 build:
 	npm run build
 
-# Serve pre-built production bundle (requires 'build' first)
+# Serve static export from out/ directory (requires 'build' first)
 serve:
-	npm run start
+	npx serve out
 
 # Build and serve production bundle in one step
 prod: build serve
