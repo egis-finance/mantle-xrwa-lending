@@ -35,5 +35,3 @@ export function useBorrowerCollateral(borrowerAddress?: `0x${string}`) {
     refetch,
   }
 }
-
-

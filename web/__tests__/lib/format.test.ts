@@ -46,8 +46,14 @@ describe('formatTvl', () => {
     expect(formatTvl('-500')).toBe('$-500.00')
   })
 
-  it('handles very large values', () => {
-    expect(formatTvl('1000000000')).toBe('$1000.00M')
+  it('handles billion values', () => {
+    expect(formatTvl('1000000000')).toBe('$1.00B')
+    expect(formatTvl('5500000000')).toBe('$5.50B')
+  })
+
+  it('handles trillion values', () => {
+    expect(formatTvl('1000000000000')).toBe('$1.00T')
+    expect(formatTvl('2500000000000')).toBe('$2.50T')
   })
 
   it('handles empty string', () => {
