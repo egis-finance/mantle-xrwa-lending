@@ -2,7 +2,7 @@
 
 import { useAccount, useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const USDY_ADDRESS = (process.env.NEXT_PUBLIC_MANTLE_USDY || '0x5bE26527e817999A72036110DFD3416f10965753') as `0x${string}`;
 
@@ -16,13 +16,14 @@ const ERC20_ABI = [
   },
 ] as const;
 
+// Hydration-safe mounted check using useSyncExternalStore
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 export function UsdyBalance() {
   const { address, isConnected } = useAccount();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const { data: balance } = useReadContract({
     address: USDY_ADDRESS,

@@ -43,7 +43,7 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
     const [isFunding, setIsFunding] = useState(false);
     const shouldQuery = Boolean(address) && Boolean(usdyAddress);
 
-    const { data, isLoading, isError, error, refetch } = useReadContracts({
+    const { data, isLoading, isError, refetch } = useReadContracts({
         contracts: [
             {
                 address: usdyAddress,

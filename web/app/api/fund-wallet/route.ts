@@ -70,15 +70,16 @@ export async function POST(request: NextRequest) {
         } else {
             throw new Error('Funding script did not complete successfully');
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Fund Wallet] Error:', error);
+        const execError = error as { message?: string; stderr?: string; stdout?: string; cmd?: string };
         return NextResponse.json(
             {
                 error: 'Failed to fund wallet',
-                details: error.message || 'Unknown error',
-                stderr: error.stderr || '',
-                stdout: error.stdout || '',
-                command: error.cmd || '',
+                details: execError.message || 'Unknown error',
+                stderr: execError.stderr || '',
+                stdout: execError.stdout || '',
+                command: execError.cmd || '',
             },
             { status: 500 }
         );
