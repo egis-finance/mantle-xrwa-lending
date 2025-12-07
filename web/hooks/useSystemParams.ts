@@ -83,24 +83,48 @@ export function useSystemParams(): SystemParams {
   const isLoading = paramsLoading || marketLoading || oraclePrice.isLoading
   const isError = paramsError || marketError || oraclePrice.isError
 
-  // Debug logging
+  // Parse and calculate values BEFORE logging
+  const lltv = marketParams && marketParams.lltv > 0n
+    ? Number(formatUnits(marketParams.lltv, 18))
+    : 0.86
+  const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null
+
+  const totalSupply = marketData ? formatUnits(marketData.totalSupplyAssets, 6) : null
+  const totalBorrow = marketData ? formatUnits(marketData.totalBorrowAssets, 6) : null
+
+  const utilizationRate = totalSupply && totalBorrow && parseFloat(totalSupply) > 0
+    ? (parseFloat(totalBorrow) / parseFloat(totalSupply)) * 100
+    : 0
+
+  // Debug logging with KPI values
   if (typeof window !== 'undefined') {
     console.log('🔍 useSystemParams Cache Debug:', {
       marketId,
-      paramsLoading,
-      marketLoading,
-      hasMarketParams: !!marketParams,
-      hasMarketData: !!marketData,
-      paramsUpdatedAt: paramsUpdatedAt ? new Date(paramsUpdatedAt).toLocaleTimeString() : 'never',
-      marketUpdatedAt: marketUpdatedAt ? new Date(marketUpdatedAt).toLocaleTimeString() : 'never',
-      timeSinceParamsUpdate: paramsUpdatedAt ? Date.now() - paramsUpdatedAt : null,
-      timeSinceMarketUpdate: marketUpdatedAt ? Date.now() - marketUpdatedAt : null,
+      LOADING_STATE: {
+        paramsLoading,
+        marketLoading,
+        oraclePriceLoading: oraclePrice.isLoading,
+        overallLoading: isLoading,
+      },
+      CACHE_INFO: {
+        hasMarketParams: !!marketParams,
+        hasMarketData: !!marketData,
+        paramsUpdatedAt: paramsUpdatedAt ? new Date(paramsUpdatedAt).toLocaleTimeString() : 'never',
+        marketUpdatedAt: marketUpdatedAt ? new Date(marketUpdatedAt).toLocaleTimeString() : 'never',
+        timeSinceParamsUpdate: paramsUpdatedAt ? Date.now() - paramsUpdatedAt : null,
+        timeSinceMarketUpdate: marketUpdatedAt ? Date.now() - marketUpdatedAt : null,
+      },
+      KPI_VALUES: {
+        lltv: lltvPercentage,
+        totalSupply,
+        totalBorrow,
+        utilizationRate: `${utilizationRate.toFixed(2)}%`,
+        oraclePrice: oraclePrice.value,
+        oracleHaircut: oraclePrice.haircutPercentage,
+      }
     })
   }
-
-  // Parse and calculate values
-  const lltv = marketParams && marketParams.lltv > 0n
-    ? Number(formatUnits(marketParams.lltv, 18))
+    ?Number(formatUnits(marketParams.lltv, 18))
     : 0.86 // Default to 86% (matches deployment configuration)
   const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null
 
