@@ -8,7 +8,7 @@ export function useOraclePrice() {
   const isConfigured = contracts.navOracle.address !== '0x0'
 
   // Fetch price with haircut (what Morpho uses)
-  const { data: priceData, isLoading: priceLoading, isError: priceError } = useReadContract({
+  const { data: priceData, isLoading: priceLoading, isError: priceError, refetch: refetchPrice } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
     functionName: 'price',
@@ -65,6 +65,6 @@ export function useOraclePrice() {
     data: priceData,
     isLoading: priceLoading,
     isError: priceError,
+    refetch: refetchPrice,
   }
 }
-
