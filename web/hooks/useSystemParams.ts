@@ -56,14 +56,32 @@ export function useSystemParams(): SystemParams {
     chainId: contracts.morpho.chainId,
     query: {
       enabled: isConfigured,
-      refetchInterval: false, // Static data - no refetch needed
+      staleTime: Infinity, // Never consider stale - system params don't change
+      gcTime: Infinity, // Keep in cache forever
+      refetchOnMount: false, // Don't refetch on component mount
       refetchOnWindowFocus: false, // Don't refetch when tab regains focus
       refetchOnReconnect: false, // Don't refetch on reconnect
-      staleTime: Infinity, // Never consider stale
     },
   })
 
-  // Fetch market data (supply, borrow, fee, lastUpdate) - Can change, but infrequently
+  // Fetch fee
+  const { data: feeData, isLoading: feeLoading, isError: feeError } = useReadContract({
+    address: contracts.morpho.address,
+    abi: MorphoAbi,
+    functionName: 'fee',
+    args: [marketId],
+    chainId: contracts.morpho.chainId,
+    query: {
+      enabled: isConfigured,
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  })
+
+  // Fetch market data (supply, borrow, lastUpdate) - Can change, but infrequently
   const { data: marketData, isLoading: marketLoading, isError: marketError } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
@@ -72,10 +90,11 @@ export function useSystemParams(): SystemParams {
     chainId: contracts.morpho.chainId,
     query: {
       enabled: isConfigured,
-      refetchInterval: false, // Disable auto-refetch - these are static system params
+      staleTime: Infinity, // Never consider stale
+      gcTime: Infinity, // Keep in cache forever
+      refetchOnMount: false, // Don't refetch on component mount
       refetchOnWindowFocus: false, // Don't refetch when tab regains focus
       refetchOnReconnect: false, // Don't refetch on reconnect
-      staleTime: Infinity, // Never consider stale
     },
   })
 

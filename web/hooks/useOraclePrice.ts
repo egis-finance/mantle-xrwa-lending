@@ -8,6 +8,7 @@ export function useOraclePrice() {
   const isConfigured = contracts.navOracle.address !== '0x0'
 
   // Fetch price with haircut (what Morpho uses)
+  // Cache indefinitely - oracle configuration doesn't change frequently
   const { data: priceData, isLoading: priceLoading, isError: priceError, refetch: refetchPrice } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
@@ -15,14 +16,15 @@ export function useOraclePrice() {
     chainId: contracts.navOracle.chainId,
     query: {
       enabled: isConfigured,
-      refetchInterval: false,
+      staleTime: Infinity, // Never consider stale
+      gcTime: Infinity, // Keep in cache forever
+      refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: Infinity,
     },
   })
 
-  // Fetch haircut percentage
+  // Fetch haircut percentage (static configuration)
   const { data: haircutBps } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
@@ -30,14 +32,15 @@ export function useOraclePrice() {
     chainId: contracts.navOracle.chainId,
     query: {
       enabled: isConfigured,
-      refetchInterval: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: Infinity,
     },
   })
 
-  // Fetch staleness status
+  // Fetch staleness status (static configuration)
   const { data: isStale } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
@@ -45,10 +48,11 @@ export function useOraclePrice() {
     chainId: contracts.navOracle.chainId,
     query: {
       enabled: isConfigured,
-      refetchInterval: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnMount: false,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
-      staleTime: Infinity,
     },
   })
 
