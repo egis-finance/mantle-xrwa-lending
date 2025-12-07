@@ -48,7 +48,7 @@ export function useSystemParams(): SystemParams {
   const oraclePrice = useOraclePrice()
 
   // Fetch market parameters (includes LLTV) - STATIC, fetch once only
-  const { data: marketParams, isLoading: paramsLoading, isError: paramsError } = useReadContract({
+  const { data: marketParams, isLoading: paramsLoading, isError: paramsError, dataUpdatedAt: paramsUpdatedAt } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
     functionName: 'idToMarketParams',
@@ -64,7 +64,7 @@ export function useSystemParams(): SystemParams {
   })
 
   // Fetch fee
-  const { data: feeData, isLoading: feeLoading, isError: feeError } = useReadContract({
+  const { data: feeData, isLoading: feeLoading, isError: feeError, dataUpdatedAt: feeUpdatedAt } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
     functionName: 'fee',
@@ -80,7 +80,7 @@ export function useSystemParams(): SystemParams {
   })
 
   // Fetch market data (supply, borrow, lastUpdate) - Can change, but infrequently
-  const { data: marketData, isLoading: marketLoading, isError: marketError } = useReadContract({
+  const { data: marketData, isLoading: marketLoading, isError: marketError, dataUpdatedAt: marketUpdatedAt } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
     functionName: 'market',
@@ -97,6 +97,24 @@ export function useSystemParams(): SystemParams {
 
   const isLoading = paramsLoading || marketLoading || oraclePrice.isLoading
   const isError = paramsError || marketError || oraclePrice.isError
+
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    console.log('🔍 useSystemParams Cache Debug:', {
+      marketId,
+      paramsLoading,
+      marketLoading,
+      feeLoading,
+      hasMarketParams: !!marketParams,
+      hasMarketData: !!marketData,
+      hasFeeData: !!feeData,
+      paramsUpdatedAt: paramsUpdatedAt ? new Date(paramsUpdatedAt).toLocaleTimeString() : 'never',
+      marketUpdatedAt: marketUpdatedAt ? new Date(marketUpdatedAt).toLocaleTimeString() : 'never',
+      feeUpdatedAt: feeUpdatedAt ? new Date(feeUpdatedAt).toLocaleTimeString() : 'never',
+      timeSinceParamsUpdate: paramsUpdatedAt ? Date.now() - paramsUpdatedAt : null,
+      timeSinceMarketUpdate: marketUpdatedAt ? Date.now() - marketUpdatedAt : null,
+    })
+  }
 
   // Parse and calculate values
   const lltv = marketParams && marketParams.lltv > 0n
