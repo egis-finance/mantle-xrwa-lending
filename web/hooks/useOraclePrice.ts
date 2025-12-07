@@ -15,7 +15,6 @@ export function useOraclePrice() {
     functionName: 'price',
     chainId: contracts.navOracle.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity, // Never consider stale
       gcTime: Infinity, // Keep in cache forever
       refetchOnMount: false,
@@ -31,7 +30,6 @@ export function useOraclePrice() {
     functionName: 'HAIRCUT_BPS',
     chainId: contracts.navOracle.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity,
       gcTime: Infinity,
       refetchOnMount: false,
@@ -47,7 +45,6 @@ export function useOraclePrice() {
     functionName: 'isStale',
     chainId: contracts.navOracle.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity,
       gcTime: Infinity,
       refetchOnMount: false,

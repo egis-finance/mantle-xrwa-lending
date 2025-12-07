@@ -55,7 +55,6 @@ export function useSystemParams(): SystemParams {
     args: [marketId],
     chainId: contracts.morpho.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity, // Never consider stale - system params don't change
       gcTime: Infinity, // Keep in cache forever
       refetchOnMount: false, // Don't refetch on component mount
@@ -72,7 +71,6 @@ export function useSystemParams(): SystemParams {
     args: [marketId],
     chainId: contracts.morpho.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity,
       gcTime: Infinity,
       refetchOnMount: false,
@@ -89,7 +87,6 @@ export function useSystemParams(): SystemParams {
     args: [marketId],
     chainId: contracts.morpho.chainId,
     query: {
-      enabled: isConfigured,
       staleTime: Infinity, // Never consider stale
       gcTime: Infinity, // Keep in cache forever
       refetchOnMount: false, // Don't refetch on component mount
