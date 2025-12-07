@@ -12,6 +12,7 @@ import { contracts } from '@/lib/contracts';
 
 export default function DashboardPage() {
     const systemParams = useSystemParams();
+
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
             <Navbar />
