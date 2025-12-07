@@ -63,21 +63,6 @@ export function useSystemParams(): SystemParams {
     },
   })
 
-  // Fetch fee
-  const { data: feeData, isLoading: feeLoading, isError: feeError, dataUpdatedAt: feeUpdatedAt } = useReadContract({
-    address: contracts.morpho.address,
-    abi: MorphoAbi,
-    functionName: 'fee',
-    args: [marketId],
-    chainId: contracts.morpho.chainId,
-    query: {
-      staleTime: Infinity,
-      gcTime: Infinity,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  })
 
   // Fetch market data (supply, borrow, lastUpdate) - Can change, but infrequently
   const { data: marketData, isLoading: marketLoading, isError: marketError, dataUpdatedAt: marketUpdatedAt } = useReadContract({
@@ -104,13 +89,10 @@ export function useSystemParams(): SystemParams {
       marketId,
       paramsLoading,
       marketLoading,
-      feeLoading,
       hasMarketParams: !!marketParams,
       hasMarketData: !!marketData,
-      hasFeeData: !!feeData,
       paramsUpdatedAt: paramsUpdatedAt ? new Date(paramsUpdatedAt).toLocaleTimeString() : 'never',
       marketUpdatedAt: marketUpdatedAt ? new Date(marketUpdatedAt).toLocaleTimeString() : 'never',
-      feeUpdatedAt: feeUpdatedAt ? new Date(feeUpdatedAt).toLocaleTimeString() : 'never',
       timeSinceParamsUpdate: paramsUpdatedAt ? Date.now() - paramsUpdatedAt : null,
       timeSinceMarketUpdate: marketUpdatedAt ? Date.now() - marketUpdatedAt : null,
     })
