@@ -11,7 +11,7 @@ export function computeMarketId(): `0x${string}` {
   const collateralToken = contracts.acUSDY.address
   const oracle = contracts.navOracle.address
   const irm = (process.env.NEXT_PUBLIC_ETH_IRM ?? '0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC') as `0x${string}`
-  const lltv = BigInt('750000000000000000') // 0.75 = 75% (18 decimals)
+  const lltv = BigInt('860000000000000000') // 0.86 = 86% (18 decimals)
 
   // Encode the market params struct
   const encoded = encodeAbiParameters(
