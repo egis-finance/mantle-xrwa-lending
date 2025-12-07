@@ -7,6 +7,43 @@ import { createAppKit } from '@reown/appkit/react'
 import { wagmiAdapter, projectId, networks } from '@/lib/config'
 import SafeProvider from '@safe-global/safe-apps-react-sdk'
 
+// Create QueryClient as a module-level singleton with proper caching
+// This ensures it persists across page navigation in Next.js
+let queryClientSingleton: QueryClient | undefined = undefined
+
+function getQueryClient() {
+    if (typeof window === 'undefined') {
+        // Server: always create a new QueryClient
+        return new QueryClient({
+            defaultOptions: {
+                queries: {
+                    staleTime: Infinity,
+                    gcTime: Infinity,
+                    refetchOnMount: false,
+                    refetchOnWindowFocus: false,
+                    refetchOnReconnect: false,
+                },
+            },
+        })
+    }
+
+    // Browser: create singleton
+    if (!queryClientSingleton) {
+        queryClientSingleton = new QueryClient({
+            defaultOptions: {
+                queries: {
+                    staleTime: Infinity, // Data never goes stale
+                    gcTime: Infinity, // Keep in cache forever
+                    refetchOnMount: false, // Don't refetch on component mount
+                    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+                    refetchOnReconnect: false, // Don't refetch on reconnect
+                },
+            },
+        })
+    }
+
+    return queryClientSingleton
+}
 
 const metadata = {
     name: 'Egis Finance',
@@ -45,20 +82,7 @@ export function Providers({
     cookies?: string | null
 }) {
     const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig, cookies)
-
-    // Create QueryClient with proper caching configuration
-    // Use useState to ensure it's created once per app lifecycle
-    const [queryClient] = React.useState(() => new QueryClient({
-        defaultOptions: {
-            queries: {
-                staleTime: Infinity, // Data never goes stale by default
-                gcTime: Infinity, // Keep in cache forever
-                refetchOnMount: false, // Don't refetch on component mount
-                refetchOnWindowFocus: false, // Don't refetch when window regains focus
-                refetchOnReconnect: false, // Don't refetch on reconnect
-            },
-        },
-    }))
+    const queryClient = getQueryClient()
 
     return (
         <WagmiProvider config={wagmiAdapter.wagmiConfig} initialState={initialState}>
