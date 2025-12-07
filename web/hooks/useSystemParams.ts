@@ -124,9 +124,6 @@ export function useSystemParams(): SystemParams {
       }
     })
   }
-    ?Number(formatUnits(marketParams.lltv, 18))
-    : 0.86 // Default to 86% (matches deployment configuration)
-  const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null
 
   // Liquidation Threshold: In Morpho Blue, liquidation happens at LLTV (same as max LTV)
   // There is no separate warning threshold - liquidation occurs exactly at LLTV
@@ -138,17 +135,10 @@ export function useSystemParams(): SystemParams {
   const liquidationBonus = 0.15 // 15% default - could be fetched from protocol config if available
   const liquidationBonusPercentage = `${(liquidationBonus * 100).toFixed(0)}%`
 
-  const totalSupply = marketData ? formatUnits(marketData.totalSupplyAssets, 6) : null // USDC has 6 decimals
-  const totalBorrow = marketData ? formatUnits(marketData.totalBorrowAssets, 6) : null
-
   // Calculate available liquidity
   const availableLiquidity = totalSupply && totalBorrow
     ? (parseFloat(totalSupply) - parseFloat(totalBorrow)).toString()
     : null
-
-  const utilizationRate = totalSupply && totalBorrow && parseFloat(totalSupply) > 0
-    ? (parseFloat(totalBorrow) / parseFloat(totalSupply)) * 100
-    : 0 // Default to 0 if no supply
 
   const fee = marketData && marketData.fee > 0n ? Number(formatUnits(marketData.fee, 18)) : 0
   const feePercentage = fee !== null ? `${(fee * 100).toFixed(2)}%` : null
