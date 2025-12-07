@@ -1,26 +1,48 @@
 'use client';
 
 import React from 'react';
+import type { ReactElement } from 'react';
 import { Navbar } from '@/components/Navbar';
 
 // Force dynamic rendering to avoid prerendering issues with blockchain queries
 export const dynamic = 'force-dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, ShieldCheck, Lock, Wallet } from 'lucide-react';
+import { ArrowRightLeft, ShieldCheck, Lock, Wallet, RefreshCw } from 'lucide-react';
 import { HardcodedUsdyBalance } from '@/components/HardcodedUsdyBalance';
 import { useTvlPeg } from '@/hooks/useTvlPeg';
 import { useBorrowerCollateral } from '@/hooks/useBorrowerCollateral';
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
+import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { formatTvl } from '@/lib/format';
 
 
-export default function BorrowPage() {
+export default function BorrowPage(): ReactElement {
     const borrowerAddress = process.env.NEXT_PUBLIC_BORROWER_ADDRESS as `0x${string}` | undefined;
     const { mantle, isLoading: mantleLoading } = useTvlPeg();
     const borrowerCollateral = useBorrowerCollateral(borrowerAddress);
     const borrowerBalance = useBorrowerBalance(borrowerAddress);
+    const loanHealth = useLoanHealth(borrowerAddress);
     const isLoading = mantleLoading || borrowerCollateral.isLoading || borrowerBalance.isLoading;
+    
+    // Debug logging to help diagnose data loading
+    React.useEffect(() => {
+        console.log('🔍 DEBUG - Borrow Page Data:', {
+            borrowerAddress,
+            mantleValue: mantle.value,
+            collateralValue: borrowerCollateral.value,
+            collateralRaw: borrowerCollateral.data,
+            balanceValue: borrowerBalance.value,
+            loanHealth: {
+                isLoading: loanHealth.isLoading,
+                ltv: loanHealth.ltv,
+                collateralValue: loanHealth.collateralValue,
+                debtValue: loanHealth.debtValue,
+                healthFactor: loanHealth.healthFactor,
+                riskLevel: loanHealth.riskLevel,
+            },
+        });
+    }, [borrowerAddress, mantle.value, borrowerCollateral.value, borrowerCollateral.data, borrowerBalance.value, loanHealth]);
     
     // Calculate available balance = total balance - locked amount
     const availableBalance = React.useMemo(() => {
@@ -317,31 +339,105 @@ export default function BorrowPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
-                                <ShieldCheck className="h-5 w-5 text-success" />
+                                <ShieldCheck className={`h-5 w-5 ${loanHealth.isLoading ? 'text-brand-muted' : loanHealth.riskLevel === 'danger' ? 'text-danger-DEFAULT' : loanHealth.riskLevel === 'warning' ? 'text-warning-DEFAULT' : 'text-success'}`} />
                                 Loan Health
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="flex flex-col items-center justify-center py-8 space-y-8">
-                            {/* Gauge Placeholder */}
-                            <div className="relative w-48 h-24 bg-gradient-to-t from-brand-light to-white rounded-t-full border-t-8 border-x-8 border-brand-light flex items-end justify-center overflow-hidden">
-                                <div className="absolute bottom-0 w-full text-center pb-2">
-                                    <span className="text-3xl font-bold text-brand-dark">65%</span>
-                                    <p className="text-xs text-brand-muted">Current LTV</p>
-                                </div>
-                                {/* Needle */}
-                                <div className="absolute bottom-0 left-1/2 w-1 h-20 bg-brand-dark origin-bottom transform -rotate-45 rounded-full"></div>
-                            </div>
+                            {loanHealth.isLoading ? (
+                                // Loading State
+                                <div className="w-full flex flex-col items-center space-y-6 animate-pulse">
+                                    {/* Loading Gauge */}
+                                    <div className="relative w-48 h-24 bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-full border-t-8 border-x-8 border-gray-200 flex items-end justify-center overflow-hidden">
+                                        <div className="absolute bottom-0 w-full text-center pb-2">
+                                            <div className="h-8 w-16 bg-gray-300 rounded mx-auto mb-1"></div>
+                                            <div className="h-3 w-20 bg-gray-200 rounded mx-auto"></div>
+                                        </div>
+                                    </div>
 
-                            <div className="grid grid-cols-2 gap-8 w-full pt-4 border-t border-brand-light">
-                                <div className="text-center space-y-1">
-                                    <p className="text-xs text-brand-muted uppercase">Collateral Value</p>
-                                    <p className="text-xl font-bold text-brand-dark">$150,000</p>
+                                    {/* Loading Text */}
+                                    <div className="flex items-center gap-2 text-brand-muted">
+                                        <RefreshCw className="h-4 w-4 animate-spin" />
+                                        <span className="text-sm font-medium">Fetching blockchain data...</span>
+                                    </div>
+
+                                    {/* Loading Metrics */}
+                                    <div className="grid grid-cols-2 gap-8 w-full pt-4 border-t border-brand-light">
+                                        <div className="text-center space-y-2">
+                                            <div className="h-3 w-24 bg-gray-200 rounded mx-auto"></div>
+                                            <div className="h-6 w-32 bg-gray-300 rounded mx-auto"></div>
+                                        </div>
+                                        <div className="text-center space-y-2">
+                                            <div className="h-3 w-24 bg-gray-200 rounded mx-auto"></div>
+                                            <div className="h-6 w-32 bg-gray-300 rounded mx-auto"></div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="text-center space-y-1">
-                                    <p className="text-xs text-brand-muted uppercase">Total Debt</p>
-                                    <p className="text-xl font-bold text-brand-dark">$97,500</p>
-                                </div>
-                            </div>
+                            ) : (
+                                // Loaded State
+                                <>
+                                    {/* Gauge */}
+                                    <div className="relative w-48 h-24 bg-gradient-to-t from-brand-light to-white rounded-t-full border-t-8 border-x-8 border-brand-light flex items-end justify-center overflow-hidden">
+                                        <div className="absolute bottom-0 w-full text-center pb-2">
+                                            <span className={`text-3xl font-bold ${loanHealth.riskLevel === 'danger' ? 'text-danger-DEFAULT' : loanHealth.riskLevel === 'warning' ? 'text-warning-DEFAULT' : 'text-brand-dark'}`}>
+                                                {loanHealth.ltv !== null ? `${loanHealth.ltv.toFixed(1)}%` : '0%'}
+                                            </span>
+                                            <p className="text-xs text-brand-muted">Current LTV</p>
+                                        </div>
+                                        {/* Needle - rotates based on LTV (0% = -90deg, 75% = 0deg, >75% = towards right) */}
+                                        {loanHealth.ltv !== null && (
+                                            <div 
+                                                className={`absolute bottom-0 left-1/2 w-1 h-20 origin-bottom rounded-full transition-transform duration-500 ${loanHealth.riskLevel === 'danger' ? 'bg-danger-DEFAULT' : loanHealth.riskLevel === 'warning' ? 'bg-warning-DEFAULT' : 'bg-brand-dark'}`}
+                                                style={{ 
+                                                    transform: `rotate(${Math.min(Math.max((loanHealth.ltv / 75 * 90) - 90, -90), 0)}deg)` 
+                                                }}
+                                            ></div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-8 w-full pt-4 border-t border-brand-light">
+                                        <div className="text-center space-y-1">
+                                            <p className="text-xs text-brand-muted uppercase">Collateral Value</p>
+                                            <p className="text-xl font-bold text-brand-dark">
+                                                {loanHealth.collateralValue !== null ? `$${loanHealth.collateralValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '$0'}
+                                            </p>
+                                        </div>
+                                        <div className="text-center space-y-1">
+                                            <p className="text-xs text-brand-muted uppercase">Total Debt</p>
+                                            <p className="text-xl font-bold text-brand-dark">
+                                                {loanHealth.debtValue !== null ? `$${loanHealth.debtValue.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '$0'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Health Factor & Liquidation Warning */}
+                                    {loanHealth.debtValue !== null && loanHealth.debtValue > 0 && (
+                                        <div className="w-full space-y-2">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-brand-muted">Health Factor:</span>
+                                                <span className={`font-bold ${loanHealth.healthFactor < 1.1 ? 'text-danger-DEFAULT' : loanHealth.healthFactor < 1.3 ? 'text-warning-DEFAULT' : 'text-success-DEFAULT'}`}>
+                                                    {loanHealth.healthFactor === Infinity ? '∞' : loanHealth.healthFactor.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            {loanHealth.riskLevel !== 'safe' && (
+                                                <div className={`p-3 rounded-lg border-2 ${loanHealth.riskLevel === 'danger' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                                                    <p className={`text-xs font-medium ${loanHealth.riskLevel === 'danger' ? 'text-red-700' : 'text-yellow-700'}`}>
+                                                        {loanHealth.riskLevel === 'danger' 
+                                                            ? '⚠️ Critical: Position at risk of liquidation!'
+                                                            : '⚠️ Warning: Approaching liquidation threshold'
+                                                        }
+                                                    </p>
+                                                    {loanHealth.liquidationPrice !== null && (
+                                                        <p className={`text-xs mt-1 ${loanHealth.riskLevel === 'danger' ? 'text-red-600' : 'text-yellow-600'}`}>
+                                                            Liquidation price: ${loanHealth.liquidationPrice.toFixed(4)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </CardContent>
                     </Card>
 

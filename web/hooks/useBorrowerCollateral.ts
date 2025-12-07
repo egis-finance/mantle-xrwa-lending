@@ -27,6 +27,19 @@ export function useBorrowerCollateral(borrowerAddress?: `0x${string}`) {
     ? formatUnits(data.collateral as bigint, 18)
     : null
 
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    console.log('🔍 useBorrowerCollateral:', {
+      borrowerAddress,
+      marketId,
+      morphoAddress: contracts.morpho.address,
+      positionData: data,
+      collateralValue,
+      isLoading,
+      isError,
+    })
+  }
+
   return {
     value: collateralValue,
     data,
