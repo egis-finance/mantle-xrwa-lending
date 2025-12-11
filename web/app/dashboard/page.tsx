@@ -143,7 +143,7 @@ export default function DashboardPage() {
                         ) : (
                             <>
                                 {/* Enhanced 3-column grid with circular charts */}
-                                <div className="grid grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     {/* Max LTV with circular chart */}
                                     <div className="flex flex-col items-center p-5 rounded-2xl bg-gradient-to-br from-blue-50 via-white to-blue-50/50 border-2 border-blue-100 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                                         <div className="relative w-20 h-20 mb-3">
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Enhanced stats row with better styling */}
-                                <div className="grid grid-cols-3 gap-4 pt-4 border-t-2 border-gray-100">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t-2 border-gray-100">
                                     <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-gradient-to-br from-green-50 to-white border border-green-100 hover:shadow-md transition-shadow">
                                         <p className="text-xl font-bold text-green-700 mb-2">
                                             {systemParams.availableLiquidity ? formatTvl(systemParams.availableLiquidity) : '$0'}
