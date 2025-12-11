@@ -64,7 +64,7 @@ export function useSystemParams(): SystemParams {
   })
 
 
-  // Fetch market data (supply, borrow, lastUpdate) - Can change, but infrequently
+  // Fetch market data (supply, borrow, lastUpdate) - changes as users interact
   const { data: marketData, isLoading: marketLoading, isError: marketError, dataUpdatedAt: marketUpdatedAt } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
@@ -72,11 +72,10 @@ export function useSystemParams(): SystemParams {
     args: [marketId],
     chainId: contracts.morpho.chainId,
     query: {
-      staleTime: Infinity, // Never consider stale
-      gcTime: Infinity, // Keep in cache forever
-      refetchOnMount: false, // Don't refetch on component mount
-      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
-      refetchOnReconnect: false, // Don't refetch on reconnect
+      staleTime: 30000, // Consider stale after 30s
+      gcTime: Infinity, // Keep in cache (avoid re-fetch on remount)
+      refetchInterval: 30000, // Poll every 30 seconds
+      refetchOnWindowFocus: true, // Refresh when user returns to tab
     },
   })
 
@@ -86,7 +85,7 @@ export function useSystemParams(): SystemParams {
   // Parse and calculate values BEFORE logging
   const lltv = marketParams && marketParams.lltv > 0n
     ? Number(formatUnits(marketParams.lltv, 18))
-    : 0.86
+    : 0
   const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null
 
   const totalSupply = marketData ? formatUnits(marketData.totalSupplyAssets, 6) : null
@@ -130,10 +129,12 @@ export function useSystemParams(): SystemParams {
   const liquidationThreshold = lltv
   const liquidationThresholdPercentage = lltvPercentage
 
-  // Liquidation Bonus: Typically 5-15% for liquidators. Default to 15% if not available
-  // Note: This might need to come from a different source or be protocol-specific
-  const liquidationBonus = 0.15 // 15% default - could be fetched from protocol config if available
-  const liquidationBonusPercentage = `${(liquidationBonus * 100).toFixed(0)}%`
+  // Liquidation Bonus: In Morpho Blue, derived from LLTV as (1/LLTV - 1)
+  // For 86% LLTV: 1/0.86 - 1 ≈ 0.163 = 16.3% bonus
+  const liquidationBonus = lltv && lltv > 0 ? (1 / lltv) - 1 : null
+  const liquidationBonusPercentage = liquidationBonus !== null
+    ? `${(liquidationBonus * 100).toFixed(0)}%`
+    : null
 
   // Calculate available liquidity
   const availableLiquidity = totalSupply && totalBorrow

@@ -154,7 +154,7 @@ export default function DashboardPage() {
                                                     stroke="url(#blueGradient)"
                                                     strokeWidth="7"
                                                     fill="none"
-                                                    strokeDasharray={`${(86 / 100) * 213.6} 213.6`}
+                                                    strokeDasharray={`${((systemParams.lltv ?? 0) * 213.6)} 213.6`}
                                                     strokeLinecap="round"
                                                     className="transition-all duration-700"
                                                 />
@@ -166,7 +166,7 @@ export default function DashboardPage() {
                                                 </defs>
                                             </svg>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-lg font-bold text-blue-700">86%</span>
+                                                <span className="text-lg font-bold text-blue-700">{systemParams.lltvPercentage ?? '--'}</span>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-1.5">
@@ -275,7 +275,7 @@ export default function DashboardPage() {
                                         </div>
                                     </div>
                                     <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:shadow-md transition-shadow">
-                                        <p className="text-xl font-bold text-amber-700 mb-2">15%</p>
+                                        <p className="text-xl font-bold text-amber-700 mb-2">{systemParams.liquidationBonusPercentage ?? '0%'}</p>
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-amber-600 uppercase font-semibold tracking-wide text-center">Liq. Bonus</p>
                                             <div className="group/info relative">
