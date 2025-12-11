@@ -1,7 +1,6 @@
 'use client'
 import { useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
-import React from 'react'
 import { contracts } from '@/lib/contracts'
 import { getMarketId } from '@/lib/marketId'
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho'
@@ -48,7 +47,7 @@ export function useSystemParams(): SystemParams {
   const oraclePrice = useOraclePrice()
 
   // Fetch market parameters (includes LLTV) - STATIC, fetch once only
-  const { data: marketParams, isLoading: paramsLoading, isError: paramsError, dataUpdatedAt: paramsUpdatedAt } = useReadContract({
+  const { data: marketParams, isLoading: paramsLoading, isError: paramsError } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
     functionName: 'idToMarketParams',
@@ -65,7 +64,7 @@ export function useSystemParams(): SystemParams {
 
 
   // Fetch market data (supply, borrow, lastUpdate) - changes as users interact
-  const { data: marketData, isLoading: marketLoading, isError: marketError, dataUpdatedAt: marketUpdatedAt } = useReadContract({
+  const { data: marketData, isLoading: marketLoading, isError: marketError } = useReadContract({
     address: contracts.morpho.address,
     abi: MorphoAbi,
     functionName: 'market',
@@ -95,35 +94,6 @@ export function useSystemParams(): SystemParams {
     ? (parseFloat(totalBorrow) / parseFloat(totalSupply)) * 100
     : 0
 
-  // Debug logging with KPI values
-  if (typeof window !== 'undefined') {
-    console.log('🔍 useSystemParams Cache Debug:', {
-      marketId,
-      LOADING_STATE: {
-        paramsLoading,
-        marketLoading,
-        oraclePriceLoading: oraclePrice.isLoading,
-        overallLoading: isLoading,
-      },
-      CACHE_INFO: {
-        hasMarketParams: !!marketParams,
-        hasMarketData: !!marketData,
-        paramsUpdatedAt: paramsUpdatedAt ? new Date(paramsUpdatedAt).toLocaleTimeString() : 'never',
-        marketUpdatedAt: marketUpdatedAt ? new Date(marketUpdatedAt).toLocaleTimeString() : 'never',
-        timeSinceParamsUpdate: paramsUpdatedAt ? Date.now() - paramsUpdatedAt : null,
-        timeSinceMarketUpdate: marketUpdatedAt ? Date.now() - marketUpdatedAt : null,
-      },
-      KPI_VALUES: {
-        lltv: lltvPercentage,
-        totalSupply,
-        totalBorrow,
-        utilizationRate: `${utilizationRate.toFixed(2)}%`,
-        oraclePrice: oraclePrice.value,
-        oracleHaircut: oraclePrice.haircutPercentage,
-      }
-    })
-  }
-
   // Liquidation Threshold: In Morpho Blue, liquidation happens at LLTV (same as max LTV)
   // There is no separate warning threshold - liquidation occurs exactly at LLTV
   const liquidationThreshold = lltv
@@ -147,29 +117,6 @@ export function useSystemParams(): SystemParams {
   const lastUpdate = marketData && marketData.lastUpdate > 0n ? Number(marketData.lastUpdate) : null
 
   const oracleAddress = marketParams?.oracle || contracts.navOracle.address
-
-  // Debug logging (only log once when data changes, not on every render)
-  React.useEffect(() => {
-    if (typeof window !== 'undefined' && !isLoading && !isError) {
-      console.log('🔍 useSystemParams:', {
-        marketId,
-        lltv,
-        lltvPercentage,
-        liquidationThreshold,
-        liquidationThresholdPercentage,
-        liquidationBonus,
-        liquidationBonusPercentage,
-        totalSupply,
-        totalBorrow,
-        utilizationRate,
-        fee,
-        feePercentage,
-        oraclePrice: oraclePrice.value,
-        oracleAddress,
-        lastUpdate: lastUpdate ? new Date(lastUpdate * 1000).toISOString() : null,
-      })
-    }
-  }, [marketId, lltv, lltvPercentage, liquidationThreshold, liquidationThresholdPercentage, liquidationBonus, liquidationBonusPercentage, totalSupply, totalBorrow, utilizationRate, fee, feePercentage, oraclePrice.value, oracleAddress, lastUpdate, isLoading, isError])
 
   return {
     lltv,

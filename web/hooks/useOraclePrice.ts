@@ -51,7 +51,8 @@ export function useOraclePrice() {
     },
   })
 
-  // Format price (Oracle returns price with 24 decimals for Morpho)
+  // Morpho oracle precision: 10^(36 + loanDecimals - collateralDecimals)
+  // For USDC (6) / AcUSDY (18): 10^(36 + 6 - 18) = 10^24
   const priceValue = priceData !== undefined ? formatUnits(priceData, 24) : null
 
   // Calculate haircut percentage (e.g., 200 BPS = 2%)
