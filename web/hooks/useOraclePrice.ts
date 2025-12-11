@@ -8,18 +8,17 @@ export function useOraclePrice() {
   const isConfigured = contracts.navOracle.address !== '0x0'
 
   // Fetch price with haircut (what Morpho uses)
-  // Cache indefinitely - oracle configuration doesn't change frequently
+  // NAV can change when underlying asset price updates
   const { data: priceData, isLoading: priceLoading, isError: priceError, refetch: refetchPrice } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
     functionName: 'price',
     chainId: contracts.navOracle.chainId,
     query: {
-      staleTime: Infinity, // Never consider stale
-      gcTime: Infinity, // Keep in cache forever
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      staleTime: 60000, // Consider stale after 1 minute
+      gcTime: Infinity, // Keep in cache
+      refetchInterval: 60000, // Poll every minute
+      refetchOnWindowFocus: true,
     },
   })
 
@@ -38,18 +37,17 @@ export function useOraclePrice() {
     },
   })
 
-  // Fetch staleness status (static configuration)
+  // Fetch staleness status (dynamic check - can change over time)
   const { data: isStale } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
     functionName: 'isStale',
     chainId: contracts.navOracle.chainId,
     query: {
-      staleTime: Infinity,
+      staleTime: 60000,
       gcTime: Infinity,
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchInterval: 60000,
+      refetchOnWindowFocus: true,
     },
   })
 

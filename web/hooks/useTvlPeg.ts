@@ -16,6 +16,9 @@ export function useTvlPeg() {
     chainId: contracts.collateralLocker.chainId,
     query: {
       enabled: isConfigured,
+      staleTime: 60000, // Consider stale after 1 minute
+      refetchInterval: 60000, // Poll every minute
+      refetchOnWindowFocus: true,
     },
   })
 
@@ -26,6 +29,9 @@ export function useTvlPeg() {
     chainId: contracts.acUSDY.chainId,
     query: {
       enabled: isConfigured,
+      staleTime: 60000,
+      refetchInterval: 60000,
+      refetchOnWindowFocus: true,
     },
   })
 
