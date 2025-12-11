@@ -3,7 +3,7 @@
  */
 
 import { renderHook } from '@testing-library/react'
-import { useOraclePrice } from '../useOraclePrice'
+import { useOraclePrice } from './useOraclePrice'
 import { useReadContract } from 'wagmi'
 
 // Mock wagmi

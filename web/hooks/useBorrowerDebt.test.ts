@@ -3,7 +3,7 @@
  */
 
 import { renderHook } from '@testing-library/react'
-import { useBorrowerDebt } from '../useBorrowerDebt'
+import { useBorrowerDebt } from './useBorrowerDebt'
 import { useReadContract } from 'wagmi'
 import { contracts } from '@/lib/contracts'
 import { getMarketId } from '@/lib/marketId'
