@@ -1,7 +1,7 @@
 'use client'
 import { useReadContract } from 'wagmi'
 import { formatUnits } from 'viem'
-import { MANTLE_VTE_CHAIN_ID } from '@/lib/contracts'
+import { ETHEREUM_VTE_CHAIN_ID } from '@/lib/contracts'
 
 // Standard ERC20 ABI for balance and decimals
 const ERC20_ABI = [
@@ -21,17 +21,17 @@ const ERC20_ABI = [
   },
 ] as const
 
-export function useBorrowerBalance(borrowerAddress?: `0x${string}`) {
-  const usdyAddress = (process.env.NEXT_PUBLIC_MANTLE_USDY ?? '0x5bE26527e817998A7206475496fDE1E68957c5A6') as `0x${string}`
-  const isConfigured = usdyAddress !== '0x0'
-  const shouldQuery = Boolean(borrowerAddress) && isConfigured
+export function useLenderBalance(lenderAddress?: `0x${string}`) {
+  const usdcAddress = (process.env.NEXT_PUBLIC_ETH_USDC ?? '0x0') as `0x${string}`
+  const isConfigured = usdcAddress !== '0x0'
+  const shouldQuery = Boolean(lenderAddress) && isConfigured
 
   const { data: balance, isLoading: isBalanceLoading, isError: isBalanceError, refetch: refetchBalance } = useReadContract({
-    address: usdyAddress,
+    address: usdcAddress,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
-    args: [borrowerAddress!],
-    chainId: MANTLE_VTE_CHAIN_ID,
+    args: [lenderAddress!],
+    chainId: ETHEREUM_VTE_CHAIN_ID,
     query: {
       enabled: shouldQuery,
       refetchInterval: 10000,
@@ -39,18 +39,20 @@ export function useBorrowerBalance(borrowerAddress?: `0x${string}`) {
   })
 
   const { data: decimals, isLoading: isDecimalsLoading } = useReadContract({
-    address: usdyAddress,
+    address: usdcAddress,
     abi: ERC20_ABI,
     functionName: 'decimals',
-    chainId: MANTLE_VTE_CHAIN_ID,
+    chainId: ETHEREUM_VTE_CHAIN_ID,
     query: {
       enabled: isConfigured,
       staleTime: Infinity,
     },
   })
 
-  // Format balance using dynamic decimals (default to 18 for USDY if fetch fails)
-  const resolvedDecimals = decimals ?? 18
+  // Format balance using dynamic decimals (default to 6 for USDC if fetch fails but generally should wait)
+  // If decimals are loading, we might show null or wait. 
+  // If decimals failed, fallback to 6 (standard USDC).
+  const resolvedDecimals = decimals ?? 6
   const balanceValue = balance !== undefined ? formatUnits(balance, resolvedDecimals) : null
   
   const isLoading = isBalanceLoading || isDecimalsLoading

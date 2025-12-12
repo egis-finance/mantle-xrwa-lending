@@ -136,7 +136,7 @@ export default function BorrowPage(): ReactElement {
                     <div className="grid md:grid-cols-[1fr_auto_1fr] gap-0">
 
                         {/* Mantle Side */}
-                        <div className={`bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 p-6 flex flex-col ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out min-h-[400px]`}>
+                        <div className={`bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 p-6 flex flex-col ${isSwapped ? 'md:order-3 border-l' : 'md:order-1 border-r'} border-brand-light transition-all duration-500 ease-in-out min-h-[400px] hover:shadow-inner`}>
                             {/* Header */}
                             <div className="pb-3">
                                 <h3 className="text-lg font-semibold text-brand-dark">Mantle RWA</h3>
@@ -170,7 +170,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={() => handlePercentageClick(25)}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
                                             >
                                                 25%
                                             </button>
@@ -178,7 +178,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={() => handlePercentageClick(50)}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
                                             >
                                                 50%
                                             </button>
@@ -186,7 +186,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={handleMaxClick}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
                                             >
                                                 MAX
                                             </button>
@@ -210,7 +210,7 @@ export default function BorrowPage(): ReactElement {
                                             max={availableBalance || undefined}
                                             step="0.01"
                                             disabled={isLoading || availableBalanceNum === 0}
-                                            className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${lockError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100`}
+                                            className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${lockError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-mantle/50`}
                                         />
                                     </div>
 
@@ -313,10 +313,10 @@ export default function BorrowPage(): ReactElement {
                             </div>
 
                             <div className="bg-brand-light/30 rounded-xl p-6 space-y-4 border border-brand-light">
-                                <h4 className="text-sm font-semibold text-brand-muted uppercase tracking-wider">Proposed Batch Actions</h4>
+                                <h4 className="text-sm font-semibold text-brand-muted uppercase tracking-wider">Proposed Batch Actions <span className="inline-block ml-2 px-1.5 py-0.5 rounded text-[9px] bg-gray-200 text-gray-500 font-medium border border-gray-300">Mock Data</span></h4>
                                 <div className="space-y-3">
                                     {[1, 2, 3].map((step) => (
-                                        <div key={step} className="flex items-center gap-4 p-3 bg-white rounded-lg border border-brand-light/50 shadow-sm">
+                                        <div key={step} className="flex items-center gap-4 p-3 bg-white rounded-lg border border-brand-light/50 shadow-sm hover:shadow-md transition-shadow">
                                             <div className="h-6 w-6 rounded-full bg-brand-light text-brand-DEFAULT flex items-center justify-center text-xs font-bold border border-brand/20">
                                                 {step}
                                             </div>
@@ -328,8 +328,8 @@ export default function BorrowPage(): ReactElement {
                                 </div>
 
                                 <div className="pt-4 flex gap-4">
-                                    <Button variant="outline" className="flex-1">Simulate Batch</Button>
-                                    <Button className="flex-[2]">Propose Transaction</Button>
+                                    <Button variant="outline" className="flex-1 hover:bg-brand-light/20 transition-colors">Simulate Batch</Button>
+                                    <Button className="flex-[2] hover:opacity-90 transition-opacity">Propose Transaction</Button>
                                 </div>
                             </div>
                         </CardContent>

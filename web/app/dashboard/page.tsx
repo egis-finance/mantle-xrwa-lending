@@ -73,24 +73,31 @@ export default function DashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-border">
-                                        <tr className="bg-white">
+                                        <tr className="bg-white hover:bg-gray-50 transition-colors">
                                             <td className="p-4 font-mono text-brand-dark">0xab...45</td>
                                             <td className="p-4 text-success-DEFAULT font-bold">1.66</td>
                                             <td className="p-4">$60,000</td>
-                                            <td className="p-4 text-right text-brand-muted">-</td>
+                                            <td className="p-4 text-right text-brand-muted">
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium">Mock Data</span>
+                                            </td>
                                         </tr>
-                                        <tr className="bg-warning-light/10">
+                                        <tr className="bg-warning-light/10 hover:bg-warning-light/20 transition-colors">
                                             <td className="p-4 font-mono text-brand-dark">0xcd...89</td>
                                             <td className="p-4 text-warning-DEFAULT font-bold">1.17</td>
                                             <td className="p-4">$85,000</td>
-                                            <td className="p-4 text-right text-brand-muted">-</td>
+                                            <td className="p-4 text-right text-brand-muted">
+                                                 <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium">Mock Data</span>
+                                            </td>
                                         </tr>
-                                        <tr className="bg-danger-light/10">
+                                        <tr className="bg-danger-light/10 hover:bg-danger-light/20 transition-colors">
                                             <td className="p-4 font-mono text-brand-dark">0xef...12</td>
                                             <td className="p-4 text-danger-DEFAULT font-bold">1.02</td>
                                             <td className="p-4">$98,000</td>
                                             <td className="p-4 text-right">
-                                                <Button size="sm" variant="destructive" className="h-8">Trigger Liq</Button>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <Button size="sm" variant="destructive" className="h-8 hover:bg-red-700 transition-colors">Trigger Liq</Button>
+                                                    <span className="text-[10px] text-gray-400">Mock Data</span>
+                                                </div>
                                             </td>
                                         </tr>
                                     </tbody>
@@ -107,13 +114,16 @@ export default function DashboardPage() {
                         <CardContent>
                             <div className="space-y-4">
                                 {[1, 2].map((i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 rounded-lg border border-border bg-white shadow-sm">
+                                    <div key={i} className="flex items-center justify-between p-4 rounded-lg border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
                                         <div className="space-y-1">
-                                            <p className="font-mono text-sm text-brand-dark">0xab...45</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-mono text-sm text-brand-dark">0xab...45</p>
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-gray-100 text-gray-500 font-medium border border-gray-200">Mock Data</span>
+                                            </div>
                                             <p className="text-xs text-brand-muted">Request: <span className="font-bold text-brand-dark">50,000 USDY</span></p>
                                         </div>
                                         {i === 1 ? (
-                                            <Button size="sm" variant="outline" className="text-brand-DEFAULT border-brand-DEFAULT hover:bg-brand-light">
+                                            <Button size="sm" variant="outline" className="text-brand-DEFAULT border-brand-DEFAULT hover:bg-brand-light transition-colors">
                                                 Process Release
                                             </Button>
                                         ) : (

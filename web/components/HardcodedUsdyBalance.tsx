@@ -36,14 +36,20 @@ const erc20Abi = [
 interface HardcodedUsdyBalanceProps {
     address: Address;
     label: string;
+    balance?: string | null;
+    isLoading?: boolean;
+    tokenSymbol?: string;
 }
 
-export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalanceProps) {
+export function HardcodedUsdyBalance({ address, label, balance, isLoading: externalLoading, tokenSymbol = 'USDY' }: HardcodedUsdyBalanceProps) {
     const [copied, setCopied] = useState(false);
     const [isFunding, setIsFunding] = useState(false);
-    const shouldQuery = Boolean(address) && Boolean(usdyAddress);
+    
+    // Only fetch if balance is not provided
+    const shouldFetch = balance === undefined;
+    const shouldQuery = shouldFetch && Boolean(address) && Boolean(usdyAddress);
 
-    const { data, isLoading, isError, refetch } = useReadContracts({
+    const { data, isLoading: internalLoading, isError, refetch } = useReadContracts({
         contracts: [
             {
                 address: usdyAddress,
@@ -65,6 +71,8 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
         },
     });
 
+    const isLoading = externalLoading || (shouldFetch && internalLoading);
+
     const balanceInfo = useMemo(() => {
         const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
 
@@ -72,14 +80,25 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
             return { value: 'Loading…', shortAddress, isZero: false };
         }
 
+        // If external balance is provided, use it
+        if (!shouldFetch && balance !== undefined) {
+            const numeric = balance ? Number.parseFloat(balance) : 0;
+            const display = balance ? Number(balance).toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 2,
+            }) : '0';
+            const isZero = numeric === 0;
+            return { value: display, shortAddress, isZero };
+        }
+
         if (isError || !data || data[0]?.result === undefined || data[1]?.result === undefined) {
             return { value: '—', shortAddress, isZero: false };
         }
 
-        const balance = data[0].result as bigint;
+        const rawBalance = data[0].result as bigint;
         const decimals = data[1].result as number;
 
-        const raw = formatUnits(balance, decimals);
+        const raw = formatUnits(rawBalance, decimals);
         const numeric = Number.parseFloat(raw);
 
         let display = '0';
@@ -109,7 +128,7 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
         }
 
         return { value: display, shortAddress, isZero };
-    }, [address, data, isError, isLoading]);
+    }, [address, data, isError, isLoading, balance, shouldFetch]);
 
     const handleCopy = async () => {
         try {
@@ -176,9 +195,9 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
                             <span className="font-sans text-xl font-bold text-brand-dark tracking-tight">
                                 {balanceInfo.value}
                             </span>
-                            <span className="text-xs font-medium text-brand-muted">USDY</span>
+                            <span className="text-xs font-medium text-brand-muted">{tokenSymbol}</span>
                         </div>
-                        {balanceInfo.isZero && (
+                        {balanceInfo.isZero && shouldFetch && (
                             <button
                                 onClick={handleFund}
                                 disabled={isFunding}
