@@ -3,7 +3,7 @@
  */
 
 import { render, screen } from '@testing-library/react'
-import BorrowPage from '../page'
+import BorrowPage from './page'
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 import { useBorrowerCollateral } from '@/hooks/useBorrowerCollateral'
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance'
@@ -100,13 +100,13 @@ describe('BorrowPage - Loan Health Component', () => {
         refetch: mockRefetch,
       })
 
-      render(<BorrowPage />)
+	      render(<BorrowPage />)
 
-      // Check for $0 values
-      expect(screen.getByText('$0')).toBeInTheDocument()
-      expect(screen.getByText('0.0%')).toBeInTheDocument()
-    })
-  })
+	      // Check for $0 values
+	      expect(screen.getAllByText('$0')).toHaveLength(2)
+	      expect(screen.getByText('0.0%')).toBeInTheDocument()
+	    })
+	  })
 
   describe('Safe Position', () => {
     it('should display safe position with green indicators', () => {

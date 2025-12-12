@@ -70,7 +70,7 @@ export function useLoanHealth(borrowerAddress?: `0x${string}`) {
       riskLevel = 'warning' // Within 10% of liquidation (above 67.5%)
     }
 
-    const isHealthy = healthFactor > 1.0
+    const isHealthy = healthFactor >= 1.0
 
     return {
       collateralValue: collateralValueUSD,
@@ -94,4 +94,3 @@ export function useLoanHealth(borrowerAddress?: `0x${string}`) {
     },
   }
 }
-

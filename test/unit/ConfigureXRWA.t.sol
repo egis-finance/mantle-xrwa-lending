@@ -4,6 +4,7 @@ pragma solidity 0.8.30;
 import {Test, console2} from "forge-std/Test.sol";
 import {ConfigureXRWA} from "../../script/ConfigureXRWA.s.sol";
 import {DeployEthereum} from "../../script/DeployEthereum.s.sol";
+import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {CollateralLocker} from "../../contracts/mantle/CollateralLocker.sol";
 import {AcUSDY} from "../../contracts/ethereum/AcUSDY.sol";
 import {XRWAReceiver} from "../../contracts/ethereum/XRWAReceiver.sol";
@@ -36,6 +37,10 @@ contract ConfigureXRWATest is Test {
     address internal admin;
     address internal dvn1;
     address internal irm;
+    uint256 internal adminPrivateKey;
+
+    HelperConfig.MantleConfig internal mantleConfig;
+    HelperConfig.EthereumConfig internal ethConfig;
 
     // VTE chain IDs (not mainnet!)
     uint256 internal constant MANTLE_CHAIN_ID = 14996;
@@ -46,7 +51,8 @@ contract ConfigureXRWATest is Test {
         deployScript = new DeployEthereum();
 
         // Use the address that corresponds to the test private key
-        uint256 adminPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
+        // advil account
+        adminPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
         admin = vm.addr(adminPrivateKey);
         dvn1 = makeAddr("dvn1");
         irm = makeAddr("irm");
@@ -56,39 +62,41 @@ contract ConfigureXRWATest is Test {
         usdc = new MockERC20("USD Coin", "USDC", 6);
         morpho = new MockMorpho();
 
-        // Set environment variables for scripts
-        vm.setEnv("ADMIN_PRIVATE_KEY", vm.toString(adminPrivateKey));
-        vm.setEnv("DVN1_ADDRESS", vm.toString(dvn1));
-        vm.setEnv("ADMIN_ADDRESS", vm.toString(admin));
-        vm.setEnv("ETH_MORPHO", vm.toString(address(morpho)));
-        vm.setEnv("ETH_USDC", vm.toString(address(usdc)));
-        vm.setEnv("ETH_IRM", vm.toString(irm));
-        vm.setEnv("ETHEREUM_RPC_VTE", "http://localhost:8545");
-        vm.setEnv("MANTLE_RPC_VTE", "http://localhost:8545");
-        vm.setEnv("MANTLE_USDY", vm.toString(address(usdy)));
-        vm.setEnv("MANTLE_CHAIN_ID", "14996"); // VTE chain ID
-        vm.setEnv("ETHEREUM_CHAIN_ID", "10002"); // VTE chain ID
+        mantleConfig = HelperConfig.MantleConfig({
+            rpcUrl: "http://localhost:8545", usdy: address(usdy), admin: admin, chainId: MANTLE_CHAIN_ID
+        });
+
+        ethConfig = HelperConfig.EthereumConfig({
+            rpcUrl: "http://localhost:8545",
+            morpho: address(morpho),
+            usdc: address(usdc),
+            irm: irm,
+            admin: admin,
+            chainId: ETHEREUM_CHAIN_ID
+        });
 
         // Deploy Mantle contract
         locker = new CollateralLocker(address(usdy), admin);
 
         // Deploy Ethereum contracts using DeployEthereum script
-        DeployEthereum.DeployedContracts memory deployed = deployScript.run();
+        DeployEthereum.DeployedContracts memory deployed = deployScript.runWithConfig(ethConfig, adminPrivateKey, dvn1);
         acUsdy = deployed.acUsdy;
         receiver = deployed.receiver;
         oracle = deployed.oracle;
         adapter = deployed.adapter;
-
-        // Set environment variables for deployed addresses
-        vm.setEnv("MANTLE_LOCKER", vm.toString(address(locker)));
-        vm.setEnv("ETH_XCUSDY", vm.toString(address(acUsdy)));
-        vm.setEnv("ETH_RECEIVER", vm.toString(address(receiver)));
-        vm.setEnv("ETH_ORACLE", vm.toString(address(oracle)));
-        vm.setEnv("ETH_ADAPTER", vm.toString(address(adapter)));
     }
 
     function testMarketCreation() public {
-        configScript.run();
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
 
         // Verify market was created on Morpho
         MarketParams memory params = MarketParams({
@@ -101,7 +109,16 @@ contract ConfigureXRWATest is Test {
     }
 
     function testLockerAllowlistWithCorrectChainID() public {
-        configScript.run();
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
 
         // Verify locker is allowed with VTE chain ID (14996), not mainnet (5000)
         bool allowed = receiver.isLockerAllowed(MANTLE_CHAIN_ID, address(locker));
@@ -113,7 +130,16 @@ contract ConfigureXRWATest is Test {
     }
 
     function testAcUSDYWhitelist() public {
-        configScript.run();
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
 
         // Verify Morpho is whitelisted
         assertTrue(acUsdy.transferAllowed(address(morpho)), "Morpho should be whitelisted");
@@ -124,8 +150,26 @@ contract ConfigureXRWATest is Test {
 
     function testIdempotency() public {
         // Run configuration twice
-        configScript.run();
-        configScript.run(); // Should not revert
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        ); // Should not revert
 
         // Verify configuration is still correct
         assertTrue(receiver.isLockerAllowed(MANTLE_CHAIN_ID, address(locker)), "Locker still allowed");
@@ -134,7 +178,16 @@ contract ConfigureXRWATest is Test {
     }
 
     function testChainIDConfiguration() public {
-        configScript.run();
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
 
         // Verify the script used VTE chain ID, not mainnet
         // This is evidenced by the locker being registered with chain ID 14996
@@ -147,7 +200,16 @@ contract ConfigureXRWATest is Test {
 
     function testCompleteConfiguration() public {
         // Run full configuration
-        configScript.run();
+        configScript.runWithConfig(
+            mantleConfig,
+            ethConfig,
+            address(locker),
+            address(acUsdy),
+            address(receiver),
+            address(oracle),
+            address(adapter),
+            adminPrivateKey
+        );
 
         // Verify market
         MarketParams memory params = MarketParams({

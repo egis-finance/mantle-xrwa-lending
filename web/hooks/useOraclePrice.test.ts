@@ -3,7 +3,7 @@
  */
 
 import { renderHook } from '@testing-library/react'
-import { useOraclePrice } from '../useOraclePrice'
+import { useOraclePrice } from './useOraclePrice'
 import { useReadContract } from 'wagmi'
 
 // Mock wagmi
@@ -28,10 +28,11 @@ describe('useOraclePrice', () => {
 
   describe('Price Fetching', () => {
     it('should format oracle price correctly', () => {
-      // Oracle returns price with 18 decimals
-      // 1.05 = 1050000000000000000
+      // Morpho oracle precision: 10^(36 + loanDecimals - collateralDecimals)
+      // For USDC (6) / AcUSDY (18): 10^(36 + 6 - 18) = 10^24
+      // 1.05 = 1050000000000000000000000n (1.05 * 10^24)
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -46,7 +47,7 @@ describe('useOraclePrice', () => {
 
     it('should handle price of 1.0', () => {
       mockUseReadContract.mockReturnValue({
-        data: 1000000000000000000n, // 1.0
+        data: 1000000000000000000000000n, // 1.0 * 10^24
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -54,13 +55,13 @@ describe('useOraclePrice', () => {
 
       const { result } = renderHook(() => useOraclePrice())
 
-      expect(result.current.value).toBe('1.0')
+      expect(result.current.value).toBe('1')
     })
 
     it('should handle high precision prices', () => {
-      // 1.123456789012345678
+      // 1.0425 * 10^24
       mockUseReadContract.mockReturnValue({
-        data: 1123456789012345678n,
+        data: 1042500000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -68,7 +69,7 @@ describe('useOraclePrice', () => {
 
       const { result } = renderHook(() => useOraclePrice())
 
-      expect(result.current.value).toBe('1.123456789012345678')
+      expect(result.current.value).toBe('1.0425')
     })
 
     it('should handle zero price', () => {
@@ -81,13 +82,13 @@ describe('useOraclePrice', () => {
 
       const { result } = renderHook(() => useOraclePrice())
 
-      expect(result.current.value).toBe('0.0')
+      expect(result.current.value).toBe('0')
     })
 
     it('should handle very large prices', () => {
-      // $1000
+      // $1000 * 10^24
       mockUseReadContract.mockReturnValue({
-        data: 1000000000000000000000n, // 1000 * 10^18
+        data: 1000000000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -95,13 +96,13 @@ describe('useOraclePrice', () => {
 
       const { result } = renderHook(() => useOraclePrice())
 
-      expect(result.current.value).toBe('1000.0')
+      expect(result.current.value).toBe('1000')
     })
 
     it('should handle very small prices', () => {
-      // $0.01
+      // $0.01 * 10^24
       mockUseReadContract.mockReturnValue({
-        data: 10000000000000000n, // 0.01 * 10^18
+        data: 10000000000000000000000n, // 0.01 * 10^24
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -144,7 +145,7 @@ describe('useOraclePrice', () => {
 
       // Then loaded
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -190,14 +191,8 @@ describe('useOraclePrice', () => {
   })
 
   describe('Configuration', () => {
-    it('should not query when oracle address is 0x0', () => {
-      ;(contracts as any) = {
-        navOracle: {
-          address: '0x0' as `0x${string}`,
-          chainId: 1,
-        },
-      }
-
+    it('should handle unconfigured oracle gracefully', () => {
+      // When oracle returns no data, value should be null
       mockUseReadContract.mockReturnValue({
         data: undefined,
         isLoading: false,
@@ -207,21 +202,12 @@ describe('useOraclePrice', () => {
 
       const { result } = renderHook(() => useOraclePrice())
 
-      // Should still work but query would be disabled
       expect(result.current.value).toBeNull()
     })
 
-    it('should use correct oracle address from config', () => {
-      const mockOracleAddress = '0x1234567890123456789012345678901234567890' as `0x${string}`
-      ;(contracts as any) = {
-        navOracle: {
-          address: mockOracleAddress,
-          chainId: 1,
-        },
-      }
-
+    it('should return formatted price when configured', () => {
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -236,7 +222,7 @@ describe('useOraclePrice', () => {
   describe('Refetch', () => {
     it('should expose refetch function', () => {
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -249,7 +235,7 @@ describe('useOraclePrice', () => {
 
     it('should call refetch when invoked', () => {
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -265,7 +251,7 @@ describe('useOraclePrice', () => {
 
   describe('Return Values', () => {
     it('should return all expected values', () => {
-      const mockData = 1050000000000000000n
+      const mockData = 1050000000000000000000000n
 
       mockUseReadContract.mockReturnValue({
         data: mockData,
@@ -299,11 +285,9 @@ describe('useOraclePrice', () => {
   })
 
   describe('Auto-refetch Interval', () => {
-    it('should be configured with 30 second refetch interval', () => {
-      // This tests that the hook is configured correctly
-      // The actual interval behavior is tested by wagmi
+    it('should be configured with refetch interval', () => {
       mockUseReadContract.mockReturnValue({
-        data: 1050000000000000000n,
+        data: 1050000000000000000000000n,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
@@ -311,10 +295,7 @@ describe('useOraclePrice', () => {
 
       renderHook(() => useOraclePrice())
 
-      // Verify that useReadContract was called
-      // In a real test, we'd check the config passed to useReadContract
       expect(mockUseReadContract).toHaveBeenCalled()
     })
   })
 })
-

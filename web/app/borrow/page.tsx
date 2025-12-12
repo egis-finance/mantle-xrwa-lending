@@ -416,7 +416,9 @@ export default function BorrowPage(): ReactElement {
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-brand-muted">Health Factor:</span>
                                                 <span className={`font-bold ${loanHealth.healthFactor < 1.1 ? 'text-danger-DEFAULT' : loanHealth.healthFactor < 1.3 ? 'text-warning-DEFAULT' : 'text-success-DEFAULT'}`}>
-                                                    {loanHealth.healthFactor === Infinity ? '∞' : loanHealth.healthFactor.toFixed(2)}
+                                                    {loanHealth.healthFactor === Infinity
+                                                        ? '∞'
+                                                        : (Math.round((loanHealth.healthFactor + Number.EPSILON) * 100) / 100).toFixed(2)}
                                                 </span>
                                             </div>
                                             {loanHealth.riskLevel !== 'safe' && (

@@ -49,7 +49,7 @@ contract MockMorpho is IMorpho {
         });
     }
 
-    function supply(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, bytes calldata)
+    function supply(MarketParams calldata params, uint256 assets, uint256, address onBehalf, bytes calldata)
         external
         returns (uint256 assetsSupplied, uint256 sharesSupplied)
     {
@@ -94,7 +94,7 @@ contract MockMorpho is IMorpho {
         ERC20(params.collateralToken).safeTransfer(receiver, amount);
     }
 
-    function borrow(MarketParams calldata params, uint256 assets, uint256 shares, address onBehalf, address receiver)
+    function borrow(MarketParams calldata params, uint256 assets, uint256, address onBehalf, address receiver)
         external
         returns (uint256 assetsBorrowed, uint256 sharesBorrowed)
     {

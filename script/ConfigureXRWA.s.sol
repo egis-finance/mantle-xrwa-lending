@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {Script, console2} from "forge-std/Script.sol";
 import {AcUSDY} from "../contracts/ethereum/AcUSDY.sol";
 import {XRWAReceiver} from "../contracts/ethereum/XRWAReceiver.sol";
-import {MorphoAdapter} from "../contracts/ethereum/MorphoAdapter.sol";
 import {IMorpho, MarketParams, Market, Id} from "../contracts/interfaces/IMorpho.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 
@@ -47,15 +46,47 @@ contract ConfigureXRWA is Script {
         HelperConfig.MantleConfig memory mantleConfig = config.getMantleVteConfig();
         HelperConfig.EthereumConfig memory ethConfig = config.getEthereumVteConfig();
 
-        // Store chain IDs early to avoid stack issues
-        uint256 mantleChainId = mantleConfig.chainId;
-        uint256 ethChainId = ethConfig.chainId;
-
-        // Load deployed contract addresses from .env
         address mantleLocker = vm.envAddress("MANTLE_LOCKER");
         address acUsdyAddr = vm.envAddress("ETH_XCUSDY");
         address receiverAddr = vm.envAddress("ETH_RECEIVER");
+        address oracleAddr = vm.envAddress("ETH_ORACLE");
         address adapterAddr = vm.envAddress("ETH_ADAPTER");
+
+        uint256 adminPrivateKey = vm.envUint("ADMIN_PRIVATE_KEY");
+
+        _configure(
+            mantleConfig, ethConfig, mantleLocker, acUsdyAddr, receiverAddr, oracleAddr, adapterAddr, adminPrivateKey
+        );
+    }
+
+    function runWithConfig(
+        HelperConfig.MantleConfig memory mantleConfig,
+        HelperConfig.EthereumConfig memory ethConfig,
+        address mantleLocker,
+        address acUsdyAddr,
+        address receiverAddr,
+        address oracleAddr,
+        address adapterAddr,
+        uint256 adminPrivateKey
+    ) external {
+        _configure(
+            mantleConfig, ethConfig, mantleLocker, acUsdyAddr, receiverAddr, oracleAddr, adapterAddr, adminPrivateKey
+        );
+    }
+
+    function _configure(
+        HelperConfig.MantleConfig memory mantleConfig,
+        HelperConfig.EthereumConfig memory ethConfig,
+        address mantleLocker,
+        address acUsdyAddr,
+        address receiverAddr,
+        address oracleAddr,
+        address adapterAddr,
+        uint256 adminPrivateKey
+    ) internal {
+        // Store chain IDs early to avoid stack issues
+        uint256 mantleChainId = mantleConfig.chainId;
+        uint256 ethChainId = ethConfig.chainId;
         address morphoAddr = ethConfig.morpho;
 
         console2.log("=== Configuring xRWA Cross-Chain Bridge ===");
@@ -81,14 +112,13 @@ contract ConfigureXRWA is Script {
         MarketParams memory params = MarketParams({
             loanToken: ethConfig.usdc,
             collateralToken: acUsdyAddr,
-            oracle: vm.envAddress("ETH_ORACLE"),
+            oracle: oracleAddr,
             irm: ethConfig.irm,
             lltv: MARKET_LLTV
         });
         Id marketId = Id.wrap(keccak256(abi.encode(params)));
 
         // Start broadcasting transactions
-        uint256 adminPrivateKey = vm.envUint("ADMIN_PRIVATE_KEY");
         vm.startBroadcast(adminPrivateKey);
 
         // 1. Create Morpho Blue market (with idempotency check)

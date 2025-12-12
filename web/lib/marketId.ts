@@ -1,30 +1,35 @@
 import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { contracts } from './contracts'
 
+// Default LLTV: 86% (0.86e18) - can be overridden via NEXT_PUBLIC_MARKET_LLTV
+const DEFAULT_LLTV = BigInt('860000000000000000')
+
 /**
  * Computes the Morpho Blue market ID from market parameters
  * Market ID = keccak256(abi.encode(MarketParams))
+ * All parameters come from environment variables for flexibility
  */
 export function computeMarketId(): `0x${string}` {
-  // Market parameters matching the Solidity struct
-  const loanToken = (process.env.NEXT_PUBLIC_ETH_USDC ?? '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48') as `0x${string}`
+  const loanToken = contracts.usdc.address
   const collateralToken = contracts.acUSDY.address
   const oracle = contracts.navOracle.address
-  const irm = (process.env.NEXT_PUBLIC_ETH_IRM ?? '0x870aC11D48B15DB9a138Cf899d20F13F79Ba00BC') as `0x${string}`
-  const lltv = BigInt('750000000000000000') // 0.75 = 75% (18 decimals)
+  const irm = contracts.irm.address
 
-  // Encode the market params struct
+  // LLTV from env or default (86%)
+  const lltvEnv = process.env.NEXT_PUBLIC_MARKET_LLTV
+  const lltv = lltvEnv ? BigInt(lltvEnv) : DEFAULT_LLTV
+
   const encoded = encodeAbiParameters(
     parseAbiParameters('address, address, address, address, uint256'),
     [loanToken, collateralToken, oracle, irm, lltv]
   )
 
-  // Hash to get the market ID
   return keccak256(encoded)
 }
 
 /**
  * Gets the market ID from environment or computes it dynamically
+ * Prefer setting NEXT_PUBLIC_MORPHO_MARKET_ID for production
  */
 export function getMarketId(): `0x${string}` {
   const envMarketId = process.env.NEXT_PUBLIC_MORPHO_MARKET_ID

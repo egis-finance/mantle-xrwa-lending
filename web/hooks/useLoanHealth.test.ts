@@ -3,15 +3,15 @@
  */
 
 import { renderHook } from '@testing-library/react'
-import { useLoanHealth } from '../useLoanHealth'
-import { useBorrowerCollateral } from '../useBorrowerCollateral'
-import { useBorrowerDebt } from '../useBorrowerDebt'
-import { useOraclePrice } from '../useOraclePrice'
+import { useLoanHealth } from './useLoanHealth'
+import { useBorrowerCollateral } from './useBorrowerCollateral'
+import { useBorrowerDebt } from './useBorrowerDebt'
+import { useOraclePrice } from './useOraclePrice'
 
 // Mock the dependency hooks
-jest.mock('../useBorrowerCollateral')
-jest.mock('../useBorrowerDebt')
-jest.mock('../useOraclePrice')
+jest.mock('./useBorrowerCollateral')
+jest.mock('./useBorrowerDebt')
+jest.mock('./useOraclePrice')
 
 const mockUseBorrowerCollateral = useBorrowerCollateral as jest.MockedFunction<typeof useBorrowerCollateral>
 const mockUseBorrowerDebt = useBorrowerDebt as jest.MockedFunction<typeof useBorrowerDebt>
@@ -475,4 +475,3 @@ describe('useLoanHealth', () => {
     })
   })
 })
-

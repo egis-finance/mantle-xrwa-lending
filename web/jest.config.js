@@ -12,9 +12,10 @@ const customJestConfig = {
     testEnvironment: 'jest-environment-jsdom',
     moduleNameMapper: {
         '^@/(.*)$': '<rootDir>/$1',
+        '^wagmi$': '<rootDir>/__mocks__/wagmi.ts',
     },
     transformIgnorePatterns: [
-        'node_modules/(?!(wagmi|@wagmi|@rainbow-me|rainbowkit|@reown|viem|@tanstack|ox)/)',
+        '/node_modules/(?!(@wagmi|wagmi|@rainbow-me|rainbowkit|@reown|viem|@tanstack|ox)/)',
     ],
 }
 

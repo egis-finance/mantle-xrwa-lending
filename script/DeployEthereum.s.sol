@@ -52,7 +52,23 @@ contract DeployEthereum is Script {
     function run() external returns (DeployedContracts memory) {
         HelperConfig config = new HelperConfig();
         HelperConfig.EthereumConfig memory ethConfig = config.getEthereumVteConfig();
+        uint256 deployerPrivateKey = vm.envUint("ADMIN_PRIVATE_KEY");
+        address dvn1 = vm.envAddress("DVN1_ADDRESS");
 
+        return _deploy(ethConfig, deployerPrivateKey, dvn1);
+    }
+
+    function runWithConfig(HelperConfig.EthereumConfig memory ethConfig, uint256 deployerPrivateKey, address dvn1)
+        external
+        returns (DeployedContracts memory)
+    {
+        return _deploy(ethConfig, deployerPrivateKey, dvn1);
+    }
+
+    function _deploy(HelperConfig.EthereumConfig memory ethConfig, uint256 deployerPrivateKey, address dvn1)
+        internal
+        returns (DeployedContracts memory)
+    {
         console2.log("=== Deploying Ethereum Contracts to Ethereum VTE ===");
         console2.log("Network:", ethConfig.chainId);
         console2.log("RPC URL:", ethConfig.rpcUrl);
@@ -62,9 +78,7 @@ contract DeployEthereum is Script {
         console2.log("Admin:", ethConfig.admin);
         console2.log("");
 
-        uint256 deployerPrivateKey = vm.envUint("ADMIN_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        address dvn1 = vm.envAddress("DVN1_ADDRESS");
 
         console2.log("Deployer address:", deployer);
         console2.log("");

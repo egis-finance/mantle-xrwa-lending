@@ -7,37 +7,64 @@ import { OracleAbi } from '@/lib/contracts/abis/Oracle'
 export function useOraclePrice() {
   const isConfigured = contracts.navOracle.address !== '0x0'
 
-  const { data, isLoading, isError, refetch } = useReadContract({
+  // Fetch price with haircut (what Morpho uses)
+  // NAV can change when underlying asset price updates
+  const { data: priceData, isLoading: priceLoading, isError: priceError, refetch: refetchPrice } = useReadContract({
     address: contracts.navOracle.address,
     abi: OracleAbi,
     functionName: 'price',
     chainId: contracts.navOracle.chainId,
     query: {
-      enabled: isConfigured,
-      refetchInterval: 30000, // Refetch every 30 seconds
+      staleTime: 60000, // Consider stale after 1 minute
+      gcTime: Infinity, // Keep in cache
+      refetchInterval: 60000, // Poll every minute
+      refetchOnWindowFocus: true,
     },
   })
 
-  // Format price (Oracle returns price with 18 decimals)
-  const priceValue = data !== undefined ? formatUnits(data, 18) : null
+  // Fetch haircut percentage (static configuration)
+  const { data: haircutBps } = useReadContract({
+    address: contracts.navOracle.address,
+    abi: OracleAbi,
+    functionName: 'HAIRCUT_BPS',
+    chainId: contracts.navOracle.chainId,
+    query: {
+      staleTime: Infinity,
+      gcTime: Infinity,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  })
 
-  // Debug logging
-  if (typeof window !== 'undefined') {
-    console.log('🔍 useOraclePrice:', {
-      oracleAddress: contracts.navOracle.address,
-      priceData: data,
-      priceValue,
-      isLoading,
-      isError,
-    })
-  }
+  // Fetch staleness status (dynamic check - can change over time)
+  const { data: isStale } = useReadContract({
+    address: contracts.navOracle.address,
+    abi: OracleAbi,
+    functionName: 'isStale',
+    chainId: contracts.navOracle.chainId,
+    query: {
+      staleTime: 60000,
+      gcTime: Infinity,
+      refetchInterval: 60000,
+      refetchOnWindowFocus: true,
+    },
+  })
+
+  // Morpho oracle precision: 10^(36 + loanDecimals - collateralDecimals)
+  // For USDC (6) / AcUSDY (18): 10^(36 + 6 - 18) = 10^24
+  const priceValue = priceData !== undefined ? formatUnits(priceData, 24) : null
+
+  // Calculate haircut percentage (e.g., 200 BPS = 2%)
+  const haircutPercentage = haircutBps !== undefined ? Number(haircutBps) / 100 : null
 
   return {
     value: priceValue,
-    data,
-    isLoading,
-    isError,
-    refetch,
+    haircutPercentage,
+    isStale: isStale ?? null,
+    data: priceData,
+    isLoading: priceLoading,
+    isError: priceError,
+    refetch: refetchPrice,
   }
 }
-
