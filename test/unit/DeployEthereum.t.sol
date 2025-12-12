@@ -3,6 +3,7 @@ pragma solidity 0.8.30;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {DeployEthereum} from "../../script/DeployEthereum.s.sol";
+import {HelperConfig} from "../../script/HelperConfig.s.sol";
 import {AcUSDY} from "../../contracts/ethereum/AcUSDY.sol";
 import {XRWAReceiver} from "../../contracts/ethereum/XRWAReceiver.sol";
 import {NAVOracle} from "../../contracts/ethereum/NAVOracle.sol";
@@ -21,27 +22,33 @@ contract DeployEthereumTest is Test {
     address internal usdc;
     address internal irm;
 
+    uint256 internal deployerPrivateKey;
+    HelperConfig.EthereumConfig internal ethConfig;
+
     function setUp() public {
         deployer = new DeployEthereum();
 
-        admin = makeAddr("admin");
-        dvn1 = makeAddr("dvn1");
-        morpho = makeAddr("morpho");
-        usdc = makeAddr("usdc");
-        irm = makeAddr("irm");
+        deployerPrivateKey = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
-        // Set environment variables for the script
-        vm.setEnv("ADMIN_PRIVATE_KEY", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
-        vm.setEnv("DVN1_ADDRESS", vm.toString(dvn1));
-        vm.setEnv("ADMIN_ADDRESS", vm.toString(admin));
-        vm.setEnv("ETH_MORPHO", vm.toString(morpho));
-        vm.setEnv("ETH_USDC", vm.toString(usdc));
-        vm.setEnv("ETH_IRM", vm.toString(irm));
-        vm.setEnv("ETHEREUM_RPC_VTE", "http://localhost:8545");
+        // Use deterministic addresses that don't depend on test execution order
+        admin = address(uint160(uint256(keccak256("DeployEthereumTest.admin"))));
+        dvn1 = address(uint160(uint256(keccak256("DeployEthereumTest.dvn1"))));
+        morpho = address(uint160(uint256(keccak256("DeployEthereumTest.morpho"))));
+        usdc = address(uint160(uint256(keccak256("DeployEthereumTest.usdc"))));
+        irm = address(uint160(uint256(keccak256("DeployEthereumTest.irm"))));
+
+        ethConfig = HelperConfig.EthereumConfig({
+            rpcUrl: "http://localhost:8545",
+            morpho: morpho,
+            usdc: usdc,
+            irm: irm,
+            admin: admin,
+            chainId: 10001
+        });
     }
 
     function testDeploymentSucceeds() public {
-        DeployEthereum.DeployedContracts memory contracts = deployer.run();
+        DeployEthereum.DeployedContracts memory contracts = deployer.runWithConfig(ethConfig, deployerPrivateKey, dvn1);
 
         // Verify contracts were deployed
         assertTrue(address(contracts.acUsdy) != address(0), "AcUSDY not deployed");
@@ -51,7 +58,7 @@ contract DeployEthereumTest is Test {
     }
 
     function testAcUSDYConfiguration() public {
-        DeployEthereum.DeployedContracts memory contracts = deployer.run();
+        DeployEthereum.DeployedContracts memory contracts = deployer.runWithConfig(ethConfig, deployerPrivateKey, dvn1);
 
         assertEq(contracts.acUsdy.name(), "Attested Collateral USDY");
         assertEq(contracts.acUsdy.symbol(), "AcUSDY");
@@ -60,7 +67,7 @@ contract DeployEthereumTest is Test {
     }
 
     function testXRWAReceiverConfiguration() public {
-        DeployEthereum.DeployedContracts memory contracts = deployer.run();
+        DeployEthereum.DeployedContracts memory contracts = deployer.runWithConfig(ethConfig, deployerPrivateKey, dvn1);
 
         assertEq(address(contracts.receiver.AC_USDY()), address(contracts.acUsdy));
         assertEq(contracts.receiver.admin(), admin);
@@ -68,7 +75,7 @@ contract DeployEthereumTest is Test {
     }
 
     function testNAVOracleConfiguration() public {
-        DeployEthereum.DeployedContracts memory contracts = deployer.run();
+        DeployEthereum.DeployedContracts memory contracts = deployer.runWithConfig(ethConfig, deployerPrivateKey, dvn1);
 
         assertEq(contracts.oracle.admin(), admin);
         assertEq(contracts.oracle.currentPrice(), 1_020_000_000_000_000_000_000_000);
@@ -76,7 +83,7 @@ contract DeployEthereumTest is Test {
     }
 
     function testMorphoAdapterConfiguration() public {
-        DeployEthereum.DeployedContracts memory contracts = deployer.run();
+        DeployEthereum.DeployedContracts memory contracts = deployer.runWithConfig(ethConfig, deployerPrivateKey, dvn1);
 
         assertEq(address(contracts.adapter.MORPHO()), morpho);
     }
