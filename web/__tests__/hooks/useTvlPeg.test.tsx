@@ -82,6 +82,9 @@ describe('useTvlPeg', () => {
   })
 
   it('handles error state gracefully', () => {
+    // Suppress expected console.error output from hook's error logging
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+
     mockUseReadContract.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -94,6 +97,8 @@ describe('useTvlPeg', () => {
     expect(result.current.isError).toBe(true)
     expect(result.current.mantle.value).toBeNull()
     expect(result.current.ethereum.value).toBeNull()
+
+    consoleSpy.mockRestore()
   })
 
   it('queries correct chain IDs', () => {

@@ -91,7 +91,7 @@ describe('useBorrowerDebt', () => {
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (100 * 1000) / 200 = 500 USDC
-      expect(result.current.value).toBe('500.0')
+      expect(result.current.value).toBe('500')
     })
 
     it('should return 0 when user has no borrow shares', () => {
@@ -162,7 +162,7 @@ describe('useBorrowerDebt', () => {
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (1M * 5M) / 5M = 1M USDC
-      expect(result.current.value).toBe('1000000.0')
+      expect(result.current.value).toBe('1000000')
     })
 
     it('should handle fractional shares correctly', () => {
@@ -187,7 +187,7 @@ describe('useBorrowerDebt', () => {
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (1.5 * 10) / 5 = 3 USDC
-      expect(result.current.value).toBe('3.0')
+      expect(result.current.value).toBe('3')
     })
   })
 
@@ -323,7 +323,7 @@ describe('useBorrowerDebt', () => {
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      expect(result.current.value).toBe('500.0')
+      expect(result.current.value).toBe('500')
       expect(result.current.borrowShares).toBe(mockBorrowShares)
       expect(result.current.totalBorrowAssets).toBe(mockTotalBorrowAssets)
       expect(result.current.totalBorrowShares).toBe(mockTotalBorrowShares)
@@ -384,4 +384,3 @@ describe('useBorrowerDebt', () => {
     })
   })
 })
-

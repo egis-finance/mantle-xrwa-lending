@@ -10,9 +10,12 @@ import { MorphoAbi } from '@/lib/contracts/abis/Morpho'
 const ETHEREUM_VTE_RPC = process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE
 const MORPHO_ADDRESS = process.env.NEXT_PUBLIC_ETH_MORPHO as `0x${string}`
 const MARKET_ID = process.env.NEXT_PUBLIC_MORPHO_MARKET_ID as `0x${string}`
+const RUN_INTEGRATION_TESTS = process.env.RUN_INTEGRATION_TESTS === 'true'
 
-// Skip tests if env vars not configured
-const shouldRun = ETHEREUM_VTE_RPC && MORPHO_ADDRESS && MARKET_ID && MARKET_ID !== '0x0'
+// Skip tests unless explicitly enabled and configured
+const shouldRun =
+  RUN_INTEGRATION_TESTS &&
+  Boolean(ETHEREUM_VTE_RPC && MORPHO_ADDRESS && MARKET_ID && MARKET_ID !== '0x0')
 
 describe('Morpho Market Parameters (Integration)', () => {
   // Increase timeout for RPC calls
@@ -26,8 +29,9 @@ describe('Morpho Market Parameters (Integration)', () => {
 
   beforeAll(() => {
     if (!shouldRun) {
-      console.log('Skipping integration tests - env vars not configured')
+      console.log('Skipping integration tests - set RUN_INTEGRATION_TESTS=true to enable')
       console.log({
+        RUN_INTEGRATION_TESTS,
         ETHEREUM_VTE_RPC: ETHEREUM_VTE_RPC ? 'SET' : 'NOT SET',
         MORPHO_ADDRESS: MORPHO_ADDRESS || 'NOT SET',
         MARKET_ID: MARKET_ID || 'NOT SET',
@@ -37,7 +41,7 @@ describe('Morpho Market Parameters (Integration)', () => {
 
   it('should query LLTV from Morpho contract on chain', async () => {
     if (!shouldRun || !client) {
-      console.log('Test skipped - env vars not configured')
+      console.log('Test skipped - integration disabled')
       return
     }
 
@@ -67,7 +71,7 @@ describe('Morpho Market Parameters (Integration)', () => {
 
   it('should return all market params including oracle and IRM', async () => {
     if (!shouldRun || !client) {
-      console.log('Test skipped - env vars not configured')
+      console.log('Test skipped - integration disabled')
       return
     }
 
@@ -102,7 +106,7 @@ describe('Morpho Market Parameters (Integration)', () => {
 
   it('should query market data (supply, borrow, utilization)', async () => {
     if (!shouldRun || !client) {
-      console.log('Test skipped - env vars not configured')
+      console.log('Test skipped - integration disabled')
       return
     }
 
