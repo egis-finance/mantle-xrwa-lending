@@ -168,13 +168,13 @@ export default function EarnPage() {
                             <div className="flex p-1 bg-brand-light/50 rounded-lg w-fit">
                                 <button 
                                     onClick={() => { setActiveTab('supply'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark' : 'text-brand-muted hover:text-brand-dark'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50'}`}
                                 >
                                     Supply
                                 </button>
                                 <button 
                                     onClick={() => { setActiveTab('withdraw'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark' : 'text-brand-muted hover:text-brand-dark'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50'}`}
                                 >
                                     Withdraw
                                 </button>

@@ -14,27 +14,32 @@ export default function DashboardPage() {
     const systemParams = useSystemParams();
 
     return (
-        <div className="min-h-screen bg-body-gradient flex flex-col">
+        <div className="min-h-screen bg-slate-50/50 flex flex-col relative overflow-hidden">
+            {/* Decorative background elements */}
+            <div className="absolute top-0 left-0 w-full h-96 bg-gradient-to-b from-brand-light/30 to-transparent pointer-events-none z-0"></div>
+            <div className="absolute -top-24 -right-24 w-96 h-96 bg-blue-100/40 rounded-full blur-3xl pointer-events-none z-0"></div>
+            <div className="absolute top-48 -left-24 w-72 h-72 bg-emerald-100/30 rounded-full blur-3xl pointer-events-none z-0"></div>
+
             <Navbar />
 
-            <main className="flex-1 container max-w-screen-2xl py-8 space-y-6">
+            <main className="flex-1 container max-w-screen-2xl py-8 space-y-6 relative z-10">
                 {/* Header */}
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-serif font-bold text-brand-dark">Mission Control</h1>
+                    <h1 className="text-3xl font-serif font-bold text-brand-dark bg-clip-text text-transparent bg-gradient-to-r from-brand-dark to-brand-DEFAULT w-fit">Mission Control</h1>
                     <p className="text-brand-muted">System monitoring and risk management operations.</p>
                 </div>
 
                 {/* Global Health Bar */}
-                <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl">
-                    <CardContent className="p-6 flex flex-wrap items-center justify-between gap-6">
+                <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl bg-gradient-to-r from-white via-white to-emerald-50/30">
+                    <CardContent className="p-6 flex flex-wrap items-center gap-6">
 
-                        <div className="flex items-center gap-8">
+                        <div className="flex-1 min-w-[300px]">
                             <TvlPegDisplay />
                         </div>
 
-                        <div className="h-10 w-px bg-border hidden md:block"></div>
+                        <div className="h-20 w-px bg-border hidden md:block mx-4"></div>
 
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 min-w-fit">
                             <div className="space-y-1 text-right">
                                 <p className="text-xs text-brand-muted uppercase tracking-wider">Oracle Heartbeat</p>
                                 <div className="flex items-center gap-2 justify-end">
@@ -54,17 +59,22 @@ export default function DashboardPage() {
                 <div className="grid lg:grid-cols-[3fr_2fr] gap-6">
 
                     {/* Liquidation Radar */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Activity className="h-5 w-5 text-brand-DEFAULT" /> Liquidation Radar
+                    <Card className="overflow-hidden border-t-4 border-t-brand-DEFAULT shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-sm">
+                            <CardTitle className="text-lg flex items-center gap-2 text-brand-dark">
+                                <div className="p-1.5 rounded-lg bg-brand-light/50 text-brand-DEFAULT">
+                                    <Activity className="h-5 w-5" />
+                                </div>
+                                Liquidation Radar
                             </CardTitle>
-                            <Button variant="outline" size="sm"><RefreshCw className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="sm" className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors">
+                                <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+                            </Button>
                         </CardHeader>
-                        <CardContent>
-                            <div className="rounded-lg border border-border overflow-hidden">
+                        <CardContent className="p-0">
+                            <div className="overflow-hidden">
                                 <table className="w-full text-sm text-left">
-                                    <thead className="bg-brand-light/50 text-brand-muted font-medium uppercase text-xs">
+                                    <thead className="bg-gray-50/80 text-brand-muted font-medium uppercase text-xs border-b border-gray-100">
                                         <tr>
                                             <th className="p-4">Safe Address</th>
                                             <th className="p-4">Health Factor</th>
@@ -72,30 +82,30 @@ export default function DashboardPage() {
                                             <th className="p-4 text-right">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-border">
-                                        <tr className="bg-white hover:bg-gray-50 transition-colors">
-                                            <td className="p-4 font-mono text-brand-dark">0xab...45</td>
-                                            <td className="p-4 text-success-DEFAULT font-bold">1.66</td>
+                                    <tbody className="divide-y divide-gray-50">
+                                        <tr className="bg-white hover:bg-blue-50/30 transition-colors group">
+                                            <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">0xab...45</td>
+                                            <td className="p-4 text-success-DEFAULT font-bold bg-success-light/5 rounded-r-lg">1.66</td>
                                             <td className="p-4">$60,000</td>
                                             <td className="p-4 text-right text-brand-muted">
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium">Mock Data</span>
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium border border-gray-200 shadow-sm">Mock Data</span>
                                             </td>
                                         </tr>
-                                        <tr className="bg-warning-light/10 hover:bg-warning-light/20 transition-colors">
+                                        <tr className="bg-amber-50/20 hover:bg-amber-50/40 transition-colors">
                                             <td className="p-4 font-mono text-brand-dark">0xcd...89</td>
-                                            <td className="p-4 text-warning-DEFAULT font-bold">1.17</td>
+                                            <td className="p-4 text-warning-DEFAULT font-bold bg-warning-light/10">1.17</td>
                                             <td className="p-4">$85,000</td>
                                             <td className="p-4 text-right text-brand-muted">
-                                                 <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium">Mock Data</span>
+                                                 <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium border border-gray-200 shadow-sm">Mock Data</span>
                                             </td>
                                         </tr>
-                                        <tr className="bg-danger-light/10 hover:bg-danger-light/20 transition-colors">
+                                        <tr className="bg-red-50/20 hover:bg-red-50/40 transition-colors">
                                             <td className="p-4 font-mono text-brand-dark">0xef...12</td>
-                                            <td className="p-4 text-danger-DEFAULT font-bold">1.02</td>
+                                            <td className="p-4 text-danger-DEFAULT font-bold bg-danger-light/10">1.02</td>
                                             <td className="p-4">$98,000</td>
                                             <td className="p-4 text-right">
                                                 <div className="flex flex-col items-end gap-1">
-                                                    <Button size="sm" variant="destructive" className="h-8 hover:bg-red-700 transition-colors">Trigger Liq</Button>
+                                                    <Button size="sm" variant="destructive" className="h-8 hover:bg-red-700 transition-colors shadow-sm hover:shadow-red-200">Trigger Liq</Button>
                                                     <span className="text-[10px] text-gray-400">Mock Data</span>
                                                 </div>
                                             </td>
@@ -107,27 +117,32 @@ export default function DashboardPage() {
                     </Card>
 
                     {/* Release Queue */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg">Release Queue</CardTitle>
+                    <Card className="border-t-4 border-t-purple-500 shadow-md bg-gradient-to-br from-white to-purple-50/20">
+                        <CardHeader className="border-b border-gray-100 bg-white/50 backdrop-blur-sm">
+                            <CardTitle className="text-lg text-purple-900 flex items-center gap-2">
+                                <div className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
+                                    <Activity className="h-5 w-5 rotate-90" />
+                                </div>
+                                Release Queue
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="p-6">
                             <div className="space-y-4">
                                 {[1, 2].map((i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 rounded-lg border border-border bg-white shadow-sm hover:shadow-md transition-shadow">
+                                    <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all hover:border-purple-100 group">
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-2">
-                                                <p className="font-mono text-sm text-brand-dark">0xab...45</p>
+                                                <p className="font-mono text-sm text-brand-dark group-hover:text-purple-700 transition-colors">0xab...45</p>
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-gray-100 text-gray-500 font-medium border border-gray-200">Mock Data</span>
                                             </div>
-                                            <p className="text-xs text-brand-muted">Request: <span className="font-bold text-brand-dark">50,000 USDY</span></p>
+                                            <p className="text-xs text-gray-500">Request: <span className="font-bold text-gray-900">50,000 USDY</span></p>
                                         </div>
                                         {i === 1 ? (
-                                            <Button size="sm" variant="outline" className="text-brand-DEFAULT border-brand-DEFAULT hover:bg-brand-light transition-colors">
+                                            <Button size="sm" variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-colors">
                                                 Process Release
                                             </Button>
                                         ) : (
-                                            <Button size="sm" disabled variant="secondary">
+                                            <Button size="sm" disabled variant="secondary" className="bg-gray-100 text-gray-400">
                                                 Waiting...
                                             </Button>
                                         )}
