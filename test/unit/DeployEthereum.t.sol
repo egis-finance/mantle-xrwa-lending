@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {DeployEthereum} from "../../script/DeployEthereum.s.sol";
 import {HelperConfig} from "../../script/HelperConfig.s.sol";
-import {AcUSDY} from "../../contracts/ethereum/AcUSDY.sol";
-import {XRWAReceiver} from "../../contracts/ethereum/XRWAReceiver.sol";
-import {NAVOracle} from "../../contracts/ethereum/NAVOracle.sol";
-import {MorphoAdapter} from "../../contracts/ethereum/MorphoAdapter.sol";
 
 /**
  * Test the DeployEthereum script logic
@@ -38,12 +34,7 @@ contract DeployEthereumTest is Test {
         irm = address(uint160(uint256(keccak256("DeployEthereumTest.irm"))));
 
         ethConfig = HelperConfig.EthereumConfig({
-            rpcUrl: "http://localhost:8545",
-            morpho: morpho,
-            usdc: usdc,
-            irm: irm,
-            admin: admin,
-            chainId: 10001
+            rpcUrl: "http://localhost:8545", morpho: morpho, usdc: usdc, irm: irm, admin: admin, chainId: 10001
         });
     }
 

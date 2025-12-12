@@ -4,7 +4,6 @@ pragma solidity 0.8.30;
 import {Script, console2} from "forge-std/Script.sol";
 import {AcUSDY} from "../contracts/ethereum/AcUSDY.sol";
 import {XRWAReceiver} from "../contracts/ethereum/XRWAReceiver.sol";
-import {MorphoAdapter} from "../contracts/ethereum/MorphoAdapter.sol";
 import {IMorpho, MarketParams, Market, Id} from "../contracts/interfaces/IMorpho.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 
@@ -56,14 +55,7 @@ contract ConfigureXRWA is Script {
         uint256 adminPrivateKey = vm.envUint("ADMIN_PRIVATE_KEY");
 
         _configure(
-            mantleConfig,
-            ethConfig,
-            mantleLocker,
-            acUsdyAddr,
-            receiverAddr,
-            oracleAddr,
-            adapterAddr,
-            adminPrivateKey
+            mantleConfig, ethConfig, mantleLocker, acUsdyAddr, receiverAddr, oracleAddr, adapterAddr, adminPrivateKey
         );
     }
 
@@ -78,14 +70,7 @@ contract ConfigureXRWA is Script {
         uint256 adminPrivateKey
     ) external {
         _configure(
-            mantleConfig,
-            ethConfig,
-            mantleLocker,
-            acUsdyAddr,
-            receiverAddr,
-            oracleAddr,
-            adapterAddr,
-            adminPrivateKey
+            mantleConfig, ethConfig, mantleLocker, acUsdyAddr, receiverAddr, oracleAddr, adapterAddr, adminPrivateKey
         );
     }
 

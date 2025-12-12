@@ -58,19 +58,17 @@ contract DeployEthereum is Script {
         return _deploy(ethConfig, deployerPrivateKey, dvn1);
     }
 
-    function runWithConfig(
-        HelperConfig.EthereumConfig memory ethConfig,
-        uint256 deployerPrivateKey,
-        address dvn1
-    ) external returns (DeployedContracts memory) {
+    function runWithConfig(HelperConfig.EthereumConfig memory ethConfig, uint256 deployerPrivateKey, address dvn1)
+        external
+        returns (DeployedContracts memory)
+    {
         return _deploy(ethConfig, deployerPrivateKey, dvn1);
     }
 
-    function _deploy(
-        HelperConfig.EthereumConfig memory ethConfig,
-        uint256 deployerPrivateKey,
-        address dvn1
-    ) internal returns (DeployedContracts memory) {
+    function _deploy(HelperConfig.EthereumConfig memory ethConfig, uint256 deployerPrivateKey, address dvn1)
+        internal
+        returns (DeployedContracts memory)
+    {
         console2.log("=== Deploying Ethereum Contracts to Ethereum VTE ===");
         console2.log("Network:", ethConfig.chainId);
         console2.log("RPC URL:", ethConfig.rpcUrl);

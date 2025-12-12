@@ -63,10 +63,7 @@ contract ConfigureXRWATest is Test {
         morpho = new MockMorpho();
 
         mantleConfig = HelperConfig.MantleConfig({
-            rpcUrl: "http://localhost:8545",
-            usdy: address(usdy),
-            admin: admin,
-            chainId: MANTLE_CHAIN_ID
+            rpcUrl: "http://localhost:8545", usdy: address(usdy), admin: admin, chainId: MANTLE_CHAIN_ID
         });
 
         ethConfig = HelperConfig.EthereumConfig({
@@ -82,8 +79,7 @@ contract ConfigureXRWATest is Test {
         locker = new CollateralLocker(address(usdy), admin);
 
         // Deploy Ethereum contracts using DeployEthereum script
-        DeployEthereum.DeployedContracts memory deployed =
-            deployScript.runWithConfig(ethConfig, adminPrivateKey, dvn1);
+        DeployEthereum.DeployedContracts memory deployed = deployScript.runWithConfig(ethConfig, adminPrivateKey, dvn1);
         acUsdy = deployed.acUsdy;
         receiver = deployed.receiver;
         oracle = deployed.oracle;
