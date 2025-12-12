@@ -16,7 +16,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  * 3. Whitelists Morpho Blue in AcUSDY for collateral transfers
  *
  * CHAIN ID NOTICE:
- * - Tenderly VTE: Mantle = 14996, Ethereum = 10002
+ * - Tenderly VTE: Mantle = 15000, Ethereum = 10001
  * - Mainnet: Mantle = 5000, Ethereum = 1
  * - This script uses actual chain IDs from HelperConfig (.env)
  * - lockId computation includes chainId, so VTE lockIds ≠ mainnet lockIds
