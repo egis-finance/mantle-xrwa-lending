@@ -1,22 +1,60 @@
-'use client'
-import { useMemo } from 'react'
-import { useBorrowerCollateral } from './useBorrowerCollateral'
-import { useBorrowerDebt } from './useBorrowerDebt'
-import { useOraclePrice } from './useOraclePrice'
+'use client';
 
-// Max LLTV (Liquidation Loan-to-Value) is 75%
-const MAX_LLTV = 0.75
+import { useMemo } from 'react';
+import { useMorphoCollateral } from './useMorphoCollateral';
+import { useBorrowerDebt } from './useBorrowerDebt';
+import { useOraclePrice } from './useOraclePrice';
+import type { Address } from 'viem';
 
-export function useLoanHealth(borrowerAddress?: `0x${string}`) {
-  const collateral = useBorrowerCollateral(borrowerAddress)
-  const debt = useBorrowerDebt(borrowerAddress)
-  const oraclePrice = useOraclePrice()
+// Default LLTV matches deployed Morpho market (86%)
+// Callers should pass lltv from useSystemParams for on-chain accuracy
+const DEFAULT_LLTV = 0.86;
 
-  const isLoading = collateral.isLoading || debt.isLoading || oraclePrice.isLoading
-  const isError = collateral.isError || debt.isError || oraclePrice.isError
+export interface LoanHealthMetrics {
+  collateralValue: number | null;
+  debtValue: number | null;
+  ltv: number | null;
+  healthFactor: number | null;
+  liquidationPrice: number | null;
+  isHealthy: boolean;
+  riskLevel: 'safe' | 'warning' | 'danger';
+}
 
-  const metrics = useMemo(() => {
-    if (!collateral.value || !debt.value || !oraclePrice.value) {
+export interface LoanHealthResult extends LoanHealthMetrics {
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
+}
+
+export interface UseLoanHealthOptions {
+  /** LLTV from useSystemParams (0.0-1.0 scale). Defaults to 0.86 if not provided. */
+  lltv?: number | null;
+}
+
+/**
+ * Calculates loan health metrics from Morpho position.
+ * Uses AcUSDY collateral on Ethereum (not locked USDY on Mantle).
+ */
+export function useLoanHealth(
+  borrowerAddress: Address | undefined,
+  options: UseLoanHealthOptions = {}
+): LoanHealthResult {
+  const collateral = useMorphoCollateral(borrowerAddress);
+  const debt = useBorrowerDebt(borrowerAddress);
+  const oraclePrice = useOraclePrice();
+
+  // Use provided LLTV or fall back to default (86% matches deployed market)
+  const effectiveLltv = options.lltv ?? DEFAULT_LLTV;
+
+  const isLoading = collateral.isLoading || debt.isLoading || oraclePrice.isLoading;
+  const isError = collateral.isError || debt.isError || oraclePrice.isError;
+
+  const metrics = useMemo((): LoanHealthMetrics => {
+    const collateralVal = collateral.data?.value;
+    const debtVal = debt.data?.value;
+    const priceVal = oraclePrice.data?.value;
+
+    if (!collateralVal || !debtVal || !priceVal) {
       return {
         collateralValue: null,
         debtValue: null,
@@ -24,53 +62,47 @@ export function useLoanHealth(borrowerAddress?: `0x${string}`) {
         healthFactor: null,
         liquidationPrice: null,
         isHealthy: true,
-        riskLevel: 'safe' as 'safe' | 'warning' | 'danger',
-      }
+        riskLevel: 'safe',
+      };
     }
 
-    const collateralAmount = parseFloat(collateral.value)
-    const debtAmount = parseFloat(debt.value)
-    const price = parseFloat(oraclePrice.value)
+    const collateralAmount = parseFloat(collateralVal);
+    const debtAmount = parseFloat(debtVal);
+    const price = parseFloat(priceVal);
 
     // Collateral value in USD
-    const collateralValueUSD = collateralAmount * price
+    const collateralValueUSD = collateralAmount * price;
 
-    // Debt value in USD (USDC is already in USD, 1:1)
-    const debtValueUSD = debtAmount
+    // Debt value in USD (USDC is 1:1)
+    const debtValueUSD = debtAmount;
 
-    // Calculate LTV (Loan-to-Value ratio)
     // LTV = Debt / Collateral Value
-    let ltv = 0
+    let ltv = 0;
     if (collateralValueUSD > 0) {
-      ltv = (debtValueUSD / collateralValueUSD) * 100
+      ltv = (debtValueUSD / collateralValueUSD) * 100;
     }
 
-    // Calculate Health Factor
     // Health Factor = (Collateral Value * Max LLTV) / Debt
-    // Or inversely: Health Factor = Max LLTV / LTV
-    let healthFactor = Infinity
+    let healthFactor = Infinity;
     if (debtValueUSD > 0 && collateralValueUSD > 0) {
-      healthFactor = (collateralValueUSD * MAX_LLTV) / debtValueUSD
+      healthFactor = (collateralValueUSD * effectiveLltv) / debtValueUSD;
     }
 
-    // Calculate liquidation price
-    // Price at which LTV = Max LLTV
-    // Max LLTV = Debt / (Collateral * Liquidation Price)
     // Liquidation Price = Debt / (Collateral * Max LLTV)
-    let liquidationPrice = 0
+    let liquidationPrice = 0;
     if (collateralAmount > 0 && debtValueUSD > 0) {
-      liquidationPrice = debtValueUSD / (collateralAmount * MAX_LLTV)
+      liquidationPrice = debtValueUSD / (collateralAmount * effectiveLltv);
     }
 
-    // Determine risk level
-    let riskLevel: 'safe' | 'warning' | 'danger' = 'safe'
-    if (ltv >= MAX_LLTV * 100) {
-      riskLevel = 'danger' // At or above liquidation threshold
-    } else if (ltv >= MAX_LLTV * 100 * 0.9) {
-      riskLevel = 'warning' // Within 10% of liquidation (above 67.5%)
+    // Risk level
+    let riskLevel: 'safe' | 'warning' | 'danger' = 'safe';
+    if (ltv >= effectiveLltv * 100) {
+      riskLevel = 'danger';
+    } else if (ltv >= effectiveLltv * 100 * 0.9) {
+      riskLevel = 'warning';
     }
 
-    const isHealthy = healthFactor >= 1.0
+    const isHealthy = healthFactor >= 1.0;
 
     return {
       collateralValue: collateralValueUSD,
@@ -80,17 +112,17 @@ export function useLoanHealth(borrowerAddress?: `0x${string}`) {
       liquidationPrice,
       isHealthy,
       riskLevel,
-    }
-  }, [collateral.value, debt.value, oraclePrice.value])
+    };
+  }, [collateral.data?.value, debt.data?.value, oraclePrice.data?.value, effectiveLltv]);
 
   return {
     ...metrics,
     isLoading,
     isError,
     refetch: () => {
-      collateral.refetch()
-      debt.refetch()
-      oraclePrice.refetch()
+      collateral.refetch();
+      debt.refetch();
+      oraclePrice.refetch();
     },
-  }
+  };
 }
