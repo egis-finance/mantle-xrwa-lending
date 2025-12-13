@@ -1,79 +1,81 @@
-'use client'
-import { useReadContract } from 'wagmi'
-import { formatUnits } from 'viem'
-import { contracts } from '@/lib/contracts'
-import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker'
-import { AcUSDYAbi } from '@/lib/contracts/abis/AcUSDY'
+'use client';
 
+import { formatUnits } from 'viem';
+import { useCrossChainRead, RefreshIntervals } from '@/lib/swr';
+import { contracts } from '@/lib/contracts';
+import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
+import { AcUSDYAbi } from '@/lib/contracts/abis/AcUSDY';
+
+interface TvlPegResult {
+  mantle: {
+    value: string | null;
+    raw: bigint | undefined;
+  };
+  ethereum: {
+    value: string | null;
+    raw: bigint | undefined;
+  };
+  isBalanced: boolean | null;
+}
+
+/**
+ * Reads TVL peg between Mantle (locked USDY) and Ethereum (AcUSDY supply).
+ * Uses atomic cross-chain read to ensure values are from same polling cycle.
+ */
 export function useTvlPeg() {
-  // Check if contracts are configured
-  const isConfigured = contracts.collateralLocker.address !== '0x0' && contracts.acUSDY.address !== '0x0'
+  const isConfigured =
+    contracts.collateralLocker.address !== '0x0' && contracts.acUSDY.address !== '0x0';
 
-  const mantleTvl = useReadContract({
-    address: contracts.collateralLocker.address,
-    abi: CollateralLockerAbi,
-    functionName: 'getTotalLocked',
-    chainId: contracts.collateralLocker.chainId,
-    query: {
-      enabled: isConfigured,
-      staleTime: 60000, // Consider stale after 1 minute
-      refetchInterval: 60000, // Poll every minute
-      refetchOnWindowFocus: true,
+  const result = useCrossChainRead<bigint, bigint>({
+    mantleContract: {
+      address: contracts.collateralLocker.address,
+      abi: CollateralLockerAbi,
+      functionName: 'getTotalLocked',
     },
-  })
-
-  const ethTvl = useReadContract({
-    address: contracts.acUSDY.address,
-    abi: AcUSDYAbi,
-    functionName: 'totalSupply',
-    chainId: contracts.acUSDY.chainId,
-    query: {
-      enabled: isConfigured,
-      staleTime: 60000,
-      refetchInterval: 60000,
-      refetchOnWindowFocus: true,
+    ethereumContract: {
+      address: contracts.acUSDY.address,
+      abi: AcUSDYAbi,
+      functionName: 'totalSupply',
     },
-  })
+    enabled: isConfigured,
+    refreshInterval: RefreshIntervals.PROTOCOL_TVL,
+    revalidateOnFocus: true,
+  });
 
-  const isLoading = mantleTvl.isLoading || ethTvl.isLoading
-  const isError = mantleTvl.isError || ethTvl.isError
+  // Transform raw data to formatted values
+  const transformedData: TvlPegResult | undefined = (() => {
+    if (!result.data) return undefined;
 
-  if (mantleTvl.isError) {
-    console.error('Mantle TVL Error:', mantleTvl.error)
-  }
-  if (ethTvl.isError) {
-    console.error('ETH TVL Error:', ethTvl.error)
-  }
+    const mantleRaw = result.data.mantle;
+    const ethereumRaw = result.data.ethereum;
 
-  // Both USDY and AcUSDY use 18 decimals
-  // Use !== undefined to handle BigInt(0) correctly
-  const mantleValue = mantleTvl.data !== undefined ? formatUnits(mantleTvl.data, 18) : null
-  const ethValue = ethTvl.data !== undefined ? formatUnits(ethTvl.data, 18) : null
+    // Both USDY and AcUSDY use 18 decimals
+    const mantleValue = mantleRaw !== undefined ? formatUnits(mantleRaw, 18) : null;
+    const ethValue = ethereumRaw !== undefined ? formatUnits(ethereumRaw, 18) : null;
 
-  // Determine balance status with 0.01% tolerance for rounding differences
-  const isBalanced = (() => {
-    if (mantleValue === null || ethValue === null) return null
-    const mantleNum = Number(mantleValue)
-    const ethNum = Number(ethValue)
-    if (mantleNum === 0 && ethNum === 0) return true
-    if (mantleNum === 0) return false
-    return Math.abs(mantleNum - ethNum) / mantleNum < 0.0001
-  })()
+    // Determine balance status with 0.01% tolerance for rounding
+    const isBalanced = (() => {
+      if (mantleValue === null || ethValue === null) return null;
+      const mantleNum = Number(mantleValue);
+      const ethNum = Number(ethValue);
+      if (mantleNum === 0 && ethNum === 0) return true;
+      if (mantleNum === 0) return false;
+      return Math.abs(mantleNum - ethNum) / mantleNum < 0.0001;
+    })();
 
-  const isRefetching = mantleTvl.isRefetching || ethTvl.isRefetching
-
-  const refetch = () => {
-    mantleTvl.refetch()
-    ethTvl.refetch()
-  }
+    return {
+      mantle: { value: mantleValue, raw: mantleRaw },
+      ethereum: { value: ethValue, raw: ethereumRaw },
+      isBalanced,
+    };
+  })();
 
   return {
-    mantle: { value: mantleValue, ...mantleTvl },
-    ethereum: { value: ethValue, ...ethTvl },
-    isLoading,
-    isError,
-    isBalanced,
-    isRefetching,
-    refetch,
-  }
+    ...result,
+    data: transformedData,
+    // Convenience accessors
+    mantle: transformedData?.mantle ?? { value: null, raw: undefined },
+    ethereum: transformedData?.ethereum ?? { value: null, raw: undefined },
+    isBalanced: transformedData?.isBalanced ?? null,
+  };
 }
