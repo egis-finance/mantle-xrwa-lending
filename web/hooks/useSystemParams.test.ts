@@ -4,11 +4,19 @@
 
 import { renderHook } from '@testing-library/react'
 import { useSystemParams } from './useSystemParams'
-import { useReadContract } from 'wagmi'
 import { useOraclePrice } from './useOraclePrice'
 
-jest.mock('wagmi')
+const mockUseMultiChainBatchRead = jest.fn()
+
+jest.mock('@/lib/swr', () => ({
+  useMultiChainBatchRead: (...args: unknown[]) => mockUseMultiChainBatchRead(...args),
+  RefreshIntervals: {
+    SYSTEM_PARAMS: 60000,
+  },
+}))
+
 jest.mock('./useOraclePrice')
+
 jest.mock('@/lib/contracts', () => ({
   contracts: {
     morpho: {
@@ -21,36 +29,39 @@ jest.mock('@/lib/contracts', () => ({
     },
   },
 }))
+
 jest.mock('@/lib/marketId', () => ({
   getMarketId: () => '0xMarketId' as `0x${string}`,
 }))
 
-const mockUseReadContract = useReadContract as jest.MockedFunction<typeof useReadContract>
 const mockUseOraclePrice = useOraclePrice as jest.MockedFunction<typeof useOraclePrice>
 
 describe('useSystemParams', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockUseOraclePrice.mockReturnValue({
-      value: '1.05',
-      haircutPercentage: 2,
-      isStale: false,
-      data: 1050000000000000000000000n,
+      data: {
+        value: '1.05',
+        haircutPercentage: 2,
+        isStale: false,
+        raw: 1050000000000000000000000n,
+      },
       isLoading: false,
       isError: false,
+      error: null,
+      isRefetching: false,
       refetch: jest.fn(),
     })
   })
 
-  // Helper to mock both useReadContract calls
-  const mockContracts = (marketParams: any, marketData: any) => {
-    let callCount = 0
-    mockUseReadContract.mockImplementation(() => {
-      callCount++
-      if (callCount % 2 === 1) {
-        return marketParams as any
-      }
-      return marketData as any
+  // Helper to mock batch results
+  const mockBatch = (marketParams: unknown, marketData: unknown) => {
+    mockUseMultiChainBatchRead.mockReturnValue({
+      data: [marketParams, marketData],
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
     })
   }
 
@@ -59,21 +70,13 @@ describe('useSystemParams', () => {
       // 86% LLTV = 0.86 * 10^18
       const lltv86Percent = 860000000000000000n
 
-      mockContracts(
+      mockBatch(
+        { lltv: lltv86Percent, oracle: '0xOracle' },
         {
-          data: { lltv: lltv86Percent, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n, // 1000 USDC
-            totalBorrowAssets: 500000000n,  // 500 USDC
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n, // 1000 USDC
+          totalBorrowAssets: 500000000n,  // 500 USDC
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -86,21 +89,13 @@ describe('useSystemParams', () => {
     it('should handle 75% LLTV', () => {
       const lltv75Percent = 750000000000000000n
 
-      mockContracts(
+      mockBatch(
+        { lltv: lltv75Percent, oracle: '0xOracle' },
         {
-          data: { lltv: lltv75Percent, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n,
-            totalBorrowAssets: 500000000n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n,
+          totalBorrowAssets: 500000000n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -111,21 +106,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle zero LLTV', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 0n, oracle: '0xOracle' },
         {
-          data: { lltv: 0n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n,
-            totalBorrowAssets: 500000000n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n,
+          totalBorrowAssets: 500000000n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -136,18 +123,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle undefined marketParams', () => {
-      mockContracts(
-        {
-          data: undefined,
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: undefined,
-          isLoading: false,
-          isError: false,
-        }
-      )
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -160,21 +142,13 @@ describe('useSystemParams', () => {
       // 86% LLTV → 1/0.86 - 1 ≈ 0.163 (16%)
       const lltv86Percent = 860000000000000000n
 
-      mockContracts(
+      mockBatch(
+        { lltv: lltv86Percent, oracle: '0xOracle' },
         {
-          data: { lltv: lltv86Percent, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n,
-            totalBorrowAssets: 500000000n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n,
+          totalBorrowAssets: 500000000n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -189,21 +163,13 @@ describe('useSystemParams', () => {
       // 75% LLTV → 1/0.75 - 1 = 0.333 (33%)
       const lltv75Percent = 750000000000000000n
 
-      mockContracts(
+      mockBatch(
+        { lltv: lltv75Percent, oracle: '0xOracle' },
         {
-          data: { lltv: lltv75Percent, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n,
-            totalBorrowAssets: 500000000n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n,
+          totalBorrowAssets: 500000000n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -214,21 +180,13 @@ describe('useSystemParams', () => {
     })
 
     it('should return null when LLTV is 0', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 0n, oracle: '0xOracle' },
         {
-          data: { lltv: 0n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n,
-            totalBorrowAssets: 500000000n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n,
+          totalBorrowAssets: 500000000n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -241,21 +199,13 @@ describe('useSystemParams', () => {
 
   describe('Utilization Rate', () => {
     it('should calculate utilization as borrow/supply * 100', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
         {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n, // 1000 USDC (6 decimals)
-            totalBorrowAssets: 500000000n,  // 500 USDC
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n, // 1000 USDC (6 decimals)
+          totalBorrowAssets: 500000000n,  // 500 USDC
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -266,21 +216,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle 80% utilization', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
         {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n, // 1000 USDC
-            totalBorrowAssets: 800000000n,  // 800 USDC
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n, // 1000 USDC
+          totalBorrowAssets: 800000000n,  // 800 USDC
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -290,21 +232,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle zero supply (return 0)', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
         {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 0n,
-            totalBorrowAssets: 0n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 0n,
+          totalBorrowAssets: 0n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -314,18 +248,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle undefined market data', () => {
-      mockContracts(
-        {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: undefined,
-          isLoading: false,
-          isError: false,
-        }
-      )
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [{ lltv: 860000000000000000n, oracle: '0xOracle' }, undefined],
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -335,21 +264,13 @@ describe('useSystemParams', () => {
 
   describe('Available Liquidity', () => {
     it('should calculate as supply - borrow', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
         {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n, // 1000 USDC
-            totalBorrowAssets: 300000000n,  // 300 USDC
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n, // 1000 USDC
+          totalBorrowAssets: 300000000n,  // 300 USDC
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -360,21 +281,13 @@ describe('useSystemParams', () => {
     })
 
     it('should handle zero borrow (full liquidity available)', () => {
-      mockContracts(
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
         {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: {
-            totalSupplyAssets: 1000000000n, // 1000 USDC
-            totalBorrowAssets: 0n,
-            fee: 0n,
-            lastUpdate: 1234567890n,
-          },
-          isLoading: false,
-          isError: false,
+          totalSupplyAssets: 1000000000n, // 1000 USDC
+          totalBorrowAssets: 0n,
+          fee: 0n,
+          lastUpdate: 1234567890n,
         }
       )
 
@@ -384,18 +297,13 @@ describe('useSystemParams', () => {
     })
 
     it('should return null when market data is undefined', () => {
-      mockContracts(
-        {
-          data: { lltv: 860000000000000000n, oracle: '0xOracle' },
-          isLoading: false,
-          isError: false,
-        },
-        {
-          data: undefined,
-          isLoading: false,
-          isError: false,
-        }
-      )
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -405,17 +313,19 @@ describe('useSystemParams', () => {
 
   describe('Loading States', () => {
     it('should aggregate loading states - all loading', () => {
-      mockContracts(
-        { data: undefined, isLoading: true, isError: false },
-        { data: undefined, isLoading: true, isError: false }
-      )
-      mockUseOraclePrice.mockReturnValue({
-        value: null,
-        haircutPercentage: null,
-        isStale: null,
+      mockUseMultiChainBatchRead.mockReturnValue({
         data: undefined,
         isLoading: true,
         isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
+      mockUseOraclePrice.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+        error: null,
+        isRefetching: false,
         refetch: jest.fn(),
       })
 
@@ -424,11 +334,14 @@ describe('useSystemParams', () => {
       expect(result.current.isLoading).toBe(true)
     })
 
-    it('should be loading if only params loading', () => {
-      mockContracts(
-        { data: undefined, isLoading: true, isError: false },
-        { data: { totalSupplyAssets: 0n, totalBorrowAssets: 0n, fee: 0n, lastUpdate: 0n }, isLoading: false, isError: false }
-      )
+    it('should be loading if only batch loading', () => {
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -436,17 +349,16 @@ describe('useSystemParams', () => {
     })
 
     it('should be loading if only oracle loading', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 0n, totalBorrowAssets: 0n, fee: 0n, lastUpdate: 0n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 0n, totalBorrowAssets: 0n, fee: 0n, lastUpdate: 0n }
       )
       mockUseOraclePrice.mockReturnValue({
-        value: null,
-        haircutPercentage: null,
-        isStale: null,
         data: undefined,
         isLoading: true,
         isError: false,
+        error: null,
+        isRefetching: false,
         refetch: jest.fn(),
       })
 
@@ -456,9 +368,9 @@ describe('useSystemParams', () => {
     })
 
     it('should not be loading when all loaded', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }
       )
 
       const { result } = renderHook(() => useSystemParams())
@@ -469,10 +381,13 @@ describe('useSystemParams', () => {
 
   describe('Error States', () => {
     it('should aggregate error states', () => {
-      mockContracts(
-        { data: undefined, isLoading: false, isError: true },
-        { data: undefined, isLoading: false, isError: false }
-      )
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -480,17 +395,16 @@ describe('useSystemParams', () => {
     })
 
     it('should be error if oracle has error', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 0n, totalBorrowAssets: 0n, fee: 0n, lastUpdate: 0n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 0n, totalBorrowAssets: 0n, fee: 0n, lastUpdate: 0n }
       )
       mockUseOraclePrice.mockReturnValue({
-        value: null,
-        haircutPercentage: null,
-        isStale: null,
         data: undefined,
         isLoading: false,
         isError: true,
+        error: new Error('Oracle error'),
+        isRefetching: false,
         refetch: jest.fn(),
       })
 
@@ -502,17 +416,21 @@ describe('useSystemParams', () => {
 
   describe('Oracle Integration', () => {
     it('should pass through oracle values', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }
       )
       mockUseOraclePrice.mockReturnValue({
-        value: '1.0425',
-        haircutPercentage: 2,
-        isStale: false,
-        data: 1042500000000000000000000n,
+        data: {
+          value: '1.0425',
+          haircutPercentage: 2,
+          isStale: false,
+          raw: 1042500000000000000000000n,
+        },
         isLoading: false,
         isError: false,
+        error: null,
+        isRefetching: false,
         refetch: jest.fn(),
       })
 
@@ -525,9 +443,9 @@ describe('useSystemParams', () => {
 
     it('should use oracle address from marketParams', () => {
       const customOracle = '0xCustomOracle' as `0x${string}`
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: customOracle }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: customOracle },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }
       )
 
       const { result } = renderHook(() => useSystemParams())
@@ -536,10 +454,13 @@ describe('useSystemParams', () => {
     })
 
     it('should fallback to contracts.navOracle.address when marketParams undefined', () => {
-      mockContracts(
-        { data: undefined, isLoading: false, isError: false },
-        { data: undefined, isLoading: false, isError: false }
-      )
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useSystemParams())
 
@@ -552,9 +473,9 @@ describe('useSystemParams', () => {
       // 1% fee = 0.01 * 10^18
       const fee1Percent = 10000000000000000n
 
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: fee1Percent, lastUpdate: 1234567890n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: fee1Percent, lastUpdate: 1234567890n }
       )
 
       const { result } = renderHook(() => useSystemParams())
@@ -564,9 +485,9 @@ describe('useSystemParams', () => {
     })
 
     it('should handle zero fee', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 1234567890n }
       )
 
       const { result } = renderHook(() => useSystemParams())
@@ -580,9 +501,9 @@ describe('useSystemParams', () => {
     it('should return lastUpdate timestamp', () => {
       const timestamp = 1702000000n
 
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: timestamp }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: timestamp }
       )
 
       const { result } = renderHook(() => useSystemParams())
@@ -591,9 +512,9 @@ describe('useSystemParams', () => {
     })
 
     it('should return null for zero timestamp', () => {
-      mockContracts(
-        { data: { lltv: 860000000000000000n, oracle: '0xOracle' }, isLoading: false, isError: false },
-        { data: { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 0n }, isLoading: false, isError: false }
+      mockBatch(
+        { lltv: 860000000000000000n, oracle: '0xOracle' },
+        { totalSupplyAssets: 1000000000n, totalBorrowAssets: 500000000n, fee: 0n, lastUpdate: 0n }
       )
 
       const { result } = renderHook(() => useSystemParams())
