@@ -1,35 +1,33 @@
 # Egis Finance Web App
 
-This is the frontend for Egis Finance, built with Next.js, Tailwind CSS, and Wagmi.
+This is the frontend for Egis Finance, built with Next.js, Tailwind CSS, and Dynamic SDK.
 
 ## Getting Started
 
-1.  **Install Dependencies:**
-    ```bash
-    npm install --legacy-peer-deps
-    ```
-    *(Note: `--legacy-peer-deps` is required due to a React version conflict with the Safe SDK)*
+From the repo root:
 
-2.  **Run the Development Server:**
-    ```bash
-    npm run dev
-    ```
+```bash
+cp .env.example .env
+# edit .env with your values
+./scripts/generate-web-env.sh
 
-3.  **Open the App:**
-    Visit [http://localhost:3000](http://localhost:3000) in your browser.
+cd web
+npm install
+npm run dev
+```
+
+Then open [http://localhost:3000](http://localhost:3000).
 
 ## Available Pages
 
-*   **Borrower Dashboard:** [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-    *   Manage cross-chain collateral and Gnosis Safe transactions.
-*   **Lender Yield:** [http://localhost:3000/earn](http://localhost:3000/earn)
-    *   Supply USDC and view risk metrics.
-*   **Admin Mission Control:** [http://localhost:3000/admin](http://localhost:3000/admin)
-    *   Monitor system health, TVL peg, and liquidations.
+- **Home:** [http://localhost:3000/](http://localhost:3000/)
+- **Borrow:** [http://localhost:3000/borrow](http://localhost:3000/borrow)
+- **Dashboard:** [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
+- **Earn:** [http://localhost:3000/earn](http://localhost:3000/earn)
 
 ## Tech Stack
 
-*   **Framework:** Next.js 15 (App Router)
-*   **Styling:** Tailwind CSS + Shadcn/ui (Customized)
-*   **Web3:** Wagmi, Viem, RainbowKit
-*   **Safe:** @safe-global/safe-apps-sdk
+*   **Framework:** Next.js 16 (App Router)
+*   **Wallet:** Dynamic SDK ^4.47.0 (embedded wallets)
+*   **Data Layer:** SWR, viem
+*   **Styling:** Tailwind CSS 4 + Shadcn/ui
