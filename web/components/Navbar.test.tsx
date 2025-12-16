@@ -1,42 +1,33 @@
-import { render, screen } from '@testing-library/react'
-import { Navbar } from './Navbar'
+import { render, screen } from '@testing-library/react';
+import { Navbar } from './Navbar';
 
 jest.mock('next/navigation', () => ({
   usePathname: jest.fn(() => '/dashboard'),
-}))
+}));
 
-jest.mock('./SafeAutoConnect', () => ({
-  SafeAutoConnect: () => null,
-}))
+// DynamicWidget is mocked via jest.config.js moduleNameMapper
 
 describe('Navbar', () => {
   it('renders navigation items', () => {
-    render(<Navbar />)
+    render(<Navbar />);
 
-    expect(screen.getByText('Borrow')).toBeInTheDocument()
-    expect(screen.getByText('Earn')).toBeInTheDocument()
-    expect(screen.getByText('Dashboard')).toBeInTheDocument()
-  })
+    expect(screen.getByText('Borrow')).toBeInTheDocument();
+    expect(screen.getByText('Earn')).toBeInTheDocument();
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
 
   it('renders the logo', () => {
-    render(<Navbar />)
+    render(<Navbar />);
 
-    expect(screen.getByAltText('Egis Finance')).toBeInTheDocument()
-  })
-
-  it('renders the AppKit wallet button', () => {
-    render(<Navbar />)
-
-    const button = document.querySelector('w3m-button')
-    expect(button).toBeInTheDocument()
-  })
+    expect(screen.getByAltText('Egis Finance')).toBeInTheDocument();
+  });
 
   it('highlights active navigation item', () => {
-    render(<Navbar />)
+    render(<Navbar />);
 
     // Mock pathname is /dashboard, so Dashboard link should be active
-    const dashboardLink = screen.getByText('Dashboard')
-    expect(dashboardLink.className).toContain('text-brand-DEFAULT')
-    expect(dashboardLink.className).toContain('font-semibold')
-  })
-})
+    const dashboardLink = screen.getByText('Dashboard');
+    expect(dashboardLink.className).toContain('text-brand-DEFAULT');
+    expect(dashboardLink.className).toContain('font-semibold');
+  });
+});

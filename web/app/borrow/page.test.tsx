@@ -4,30 +4,38 @@
 
 import { render, screen } from '@testing-library/react'
 import BorrowPage from './page'
-import { useTvlPeg } from '@/hooks/useTvlPeg'
-import { useBorrowerCollateral } from '@/hooks/useBorrowerCollateral'
+import { useDynamicWallet } from '@/hooks/useDynamicWallet'
+import { useSDKReady } from '@/hooks/useSDKReady'
+import { useMorphoCollateral } from '@/hooks/useMorphoCollateral'
+import { useLockedUSDY } from '@/hooks/useLockedUSDY'
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance'
 import { useLoanHealth } from '@/hooks/useLoanHealth'
+import { useSystemParams } from '@/hooks/useSystemParams'
 
 // Mock all dependencies
-jest.mock('@/hooks/useTvlPeg')
-jest.mock('@/hooks/useBorrowerCollateral')
+jest.mock('@/hooks/useDynamicWallet')
+jest.mock('@/hooks/useSDKReady')
+jest.mock('@/hooks/useMorphoCollateral')
+jest.mock('@/hooks/useLockedUSDY')
 jest.mock('@/hooks/useBorrowerBalance')
 jest.mock('@/hooks/useLoanHealth')
+jest.mock('@/hooks/useSystemParams')
 jest.mock('@/components/Navbar', () => ({
   Navbar: () => <div data-testid="navbar">Navbar</div>,
 }))
-jest.mock('@/components/HardcodedUsdyBalance', () => ({
-  HardcodedUsdyBalance: () => <div data-testid="usdy-balance">Balance</div>,
-}))
 
-const mockUseTvlPeg = useTvlPeg as jest.MockedFunction<typeof useTvlPeg>
-const mockUseBorrowerCollateral = useBorrowerCollateral as jest.MockedFunction<typeof useBorrowerCollateral>
+const mockUseDynamicWallet = useDynamicWallet as jest.MockedFunction<typeof useDynamicWallet>
+const mockUseSDKReady = useSDKReady as jest.MockedFunction<typeof useSDKReady>
+const mockUseMorphoCollateral = useMorphoCollateral as jest.MockedFunction<typeof useMorphoCollateral>
+const mockUseLockedUSDY = useLockedUSDY as jest.MockedFunction<typeof useLockedUSDY>
 const mockUseBorrowerBalance = useBorrowerBalance as jest.MockedFunction<typeof useBorrowerBalance>
 const mockUseLoanHealth = useLoanHealth as jest.MockedFunction<typeof useLoanHealth>
+const mockUseSystemParams = useSystemParams as jest.MockedFunction<typeof useSystemParams>
 
-// Mock environment variable
-process.env.NEXT_PUBLIC_BORROWER_ADDRESS = '0x1234567890123456789012345678901234567890'
+// Minimal env config so BorrowPage doesn't show "App not configured".
+process.env.NEXT_PUBLIC_MANTLE_LOCKER = '0x1111111111111111111111111111111111111111'
+process.env.NEXT_PUBLIC_ETH_MORPHO = '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb'
+process.env.NEXT_PUBLIC_MORPHO_MARKET_ID = '0x' + '11'.repeat(32)
 
 describe('BorrowPage - Loan Health Component', () => {
   const mockRefetch = jest.fn()
@@ -35,15 +43,29 @@ describe('BorrowPage - Loan Health Component', () => {
   beforeEach(() => {
     jest.clearAllMocks()
 
-    // Default mock implementations
-    mockUseTvlPeg.mockReturnValue({
-      mantle: { value: '1000', formatted: '$1,000' },
-      eth: { value: '0', formatted: '$0' },
-      isLoading: false,
-    } as any)
+    // Wallet connected by default
+    mockUseSDKReady.mockReturnValue(true)
+    mockUseDynamicWallet.mockReturnValue({
+      address: '0x1234567890123456789012345678901234567890',
+      isConnected: true,
+      isReady: true,
+      chainId: 1,
+      publicClient: undefined,
+      walletClient: undefined,
+      connect: jest.fn(),
+      switchNetwork: jest.fn(),
+    })
 
-    mockUseBorrowerCollateral.mockReturnValue({
+    mockUseMorphoCollateral.mockReturnValue({
       value: '100',
+      isLoading: false,
+      isError: false,
+      refetch: mockRefetch,
+      data: undefined,
+    })
+
+    mockUseLockedUSDY.mockReturnValue({
+      value: '1000',
       isLoading: false,
       isError: false,
       refetch: mockRefetch,
@@ -56,6 +78,30 @@ describe('BorrowPage - Loan Health Component', () => {
       isError: false,
       refetch: mockRefetch,
       data: undefined,
+    })
+
+    // Mock useSystemParams with default LLTV (86%)
+    mockUseSystemParams.mockReturnValue({
+      lltv: 0.86,
+      lltvPercentage: '86%',
+      liquidationThreshold: 0.86,
+      liquidationThresholdPercentage: '86%',
+      liquidationBonus: 0.163,
+      liquidationBonusPercentage: '16%',
+      totalSupply: '1000000',
+      totalBorrow: '500000',
+      availableLiquidity: '500000',
+      utilizationRate: 50,
+      fee: 0,
+      feePercentage: '0.00%',
+      oraclePrice: '1.05',
+      oracleAddress: '0x1234567890123456789012345678901234567890',
+      oracleHaircutPercentage: 2,
+      oracleIsStale: false,
+      lastUpdate: Date.now(),
+      isLoading: false,
+      isError: false,
+      refetch: mockRefetch,
     })
   })
 
@@ -82,6 +128,39 @@ describe('BorrowPage - Loan Health Component', () => {
       // Should show loading animation elements
       const loadingElements = screen.getAllByRole('generic')
       expect(loadingElements.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Unavailable State', () => {
+    it('should show connect placeholder when wallet is disconnected', () => {
+      mockUseSDKReady.mockReturnValue(true)
+      mockUseDynamicWallet.mockReturnValue({
+        address: undefined,
+        isConnected: false,
+        isReady: false,
+        chainId: undefined,
+        publicClient: undefined,
+        walletClient: undefined,
+        connect: jest.fn(),
+        switchNetwork: jest.fn(),
+      })
+
+      mockUseLoanHealth.mockReturnValue({
+        collateralValue: null,
+        debtValue: null,
+        ltv: null,
+        healthFactor: null,
+        liquidationPrice: null,
+        isHealthy: true,
+        riskLevel: 'safe',
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      })
+
+      render(<BorrowPage />)
+
+      expect(screen.getByText('Connect wallet to view position')).toBeInTheDocument()
     })
   })
 
@@ -305,7 +384,7 @@ describe('BorrowPage - Loan Health Component', () => {
       // Check that other page elements exist
       expect(screen.getByTestId('navbar')).toBeInTheDocument()
       expect(screen.getByText('Borrower Terminal')).toBeInTheDocument()
-      expect(screen.getByText('Safe Transaction Builder')).toBeInTheDocument()
+      expect(screen.getByText('Transaction Builder')).toBeInTheDocument()
     })
   })
 
