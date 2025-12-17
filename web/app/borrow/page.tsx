@@ -44,15 +44,13 @@ export default function BorrowPage(): ReactElement {
         });
     }, [borrowerAddress, mantle.value, borrowerCollateral.value, borrowerCollateral.data, borrowerBalance.value, loanHealth]);
     
-    // Calculate available balance = total balance - locked amount
+    // Calculate available balance
     const availableBalance = React.useMemo(() => {
-        if (borrowerBalance.value && mantle.value) {
-            const total = parseFloat(borrowerBalance.value);
-            const locked = parseFloat(mantle.value);
-            return Math.max(0, total - locked).toFixed(2);
+        if (borrowerBalance.value) {
+            return parseFloat(borrowerBalance.value).toFixed(2);
         }
         return null;
-    }, [borrowerBalance.value, mantle.value]);
+    }, [borrowerBalance.value]);
     
     const [isSwapped, setIsSwapped] = React.useState(false);
     const [lockAmount, setLockAmount] = React.useState('');
