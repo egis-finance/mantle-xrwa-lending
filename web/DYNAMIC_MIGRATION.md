@@ -8,7 +8,7 @@ Migration from Wagmi/AppKit/Safe to Dynamic SDK with embedded wallets and an SWR
 
 | Before | After |
 |--------|-------|
-| Next.js 15 | Next.js 16.0.7 |
+| Next.js 15 | Next.js 16.0.10 |
 | wagmi 3.x | (removed) |
 | @reown/appkit | (removed) |
 | @safe-global/* | (removed) |
