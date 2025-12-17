@@ -35,3 +35,6 @@ jobs:
 
       - name: Run Forge tests
         run: forge test -vvv
+        env:
+          MANTLE_RPC_VTE: ${{ secrets.MANTLE_RPC_VTE }}
+          ETHEREUM_RPC_VTE: ${{ secrets.ETHEREUM_RPC_VTE }}
