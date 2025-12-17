@@ -2,11 +2,11 @@
 -include ../.env
 export
 
-.PHONY: install dev build start serve prod lint test clean
+.PHONY: install dev build start serve prod lint test clean clean-cache clean-all
 
-# Install dependencies (legacy-peer-deps required for Safe SDK)
+# Install dependencies
 install:
-	npm install --legacy-peer-deps
+	npm install
 
 # Hot-reloading dev server - changes reflect instantly in browser
 dev:
@@ -34,7 +34,17 @@ lint:
 test:
 	npm test
 
-# Clean build artifacts
+# Clear webpack cache only - run when builds slow down or after major dep updates
+# Preserves node_modules and build output, just removes cached compilation artifacts
+clean-cache:
+	rm -rf .next/cache
+
+# Full reset - removes all build artifacts, cache, and static export
+# Run before fresh install or when troubleshooting build issues
 clean:
-	rm -rf .next
+	rm -rf .next out
+
+# Nuclear option - removes everything including node_modules
+# Requires 'make install' before next build
+clean-all: clean
 	rm -rf node_modules

@@ -36,7 +36,7 @@ contract HelperConfig is Script {
      * USDY address is the real Ondo Finance deployment on Mantle mainnet
      *
      * Chain ID note:
-     * - Tenderly VTE uses custom chain IDs to avoid conflicts (14996)
+     * - Tenderly VTE uses custom chain IDs to avoid conflicts (15000)
      * - Mainnet uses 5000
      * - Configure via MANTLE_CHAIN_ID in .env
      */
@@ -54,7 +54,7 @@ contract HelperConfig is Script {
      * All addresses point to real Morpho Blue mainnet deployment
      *
      * Chain ID note:
-     * - Tenderly VTE uses custom chain IDs to avoid conflicts (10002)
+     * - Tenderly VTE uses custom chain IDs to avoid conflicts (10001)
      * - Mainnet uses 1
      * - Configure via ETHEREUM_CHAIN_ID in .env
      */

@@ -15,12 +15,16 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  *   --sig "run(address)" <TARGET_ADDRESS>
  */
 contract FundSingleWallet is Script {
+    error InvalidTargetAddress();
+    error MntTransferFailed(address to, uint256 amount);
+    error UsdyTransferFailed(address to, uint256 amount);
+
     /// Token amounts scaled to proper decimals
     uint256 constant USDY_AMOUNT = 100 ether; // 100 USDY (18 decimals)
     uint256 constant MNT_AMOUNT = 1 ether; // 1 MNT for gas
 
     function run(address target) external {
-        require(target != address(0), "Invalid target address");
+        if (target == address(0)) revert InvalidTargetAddress();
 
         HelperConfig config = new HelperConfig();
         HelperConfig.MantleConfig memory mantleConfig = config.getMantleVteConfig();
@@ -36,12 +40,12 @@ contract FundSingleWallet is Script {
 
         // Transfer MNT for gas
         (bool mntSuccess,) = payable(target).call{value: MNT_AMOUNT}("");
-        require(mntSuccess, "MNT transfer failed");
+        if (!mntSuccess) revert MntTransferFailed(target, MNT_AMOUNT);
         console2.log("Transferred %s MNT", MNT_AMOUNT / 1 ether);
 
         // Transfer USDY
         bool usdySuccess = usdy.transfer(target, USDY_AMOUNT);
-        require(usdySuccess, "USDY transfer failed");
+        if (!usdySuccess) revert UsdyTransferFailed(target, USDY_AMOUNT);
         console2.log("Transferred %s USDY", USDY_AMOUNT / 1 ether);
 
         vm.stopBroadcast();

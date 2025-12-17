@@ -15,6 +15,9 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  * - Lender: Reserved for Morpho interactions
  */
 contract FundWallets is Script {
+    error MntTransferFailed(address to, uint256 amount);
+    error UsdyTransferFailed(address to, uint256 amount);
+
     /// Token amounts scaled to proper decimals
     uint256 constant BORROWER_USDY_AMOUNT = 100 ether; // 100 USDY (18 decimals)
     uint256 constant BORROWER_MNT_AMOUNT = 1 ether; // 1 MNT for gas
@@ -70,7 +73,7 @@ contract FundWallets is Script {
      */
     function _transferMnt(address to, uint256 amount) internal {
         (bool success,) = payable(to).call{value: amount}("");
-        require(success, "MNT transfer failed");
+        if (!success) revert MntTransferFailed(to, amount);
         console2.log("  Transferred %s MNT", amount / 1 ether);
     }
 
@@ -80,7 +83,7 @@ contract FundWallets is Script {
      */
     function _transferUsdy(IERC20 usdy, address to, uint256 amount) internal {
         bool success = usdy.transfer(to, amount);
-        require(success, "USDY transfer failed");
+        if (!success) revert UsdyTransferFailed(to, amount);
         console2.log("  Transferred %s USDY", amount / 1 ether);
     }
 

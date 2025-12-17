@@ -127,7 +127,7 @@ INFO [timestamp] Attestation submitted successfully lock_id=0x... borrower=0x...
 
 4. **Verify minting on Ethereum**
    ```bash
-   cast call $ETH_XCUSDY \
+   cast call $ETH_ACUSDY \
      "balanceOf(address)(uint256)" \
      $BORROWER_ADDRESS \
      --rpc-url $ETHEREUM_RPC_VTE

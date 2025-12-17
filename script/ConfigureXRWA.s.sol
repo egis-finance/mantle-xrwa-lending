@@ -47,7 +47,7 @@ contract ConfigureXRWA is Script {
         HelperConfig.EthereumConfig memory ethConfig = config.getEthereumVteConfig();
 
         address mantleLocker = vm.envAddress("MANTLE_LOCKER");
-        address acUsdyAddr = vm.envAddress("ETH_XCUSDY");
+        address acUsdyAddr = vm.envAddress("ETH_ACUSDY");
         address receiverAddr = vm.envAddress("ETH_RECEIVER");
         address oracleAddr = vm.envAddress("ETH_ORACLE");
         address adapterAddr = vm.envAddress("ETH_ADAPTER");

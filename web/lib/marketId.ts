@@ -15,6 +15,12 @@ export function computeMarketId(): `0x${string}` {
   const oracle = contracts.navOracle.address
   const irm = contracts.irm.address
 
+  // If any required address is missing, treat the market as unconfigured.
+  // This prevents accidental reads against a bogus computed marketId.
+  if (loanToken === '0x0' || collateralToken === '0x0' || oracle === '0x0' || irm === '0x0') {
+    return '0x0'
+  }
+
   // LLTV from env or default (86%)
   const lltvEnv = process.env.NEXT_PUBLIC_MARKET_LLTV
   const lltv = lltvEnv ? BigInt(lltvEnv) : DEFAULT_LLTV

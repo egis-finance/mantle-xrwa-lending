@@ -11,6 +11,10 @@ const https = require('https');
 // Load environment variables
 require('dotenv').config({ path: '.env.local' });
 
+// LLTV can be overridden via env var (default: 86% matching deployed market)
+const LLTV = parseFloat(process.env.DEBUG_LLTV || '0.86');
+const LLTV_RAW = process.env.DEBUG_LLTV_RAW || '860000000000000000';
+
 const config = {
   ethereumRpc: process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE,
   morphoAddress: process.env.NEXT_PUBLIC_ETH_MORPHO,
@@ -32,12 +36,12 @@ console.log('');
 // Calculate market ID
 function calculateMarketId() {
   const { ethers } = require('ethers');
-  
+
   const loanToken = config.usdcAddress;
   const collateralToken = config.acUsdyAddress;
   const oracle = config.oracleAddress;
   const irm = config.irmAddress;
-  const lltv = ethers.BigNumber.from('750000000000000000'); // 0.75
+  const lltv = ethers.BigNumber.from(LLTV_RAW);
 
   const encoded = ethers.utils.defaultAbiCoder.encode(
     ['address', 'address', 'address', 'address', 'uint256'],
@@ -279,13 +283,15 @@ async function main() {
     
     if (collateralValue > 0 && debt > 0) {
       const ltv = (debt / collateralValue) * 100;
-      const healthFactor = (collateralValue * 0.75) / debt;
+      const healthFactor = (collateralValue * LLTV) / debt;
+      const warningThreshold = LLTV * 100 * 0.9; // 90% of LLTV
+      const dangerThreshold = LLTV * 100;
       console.log(`📊 LTV: ${ltv.toFixed(2)}%`);
-      console.log(`🏥 Health Factor: ${healthFactor.toFixed(2)}`);
-      
-      if (ltv >= 75) {
+      console.log(`🏥 Health Factor: ${healthFactor.toFixed(2)} (LLTV: ${(LLTV * 100).toFixed(0)}%)`);
+
+      if (ltv >= dangerThreshold) {
         console.log(`⚠️  CRITICAL: Position at liquidation risk!`);
-      } else if (ltv >= 67.5) {
+      } else if (ltv >= warningThreshold) {
         console.log(`⚠️  WARNING: Approaching liquidation threshold`);
       } else {
         console.log(`✅ SAFE: Position is healthy`);

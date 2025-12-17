@@ -66,7 +66,7 @@ verify_contract "$MANTLE_LOCKER" \
     "Mantle VTE"
 
 echo "--- Ethereum VTE (Chain ID: $ETHEREUM_CHAIN_ID) ---"
-verify_contract "$ETH_XCUSDY" \
+verify_contract "$ETH_ACUSDY" \
     "contracts/ethereum/AcUSDY.sol:AcUSDY" \
     "$ETH_VERIFIER_URL" \
     "Ethereum VTE"
