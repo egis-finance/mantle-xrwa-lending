@@ -38,6 +38,8 @@ export default function BorrowPage(): ReactElement {
   const systemParams = useSystemParams();
   // Loan health metrics (LLTV derived from Morpho market, fallback during loading)
   const loanHealth = useLoanHealth(borrowerAddress, { lltv: systemParams.lltv ?? DEFAULT_LLTV_DECIMAL });
+  // LLTV as percentage for gauge display (e.g., 86 for 86% LLTV)
+  const effectiveLltvPercent = (systemParams.lltv ?? DEFAULT_LLTV_DECIMAL) * 100;
 
   const isLoading =
     lockedUSDY.isLoading ||
@@ -484,12 +486,12 @@ export default function BorrowPage(): ReactElement {
                       </span>
                       <p className="text-xs text-brand-muted">Current LTV</p>
                     </div>
-                    {/* Needle - rotates based on LTV (0% = -90deg, 75% = 0deg, >75% = towards right) */}
+                    {/* Needle - rotates based on LTV (0% = -90deg, LLTV% = 0deg, >LLTV% = clamped) */}
                     {loanHealth.ltv !== null && (
                       <div
                         className={`absolute bottom-0 left-1/2 w-1 h-20 origin-bottom rounded-full transition-transform duration-500 ${loanHealth.riskLevel === 'danger' ? 'bg-danger-DEFAULT' : loanHealth.riskLevel === 'warning' ? 'bg-warning-DEFAULT' : 'bg-brand-dark'}`}
                         style={{
-                          transform: `rotate(${Math.min(Math.max((loanHealth.ltv / 75) * 90 - 90, -90), 0)}deg)`,
+                          transform: `rotate(${Math.min(Math.max((loanHealth.ltv / effectiveLltvPercent) * 90 - 90, -90), 0)}deg)`,
                         }}
                       ></div>
                     )}

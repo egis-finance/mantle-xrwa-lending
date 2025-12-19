@@ -39,7 +39,7 @@ export function useDynamicWallet(): DynamicWalletState {
   const [publicClient, setPublicClient] = useState<PublicClient | undefined>();
   const [walletClient, setWalletClient] = useState<WalletClient | undefined>();
   const [chainId, setChainId] = useState<number | undefined>();
-  const [clientsWalletAddress, setClientsWalletAddress] = useState<Address | undefined>();
+  const [cachedWalletAddress, setCachedWalletAddress] = useState<Address | undefined>();
 
   // Fetch clients when wallet changes
   useEffect(() => {
@@ -66,7 +66,7 @@ export function useDynamicWallet(): DynamicWalletState {
         setPublicClient(pub as PublicClient);
         setWalletClient(wallet as WalletClient);
         setChainId(normalizedChainId);
-        setClientsWalletAddress(walletAddress);
+        setCachedWalletAddress(walletAddress);
       } catch (error) {
         console.error('Failed to get wallet clients:', error);
       }
@@ -99,15 +99,15 @@ export function useDynamicWallet(): DynamicWalletState {
   const isReady = sdkHasLoaded && isConnected;
 
   const isActiveEthereumWallet = !!primaryWallet && isEthereumWallet(primaryWallet);
-  const clientsReady = isActiveEthereumWallet && clientsWalletAddress === address;
+  const cacheReady = isActiveEthereumWallet && cachedWalletAddress === address;
 
   return {
     address,
     isConnected,
     isReady,
-    chainId: clientsReady ? chainId : undefined,
-    publicClient: clientsReady ? publicClient : undefined,
-    walletClient: clientsReady ? walletClient : undefined,
+    chainId: cacheReady ? chainId : undefined,
+    publicClient: cacheReady ? publicClient : undefined,
+    walletClient: cacheReady ? walletClient : undefined,
     connect,
     switchNetwork,
   };

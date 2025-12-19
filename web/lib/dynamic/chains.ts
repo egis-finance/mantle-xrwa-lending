@@ -70,7 +70,11 @@ export const ETHEREUM_CHAIN_ID = env.useMainnet ? 1 : 10001;
  */
 export function normalizeChainId(network: string | number | undefined): number | undefined {
   if (network === undefined) return undefined;
-  return typeof network === 'string' ? parseInt(network, 10) : network;
+  if (typeof network === 'string') {
+    const parsed = parseInt(network, 10);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+  return network;
 }
 
 /**
