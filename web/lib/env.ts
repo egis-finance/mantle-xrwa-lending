@@ -96,8 +96,17 @@ export function getEnv(): EnvConfig {
     validateEnv();
   }
 
+  // Defense-in-depth: fallback only allowed in test environment
+  const dynamicEnvId =
+    process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID ||
+    (process.env.NODE_ENV === 'test' ? 'test-env-id' : '');
+
+  if (!dynamicEnvId) {
+    throw new Error('NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID must be set in non-test environments.');
+  }
+
   return {
-    dynamicEnvId: process.env.NEXT_PUBLIC_DYNAMIC_ENVIRONMENT_ID || 'test-env-id',
+    dynamicEnvId,
     useMainnet: process.env.NEXT_PUBLIC_USE_MAINNET === 'true',
     rpc: {
       mantleVte: process.env.NEXT_PUBLIC_MANTLE_RPC_VTE || 'http://localhost:8545',

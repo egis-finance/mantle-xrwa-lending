@@ -13,7 +13,10 @@ require('dotenv').config({ path: '.env.local' });
 
 // LLTV can be overridden via env var (default: 86% matching deployed market)
 const LLTV = parseFloat(process.env.DEBUG_LLTV || '0.86');
-const LLTV_RAW = process.env.DEBUG_LLTV_RAW || '860000000000000000';
+// Derive LLTV_RAW from LLTV to ensure consistency (unless explicitly overridden)
+const LLTV_RAW =
+  process.env.DEBUG_LLTV_RAW ||
+  BigInt(Math.round(LLTV * 1e18)).toString();
 
 const config = {
   ethereumRpc: process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE,

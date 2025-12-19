@@ -6,10 +6,6 @@ import { useBorrowerDebt } from './useBorrowerDebt';
 import { useOraclePrice } from './useOraclePrice';
 import type { Address } from 'viem';
 
-// Default LLTV matches deployed Morpho market (86%)
-// Callers should pass lltv from useSystemParams for on-chain accuracy
-const DEFAULT_LLTV = 0.86;
-
 export interface LoanHealthMetrics {
   collateralValue: number | null;
   debtValue: number | null;
@@ -27,24 +23,26 @@ export interface LoanHealthResult extends LoanHealthMetrics {
 }
 
 export interface UseLoanHealthOptions {
-  /** LLTV from useSystemParams (0.0-1.0 scale). Defaults to 0.86 if not provided. */
-  lltv?: number | null;
+  /** LLTV from useSystemParams (0.0-1.0 scale). Required for accurate health calculations. */
+  lltv: number;
 }
 
 /**
  * Calculates loan health metrics from Morpho position.
  * Uses AcUSDY collateral on Ethereum (not locked USDY on Mantle).
+ *
+ * @param borrowerAddress - The borrower's Ethereum address
+ * @param options - Must include lltv from useSystemParams for the target market
  */
 export function useLoanHealth(
   borrowerAddress: Address | undefined,
-  options: UseLoanHealthOptions = {}
+  options: UseLoanHealthOptions
 ): LoanHealthResult {
   const collateral = useMorphoCollateral(borrowerAddress);
   const debt = useBorrowerDebt(borrowerAddress);
   const oraclePrice = useOraclePrice();
 
-  // Use provided LLTV or fall back to default (86% matches deployed market)
-  const effectiveLltv = options.lltv ?? DEFAULT_LLTV;
+  const effectiveLltv = options.lltv;
 
   const isLoading = collateral.isLoading || debt.isLoading || oraclePrice.isLoading;
   const isError = collateral.isError || debt.isError || oraclePrice.isError;

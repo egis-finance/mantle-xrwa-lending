@@ -36,8 +36,8 @@ export default function BorrowPage(): ReactElement {
   const borrowerBalance = useBorrowerBalance(borrowerAddress);
   // Morpho market parameters (LLTV from on-chain)
   const systemParams = useSystemParams();
-  // Loan health metrics (LLTV derived from Morpho market)
-  const loanHealth = useLoanHealth(borrowerAddress, { lltv: systemParams.lltv });
+  // Loan health metrics (LLTV derived from Morpho market, fallback during loading)
+  const loanHealth = useLoanHealth(borrowerAddress, { lltv: systemParams.lltv ?? 0.86 });
 
   const isLoading =
     lockedUSDY.isLoading ||

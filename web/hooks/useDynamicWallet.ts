@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDynamicContext, useSwitchNetwork } from '@dynamic-labs/sdk-react-core';
 import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import type { PublicClient, WalletClient, Address } from 'viem';
+import { normalizeChainId } from '@/lib/dynamic/chains';
 
 interface DynamicWalletState {
   address: Address | undefined;
@@ -56,10 +57,9 @@ export function useDynamicWallet(): DynamicWalletState {
           primaryWallet.getWalletClient(),
         ]);
 
-        // Get current chain ID from wallet (handle string | number return)
+        // Get current chain ID from wallet
         const network = await primaryWallet.getNetwork();
-        const normalizedChainId =
-          typeof network === 'string' ? parseInt(network, 10) : network;
+        const normalizedChainId = normalizeChainId(network);
 
         if (cancelled) return;
 

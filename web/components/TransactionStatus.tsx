@@ -30,10 +30,6 @@ export function TransactionStatus({
       const chain = getChainById(chainId);
       const explorerUrl = chain.blockExplorerUrls?.[0];
       if (!explorerUrl) return null;
-      // Handle both standard explorers (/tx/) and Tenderly VTE (append directly)
-      if (explorerUrl.includes('tenderly.co')) {
-        return `${explorerUrl}/tx/${txHash}`;
-      }
       return `${explorerUrl}/tx/${txHash}`;
     } catch {
       return null;

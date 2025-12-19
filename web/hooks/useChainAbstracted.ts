@@ -27,7 +27,7 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import type { Address, Abi, Hash, TransactionReceipt } from 'viem';
 import { getPublicClient } from '@/lib/swr/chains';
-import { MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/dynamic/chains';
+import { MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID, normalizeChainId } from '@/lib/dynamic/chains';
 
 interface ReadContractParams {
   address: Address;
@@ -92,10 +92,9 @@ export function useChainAbstracted(): ChainAbstractedOperations {
         throw new Error('No Ethereum wallet connected');
       }
 
-      // Ensure wallet is on Mantle (normalize getNetwork result to number)
+      // Ensure wallet is on Mantle
       const currentNetwork = await primaryWallet.getNetwork();
-      const networkId = typeof currentNetwork === 'string' ? parseInt(currentNetwork, 10) : currentNetwork;
-      if (networkId !== MANTLE_CHAIN_ID) {
+      if (normalizeChainId(currentNetwork) !== MANTLE_CHAIN_ID) {
         await primaryWallet.switchNetwork(MANTLE_CHAIN_ID);
       }
 
@@ -120,10 +119,9 @@ export function useChainAbstracted(): ChainAbstractedOperations {
         throw new Error('No Ethereum wallet connected');
       }
 
-      // Ensure wallet is on Ethereum (normalize getNetwork result to number)
+      // Ensure wallet is on Ethereum
       const currentNetwork = await primaryWallet.getNetwork();
-      const networkId = typeof currentNetwork === 'string' ? parseInt(currentNetwork, 10) : currentNetwork;
-      if (networkId !== ETHEREUM_CHAIN_ID) {
+      if (normalizeChainId(currentNetwork) !== ETHEREUM_CHAIN_ID) {
         await primaryWallet.switchNetwork(ETHEREUM_CHAIN_ID);
       }
 

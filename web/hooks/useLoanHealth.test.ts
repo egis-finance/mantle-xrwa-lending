@@ -70,7 +70,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt(null) as any)
       mockUseOraclePrice.mockReturnValue(mockOracle(null) as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.isLoading).toBe(true)
     })
@@ -80,7 +80,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('50') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.05') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.isLoading).toBe(false)
     })
@@ -92,7 +92,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('0') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.05') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.collateralValue).toBe(0)
       expect(result.current.debtValue).toBe(0)
@@ -199,7 +199,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt(null) as any)
       mockUseOraclePrice.mockReturnValue(mockOracle(null) as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.collateralValue).toBeNull()
       expect(result.current.debtValue).toBeNull()
@@ -214,7 +214,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('0') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.05') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.collateralValue).toBeCloseTo(105, 2)
       expect(result.current.debtValue).toBe(0)
@@ -254,7 +254,7 @@ describe('useLoanHealth', () => {
         refetch: mockRefetch3,
       } as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       result.current.refetch()
 
@@ -270,14 +270,14 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt(null) as any)
       mockUseOraclePrice.mockReturnValue(mockOracle(null) as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.isError).toBe(true)
     })
   })
 
-  describe('Parameterized LLTV (86% Default)', () => {
-    it('should use default 86% LLTV when no options provided', () => {
+  describe('LLTV Calculations with 86%', () => {
+    it('should calculate health factor correctly with 86% LLTV', () => {
       // Collateral: 100 @ $1.00 = $100
       // Debt: $80
       // LTV: 80%
@@ -286,36 +286,11 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('80') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.healthFactor).toBeCloseTo(1.075, 2)
-      // 80% LTV is safe with 86% LLTV (warning starts at 77.4%)
+      // 80% LTV is warning with 86% LLTV (warning starts at 77.4%)
       expect(result.current.riskLevel).toBe('warning')
-    })
-
-    it('should accept explicit 86% LLTV from options', () => {
-      mockUseMorphoCollateral.mockReturnValue(mockCollateral('100') as any)
-      mockUseBorrowerDebt.mockReturnValue(mockDebt('80') as any)
-      mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
-
-      const { result } = renderHook(() =>
-        useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 })
-      )
-
-      expect(result.current.healthFactor).toBeCloseTo(1.075, 2)
-    })
-
-    it('should fall back to default when lltv is null', () => {
-      mockUseMorphoCollateral.mockReturnValue(mockCollateral('100') as any)
-      mockUseBorrowerDebt.mockReturnValue(mockDebt('80') as any)
-      mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
-
-      const { result } = renderHook(() =>
-        useLoanHealth('0x123' as `0x${string}`, { lltv: null })
-      )
-
-      // Should use default 0.86
-      expect(result.current.healthFactor).toBeCloseTo(1.075, 2)
     })
 
     it('should calculate warning threshold at 90% of 86% LLTV (~77.4%)', () => {
@@ -324,7 +299,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('77.4') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.riskLevel).toBe('warning')
     })
@@ -334,7 +309,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('70') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.ltv).toBeCloseTo(70, 1)
       expect(result.current.riskLevel).toBe('safe')
@@ -345,7 +320,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('86') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.riskLevel).toBe('danger')
       expect(result.current.healthFactor).toBeCloseTo(1.0, 2)
@@ -358,7 +333,7 @@ describe('useLoanHealth', () => {
       mockUseBorrowerDebt.mockReturnValue(mockDebt('80') as any)
       mockUseOraclePrice.mockReturnValue(mockOracle('1.0') as any)
 
-      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`))
+      const { result } = renderHook(() => useLoanHealth('0x123' as `0x${string}`, { lltv: 0.86 }))
 
       expect(result.current.liquidationPrice).toBeCloseTo(0.9302, 3)
     })

@@ -65,6 +65,15 @@ export const MANTLE_CHAIN_ID = env.useMainnet ? 5000 : 15000;
 export const ETHEREUM_CHAIN_ID = env.useMainnet ? 1 : 10001;
 
 /**
+ * Normalize Dynamic SDK's getNetwork() return value to a number.
+ * Dynamic returns string | number | undefined depending on wallet state.
+ */
+export function normalizeChainId(network: string | number | undefined): number | undefined {
+  if (network === undefined) return undefined;
+  return typeof network === 'string' ? parseInt(network, 10) : network;
+}
+
+/**
  * Get chain config by ID. Throws on unknown chainId (fail fast).
  */
 export function getChainById(chainId: number): EvmNetwork {
