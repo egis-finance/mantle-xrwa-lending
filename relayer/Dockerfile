@@ -2,7 +2,7 @@
 # Uses distroless base for minimal attack surface
 
 # Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -11,9 +11,6 @@ WORKDIR /build
 
 # Copy go mod files
 COPY go.mod go.sum ./
-
-# Use local toolchain (ignore go.mod's go directive if higher than installed)
-ENV GOTOOLCHAIN=local
 
 # Download dependencies (cached layer)
 RUN go mod download && go mod verify
