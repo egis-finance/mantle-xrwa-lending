@@ -11,8 +11,14 @@ on:
     paths:
       - 'relayer/**'
 
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
 env:
   GO_VERSION: '1.23'
+  GOTOOLCHAIN: local
 
 jobs:
   lint:

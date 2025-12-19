@@ -12,6 +12,9 @@ WORKDIR /build
 # Copy go mod files
 COPY go.mod go.sum ./
 
+# Use local toolchain (ignore go.mod's go directive if higher than installed)
+ENV GOTOOLCHAIN=local
+
 # Download dependencies (cached layer)
 RUN go mod download && go mod verify
 
