@@ -81,6 +81,8 @@ export function useLoanHealth(
     }
 
     // Health Factor = (Collateral Value * Max LLTV) / Debt
+    // Note: By design for Morpho Blue, HF = 1.0 corresponds to being exactly at the LLTV cap
+    // (e.g., 86% LTV with 86% LLTV), not at 100% utilization as in some other protocols.
     let healthFactor = Infinity;
     if (debtValueUSD > 0 && collateralValueUSD > 0) {
       healthFactor = (collateralValueUSD * effectiveLltv) / debtValueUSD;
