@@ -3,24 +3,38 @@ name: Relayer CI
 on:
   push:
     branches: [main, develop]
-    paths: ['relayer/**']
+    paths:
+      - relayer/**
   pull_request:
     branches: [main, develop]
-    paths: ['relayer/**']
+    paths:
+      - relayer/**
+
+permissions:
+  contents: read
 
 jobs:
   ci:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./relayer
+        working-directory: relayer
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: 1.24.x
+          check-latest: true
+          cache: true
+          cache-dependency-path: relayer/go.sum
+
       - run: go build -v ./...
+
       - run: go test -v -race ./pkg/...
+        env:
+          CGO_ENABLED: 1
+
       - uses: golangci/golangci-lint-action@v6
         with:
           version: v1.62.2
