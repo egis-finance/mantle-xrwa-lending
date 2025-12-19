@@ -1,8 +1,10 @@
 import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
 import { contracts } from './contracts'
 
-// Default LLTV: 86% (0.86e18) - can be overridden via NEXT_PUBLIC_MARKET_LLTV
-const DEFAULT_LLTV = BigInt('860000000000000000')
+// Default LLTV: 86% - matches deployed Morpho market
+// Can be overridden via NEXT_PUBLIC_MARKET_LLTV (raw 18-decimal value)
+export const DEFAULT_LLTV_DECIMAL = 0.86;
+export const DEFAULT_LLTV = BigInt('860000000000000000');
 
 /**
  * Computes the Morpho Blue market ID from market parameters

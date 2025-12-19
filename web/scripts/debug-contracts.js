@@ -11,12 +11,27 @@ const https = require('https');
 // Load environment variables
 require('dotenv').config({ path: '.env.local' });
 
+/**
+ * Convert a decimal string to its 18-decimal fixed-point representation.
+ * Uses string manipulation to avoid floating-point precision loss.
+ * Example: '0.86' -> '860000000000000000'
+ */
+function decimalToWei(decimalStr) {
+  const normalized = (decimalStr || '0').trim();
+  const [intPartRaw, fracPartRaw = ''] = normalized.split('.');
+  const intPart = intPartRaw === '' ? '0' : intPartRaw;
+  const fracPadded = (fracPartRaw + '0'.repeat(18)).slice(0, 18);
+  const scale = 10n ** 18n;
+  const intBig = BigInt(intPart);
+  const fracBig = fracPadded === '' ? 0n : BigInt(fracPadded);
+  return (intBig * scale + fracBig).toString();
+}
+
 // LLTV can be overridden via env var (default: 86% matching deployed market)
-const LLTV = parseFloat(process.env.DEBUG_LLTV || '0.86');
-// Derive LLTV_RAW from LLTV to ensure consistency (unless explicitly overridden)
-const LLTV_RAW =
-  process.env.DEBUG_LLTV_RAW ||
-  BigInt(Math.round(LLTV * 1e18)).toString();
+const LLTV_STR = process.env.DEBUG_LLTV || '0.86';
+const LLTV = parseFloat(LLTV_STR);
+// Derive LLTV_RAW using string math to avoid floating-point precision loss
+const LLTV_RAW = process.env.DEBUG_LLTV_RAW || decimalToWei(LLTV_STR);
 
 const config = {
   ethereumRpc: process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE,

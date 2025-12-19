@@ -16,9 +16,27 @@ const __dirname = dirname(__filename);
 // Load environment variables
 config({ path: join(__dirname, '..', '.env.local') });
 
+/**
+ * Convert a decimal string to its 18-decimal fixed-point representation.
+ * Uses string manipulation to avoid floating-point precision loss.
+ * Example: '0.86' -> '860000000000000000'
+ */
+function decimalToWei(decimalStr) {
+  const normalized = (decimalStr || '0').trim();
+  const [intPartRaw, fracPartRaw = ''] = normalized.split('.');
+  const intPart = intPartRaw === '' ? '0' : intPartRaw;
+  const fracPadded = (fracPartRaw + '0'.repeat(18)).slice(0, 18);
+  const scale = 10n ** 18n;
+  const intBig = BigInt(intPart);
+  const fracBig = fracPadded === '' ? 0n : BigInt(fracPadded);
+  return (intBig * scale + fracBig).toString();
+}
+
 // LLTV can be overridden via env var (default: 86% matching deployed market)
-const LLTV = parseFloat(process.env.DEBUG_LLTV || '0.86');
-const LLTV_RAW = process.env.DEBUG_LLTV_RAW || '860000000000000000';
+const LLTV_STR = process.env.DEBUG_LLTV || '0.86';
+const LLTV = parseFloat(LLTV_STR);
+// Derive LLTV_RAW using string math to avoid floating-point precision loss
+const LLTV_RAW = process.env.DEBUG_LLTV_RAW || decimalToWei(LLTV_STR);
 
 const envConfig = {
   ethereumRpc: process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE,
