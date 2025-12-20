@@ -27,12 +27,14 @@ export interface ReadResult<T> {
   isError: boolean;
   error: Error | null;
   refetch: () => void;
+  /** Background revalidation in progress (has data, fetching fresh). */
   isRefetching: boolean;
 }
 
 /**
  * Adapter to normalize raw SWR response into consistent ReadResult shape.
- * Handles the disabled-hook case where cacheKey=null returns undefined for both data and error.
+ * Uses SWR 2.x native isLoading (isValidating && !data && !error) for accurate
+ * loading state detection, gated by enabled flag for disabled-hook handling.
  *
  * @param swrResult - Raw SWR hook response
  * @param enabled - Whether the hook is enabled (cacheKey !== null)
@@ -41,13 +43,13 @@ export function toReadResult<T>(
   swrResult: SWRResponse<T, Error>,
   enabled: boolean
 ): ReadResult<T> {
-  const { data, error, isValidating, mutate } = swrResult;
+  const { data, error, isLoading: swrIsLoading, isValidating, mutate } = swrResult;
 
-  // isLoading: only true when enabled AND waiting for initial data
-  const isLoading = enabled && data === undefined && error === undefined;
+  // Use SWR's native isLoading (isValidating && !data && !error), gated by enabled
+  const isLoading = enabled && swrIsLoading;
 
-  // isRefetching: only true when enabled AND validating but not initial load
-  const isRefetching = enabled && isValidating && !isLoading;
+  // isRefetching: validating with existing data (background revalidation)
+  const isRefetching = enabled && isValidating && !swrIsLoading;
 
   return {
     data,

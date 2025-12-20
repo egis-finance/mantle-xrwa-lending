@@ -67,7 +67,7 @@ export function HardcodedUsdyBalance({ address, label }: HardcodedUsdyBalancePro
     }
 
     if (isError || !data || data[0] === undefined || data[1] === undefined) {
-      return { value: '-', shortAddress };
+      return { value: '—', shortAddress };
     }
 
     const [balance, decimals] = data;
