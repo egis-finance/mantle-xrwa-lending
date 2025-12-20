@@ -20,7 +20,7 @@
 import type { Address } from 'viem';
 import { formatUnits } from 'viem';
 import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 
@@ -40,8 +40,8 @@ export function useMorphoCollateral(
   borrowerAddress: Address | undefined
 ): ReadResult<MorphoCollateralResult> {
   const marketId = getMarketId();
-  const isConfigured = contracts.morpho.address !== '0x0';
-  const enabled = Boolean(borrowerAddress) && marketId !== '0x0' && isConfigured;
+  const isConfigured = contracts.morpho.address !== UNCONFIGURED_ADDRESS;
+  const enabled = Boolean(borrowerAddress) && marketId !== UNCONFIGURED_ADDRESS && isConfigured;
 
   const result = useMultiChainRead<typeof MorphoAbi, 'position', MorphoPosition>({
     chainId: contracts.morpho.chainId,

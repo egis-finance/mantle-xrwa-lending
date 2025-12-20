@@ -2,7 +2,7 @@
 
 import { formatUnits } from 'viem';
 import { useMultiChainRead, useMultiChainBatchRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { OracleAbi } from '@/lib/contracts/abis/Oracle';
 
 interface OraclePriceResult {
@@ -18,7 +18,7 @@ interface OraclePriceResult {
  * HAIRCUT_BPS is fetched separately as one-time static read.
  */
 export function useOraclePrice(): ReadResult<OraclePriceResult> {
-  const isConfigured = contracts.navOracle.address !== '0x0';
+  const isConfigured = contracts.navOracle.address !== UNCONFIGURED_ADDRESS;
 
   // Batch: price + isStale (both dynamic, poll every 10s)
   const batchResult = useMultiChainBatchRead<[bigint, boolean]>({

@@ -3,7 +3,7 @@
 import type { Address } from 'viem';
 import { formatUnits } from 'viem';
 import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 
 // Standard ERC20 balanceOf ABI
 const ERC20_BALANCE_ABI = [
@@ -27,7 +27,7 @@ interface BorrowerBalanceResult {
 export function useBorrowerBalance(
   borrowerAddress: Address | undefined
 ): ReadResult<BorrowerBalanceResult> {
-  const isConfigured = contracts.usdy.address !== '0x0';
+  const isConfigured = contracts.usdy.address !== UNCONFIGURED_ADDRESS;
   const enabled = Boolean(borrowerAddress) && isConfigured;
 
   const result = useMultiChainRead<typeof ERC20_BALANCE_ABI, 'balanceOf', bigint>({

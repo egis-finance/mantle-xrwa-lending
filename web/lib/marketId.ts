@@ -1,5 +1,5 @@
 import { keccak256, encodeAbiParameters, parseAbiParameters } from 'viem'
-import { contracts } from './contracts'
+import { contracts, UNCONFIGURED_ADDRESS } from './contracts'
 
 // Default LLTV: 86% - matches deployed Morpho market
 // Can be overridden via NEXT_PUBLIC_MARKET_LLTV (raw 18-decimal value)
@@ -19,8 +19,8 @@ export function computeMarketId(): `0x${string}` {
 
   // If any required address is missing, treat the market as unconfigured.
   // This prevents accidental reads against a bogus computed marketId.
-  if (loanToken === '0x0' || collateralToken === '0x0' || oracle === '0x0' || irm === '0x0') {
-    return '0x0'
+  if (loanToken === UNCONFIGURED_ADDRESS || collateralToken === UNCONFIGURED_ADDRESS || oracle === UNCONFIGURED_ADDRESS || irm === UNCONFIGURED_ADDRESS) {
+    return UNCONFIGURED_ADDRESS
   }
 
   // LLTV from env or default (86%)
@@ -41,7 +41,7 @@ export function computeMarketId(): `0x${string}` {
  */
 export function getMarketId(): `0x${string}` {
   const envMarketId = process.env.NEXT_PUBLIC_MORPHO_MARKET_ID
-  if (envMarketId && envMarketId !== '0x0' && envMarketId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+  if (envMarketId && envMarketId !== UNCONFIGURED_ADDRESS && envMarketId !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
     return envMarketId as `0x${string}`
   }
   return computeMarketId()

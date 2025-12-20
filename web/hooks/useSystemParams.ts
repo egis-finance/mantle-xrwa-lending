@@ -2,7 +2,7 @@
 
 import { formatUnits } from 'viem';
 import { useMultiChainBatchRead, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { useOraclePrice } from './useOraclePrice';
@@ -66,7 +66,7 @@ export interface SystemParams {
  */
 export function useSystemParams(): SystemParams {
   const marketId = getMarketId();
-  const isConfigured = contracts.morpho.address !== '0x0' && marketId !== '0x0';
+  const isConfigured = contracts.morpho.address !== UNCONFIGURED_ADDRESS && marketId !== UNCONFIGURED_ADDRESS;
   const oraclePrice = useOraclePrice();
 
   // Batch: idToMarketParams (static) + market (dynamic)

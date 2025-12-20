@@ -5,6 +5,7 @@
 
 import { createPublicClient, http, formatUnits } from 'viem'
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho'
+import { UNCONFIGURED_ADDRESS } from '@/lib/contracts'
 
 // Load env vars - in Jest, these come from .env.local via dotenv
 const ETHEREUM_VTE_RPC = process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE
@@ -15,7 +16,7 @@ const RUN_INTEGRATION_TESTS = process.env.RUN_INTEGRATION_TESTS === 'true'
 // Skip tests unless explicitly enabled and configured
 const shouldRun =
   RUN_INTEGRATION_TESTS &&
-  Boolean(ETHEREUM_VTE_RPC && MORPHO_ADDRESS && MARKET_ID && MARKET_ID !== '0x0')
+  Boolean(ETHEREUM_VTE_RPC && MORPHO_ADDRESS && MARKET_ID && MARKET_ID !== UNCONFIGURED_ADDRESS)
 
 describe('Morpho Market Parameters (Integration)', () => {
   // Increase timeout for RPC calls

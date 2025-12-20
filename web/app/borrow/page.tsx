@@ -13,7 +13,7 @@ import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
 import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { useSystemParams } from '@/hooks/useSystemParams';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId, DEFAULT_LLTV_DECIMAL } from '@/lib/marketId';
 import { formatTvl } from '@/lib/format';
 
@@ -24,9 +24,9 @@ export default function BorrowPage(): ReactElement {
   // Basic config guard (prevents confusing "0" UI when contracts are not wired)
   const marketId = getMarketId();
   const isAppConfigured =
-    contracts.collateralLocker.address !== '0x0' &&
-    contracts.morpho.address !== '0x0' &&
-    marketId !== '0x0';
+    contracts.collateralLocker.address !== UNCONFIGURED_ADDRESS &&
+    contracts.morpho.address !== UNCONFIGURED_ADDRESS &&
+    marketId !== UNCONFIGURED_ADDRESS;
 
   // Borrower's locked USDY on Mantle (not protocol TVL)
   const lockedUSDY = useLockedUSDY(borrowerAddress);

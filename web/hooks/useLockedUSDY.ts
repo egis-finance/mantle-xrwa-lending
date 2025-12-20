@@ -18,7 +18,7 @@
 import type { Address } from 'viem';
 import { formatUnits } from 'viem';
 import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 
 interface LockedUSDYResult {
@@ -28,7 +28,7 @@ interface LockedUSDYResult {
 export function useLockedUSDY(
   borrowerAddress: Address | undefined
 ): ReadResult<LockedUSDYResult> {
-  const isConfigured = contracts.collateralLocker.address !== '0x0';
+  const isConfigured = contracts.collateralLocker.address !== UNCONFIGURED_ADDRESS;
   const enabled = Boolean(borrowerAddress) && isConfigured;
 
   const result = useMultiChainRead<typeof CollateralLockerAbi, 'getUserLockedBalance', bigint>({

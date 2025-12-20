@@ -2,7 +2,7 @@
 
 import { formatUnits } from 'viem';
 import { useCrossChainRead, RefreshIntervals } from '@/lib/swr';
-import { contracts } from '@/lib/contracts';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 import { AcUSDYAbi } from '@/lib/contracts/abis/AcUSDY';
 
@@ -24,7 +24,7 @@ interface TvlPegResult {
  */
 export function useTvlPeg() {
   const isConfigured =
-    contracts.collateralLocker.address !== '0x0' && contracts.acUSDY.address !== '0x0';
+    contracts.collateralLocker.address !== UNCONFIGURED_ADDRESS && contracts.acUSDY.address !== UNCONFIGURED_ADDRESS;
 
   const result = useCrossChainRead<bigint, bigint>({
     mantleContract: {
