@@ -13,7 +13,7 @@ import { formatTvl } from '@/lib/format';
 
 export default function EarnPage() {
     const lenderAddress = process.env.NEXT_PUBLIC_LENDER_ADDRESS as `0x${string}` | undefined;
-    const { value: oraclePrice } = useOraclePrice();
+    const { data: oracleData } = useOraclePrice();
     const { mantle } = useTvlPeg();
     // Use the borrower balance hook which fetches USDY, but for the lender address
     // This ensures we see the 100 USDY the user expects
@@ -25,7 +25,7 @@ export default function EarnPage() {
 
     // Get the available balance as a number for validation
     // For Supply: Wallet Balance (USDY)
-    const availableBalance = activeTab === 'supply' ? lenderUsdyBalance.value : '0'; 
+    const availableBalance = activeTab === 'supply' ? (lenderUsdyBalance.data?.value ?? null) : '0'; 
     const availableBalanceNum = availableBalance ? parseFloat(availableBalance) : 0;
     const isLoading = lenderUsdyBalance.isLoading;
 
@@ -276,7 +276,7 @@ export default function EarnPage() {
                             <div className="space-y-2">
                                 <p className="text-xs text-brand-muted uppercase tracking-wider">Oracle Price</p>
                                 <div className="flex justify-between items-baseline">
-                                    <span className="text-2xl font-bold text-brand-dark">{oraclePrice ? `$${Number(oraclePrice).toFixed(2)}` : '$--'}</span>
+                                    <span className="text-2xl font-bold text-brand-dark">{oracleData?.value ? `$${Number(oracleData.value).toFixed(2)}` : '$--'}</span>
                                     <span className="text-sm text-brand-muted">USDC / AcUSDY</span>
                                 </div>
                                 <p className="text-xs text-brand-muted">Source: Chainlink Feeds</p>

@@ -30,10 +30,10 @@ export function useBorrowerBalance(
   const isConfigured = contracts.usdy.address !== UNCONFIGURED_ADDRESS;
   const enabled = Boolean(borrowerAddress) && isConfigured;
 
-  const result = useMultiChainRead<typeof ERC20_BALANCE_ABI, 'balanceOf', bigint>({
+  const result = useMultiChainRead<typeof ERC20_ABI, 'balanceOf', bigint>({
     chainId: contracts.usdy.chainId,
     address: contracts.usdy.address,
-    abi: ERC20_BALANCE_ABI,
+    abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: [borrowerAddress!],
     enabled,

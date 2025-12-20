@@ -2,7 +2,7 @@
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 import { formatTvl } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { ArrowLeftRight, CheckCircle2, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
+import { ArrowLeftRight, CheckCircle2, AlertTriangle, RefreshCw } from 'lucide-react'
 
 export function TvlPegDisplay() {
   const { mantle, ethereum, isLoading, isError, isBalanced, isRefetching, refetch } = useTvlPeg()
@@ -13,7 +13,6 @@ export function TvlPegDisplay() {
   const mantleVal = mantle.value ? parseFloat(mantle.value) : 0
   const ethVal = ethereum.value ? parseFloat(ethereum.value) : 0
   
-  const total = mantleVal + ethVal
   const diff = mantleVal - ethVal
   const deviationPercent = mantleVal > 0 ? (Math.abs(diff) / mantleVal) * 100 : 0
   
@@ -29,16 +28,6 @@ export function TvlPegDisplay() {
   // Map -10..10 to 0..100 (50 is center)
   // -10 -> 0, 0 -> 50, 10 -> 100
   const sliderPosition = 50 + (visualDeviation * 5)
-
-  const getStatusColor = () => {
-    if (isLoading) return 'text-brand-muted bg-brand-light/30 border-brand-light'
-    if (isError) return 'text-danger-DEFAULT bg-danger-light/10 border-danger-light'
-    if (deviationPercent < 0.01) return 'text-success-DEFAULT bg-success-light/10 border-success-light' // < 0.01%
-    if (deviationPercent < 0.1) return 'text-warning-DEFAULT bg-warning-light/10 border-warning-light' // < 0.1%
-    return 'text-danger-DEFAULT bg-danger-light/10 border-danger-light' // > 0.1%
-  }
-
-  const statusColor = getStatusColor()
 
   return (
     <div className="flex flex-col gap-4 w-full">
