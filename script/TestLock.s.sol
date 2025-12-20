@@ -27,6 +27,9 @@ import {IERC20} from "../contracts/interfaces/IERC20.sol";
  *     --legacy
  */
 contract TestLock is Script {
+    error InsufficientUSDYBalance(uint256 available, uint256 required);
+    error AccountingInvariantBroken(uint256 totalLocked, uint256 actualBalance);
+
     uint256 constant TEST_LOCK_AMOUNT = 10 ether; // 10 USDY
 
     function run() external {
@@ -52,7 +55,10 @@ contract TestLock is Script {
         console2.log("");
 
         // Verify borrower has sufficient USDY
-        require(usdy.balanceOf(borrower) >= TEST_LOCK_AMOUNT, "Borrower has insufficient USDY");
+        uint256 borrowerBalance = usdy.balanceOf(borrower);
+        if (borrowerBalance < TEST_LOCK_AMOUNT) {
+            revert InsufficientUSDYBalance(borrowerBalance, TEST_LOCK_AMOUNT);
+        }
 
         vm.startBroadcast(borrowerPrivateKey);
 
@@ -90,10 +96,11 @@ contract TestLock is Script {
         console2.log("LockId Consumed:", locker.consumed(lockId));
 
         // Verify accounting invariant
-        require(
-            locker.totalLocked() == usdy.balanceOf(address(locker)),
-            "Invariant broken: totalLocked != locker USDY balance"
-        );
+        uint256 totalLocked = locker.totalLocked();
+        uint256 actualBalance = usdy.balanceOf(address(locker));
+        if (totalLocked != actualBalance) {
+            revert AccountingInvariantBroken(totalLocked, actualBalance);
+        }
 
         console2.log("");
         console2.log("=== Test Complete ===");

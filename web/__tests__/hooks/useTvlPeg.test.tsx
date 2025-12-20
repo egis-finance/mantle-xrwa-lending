@@ -5,10 +5,20 @@
 import { renderHook } from '@testing-library/react'
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 
-const mockUseReadContract = jest.fn()
+const mockUseCrossChainRead = jest.fn()
 
-jest.mock('wagmi', () => ({
-  useReadContract: (...args: unknown[]) => mockUseReadContract(...args),
+jest.mock('@/lib/swr', () => ({
+  useCrossChainRead: (...args: unknown[]) => mockUseCrossChainRead(...args),
+  RefreshIntervals: {
+    PROTOCOL_TVL: 30000,
+  },
+}))
+
+jest.mock('@/lib/contracts', () => ({
+  contracts: {
+    collateralLocker: { address: '0xCollateralLocker', chainId: 15000 },
+    acUSDY: { address: '0xAcUSDY', chainId: 10001 },
+  },
 }))
 
 jest.mock('viem', () => ({
@@ -23,10 +33,12 @@ describe('useTvlPeg', () => {
   })
 
   it('returns loading state initially', () => {
-    mockUseReadContract.mockReturnValue({
+    mockUseCrossChainRead.mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
     })
 
     const { result } = renderHook(() => useTvlPeg())
@@ -40,10 +52,12 @@ describe('useTvlPeg', () => {
   it('returns balanced state when values match', () => {
     const mockValue = BigInt('25000000000000000000000000') // 25M with 18 decimals
 
-    mockUseReadContract.mockReturnValue({
-      data: mockValue,
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: mockValue, ethereum: mockValue },
       isLoading: false,
       isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
     })
 
     const { result } = renderHook(() => useTvlPeg())
@@ -58,9 +72,13 @@ describe('useTvlPeg', () => {
     const mantleValue = BigInt('25000000000000000000000000') // 25M
     const ethValue = BigInt('20000000000000000000000000') // 20M
 
-    mockUseReadContract
-      .mockReturnValueOnce({ data: mantleValue, isLoading: false, isError: false })
-      .mockReturnValueOnce({ data: ethValue, isLoading: false, isError: false })
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: mantleValue, ethereum: ethValue },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
+    })
 
     const { result } = renderHook(() => useTvlPeg())
 
@@ -68,10 +86,12 @@ describe('useTvlPeg', () => {
   })
 
   it('returns balanced when both values are zero', () => {
-    mockUseReadContract.mockReturnValue({
-      data: BigInt(0),
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: BigInt(0), ethereum: BigInt(0) },
       isLoading: false,
       isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
     })
 
     const { result } = renderHook(() => useTvlPeg())
@@ -82,14 +102,13 @@ describe('useTvlPeg', () => {
   })
 
   it('handles error state gracefully', () => {
-    // Suppress expected console.error output from hook's error logging
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
-
-    mockUseReadContract.mockReturnValue({
+    mockUseCrossChainRead.mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
       error: new Error('RPC error'),
+      refetch: jest.fn(),
+      isRefetching: false,
     })
 
     const { result } = renderHook(() => useTvlPeg())
@@ -97,30 +116,32 @@ describe('useTvlPeg', () => {
     expect(result.current.isError).toBe(true)
     expect(result.current.mantle.value).toBeNull()
     expect(result.current.ethereum.value).toBeNull()
-
-    consoleSpy.mockRestore()
   })
 
-  it('queries correct chain IDs', () => {
-    mockUseReadContract.mockReturnValue({
-      data: BigInt(0),
-      isLoading: false,
+  it('passes correct contract configurations', () => {
+    mockUseCrossChainRead.mockReturnValue({
+      data: undefined,
+      isLoading: true,
       isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
     })
 
     renderHook(() => useTvlPeg())
 
-    // First call should be Mantle (chainId 15000)
-    expect(mockUseReadContract.mock.calls[0][0]).toMatchObject({
-      chainId: 15000,
-      functionName: 'getTotalLocked',
-    })
-
-    // Second call should be Ethereum (chainId 10001)
-    expect(mockUseReadContract.mock.calls[1][0]).toMatchObject({
-      chainId: 10001,
-      functionName: 'totalSupply',
-    })
+    expect(mockUseCrossChainRead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mantleContract: expect.objectContaining({
+          address: '0xCollateralLocker',
+          functionName: 'getTotalLocked',
+        }),
+        ethereumContract: expect.objectContaining({
+          address: '0xAcUSDY',
+          functionName: 'totalSupply',
+        }),
+        enabled: true,
+      })
+    )
   })
 
   it('handles tolerance for small differences (within 0.01%)', () => {
@@ -128,9 +149,13 @@ describe('useTvlPeg', () => {
     // 25M * 0.00005 = 1250 difference (within 0.01% tolerance)
     const ethValue = BigInt('24999000000000000000000000') // 24.999M
 
-    mockUseReadContract
-      .mockReturnValueOnce({ data: mantleValue, isLoading: false, isError: false })
-      .mockReturnValueOnce({ data: ethValue, isLoading: false, isError: false })
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: mantleValue, ethereum: ethValue },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+      isRefetching: false,
+    })
 
     const { result } = renderHook(() => useTvlPeg())
 
@@ -138,10 +163,10 @@ describe('useTvlPeg', () => {
     expect(result.current.isBalanced).toBe(true)
   })
 
-  it('exposes refetch function that triggers both queries', () => {
+  it('exposes refetch function', () => {
     const mockRefetch = jest.fn()
-    mockUseReadContract.mockReturnValue({
-      data: BigInt(0),
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: BigInt(0), ethereum: BigInt(0) },
       isLoading: false,
       isError: false,
       isRefetching: false,
@@ -150,28 +175,17 @@ describe('useTvlPeg', () => {
 
     const { result } = renderHook(() => useTvlPeg())
 
-    result.current.refetch()
-
-    // Both queries should have been triggered
-    expect(mockRefetch).toHaveBeenCalledTimes(2)
+    expect(result.current.refetch).toBe(mockRefetch)
   })
 
-  it('returns isRefetching when any query is refetching', () => {
-    mockUseReadContract
-      .mockReturnValueOnce({
-        data: BigInt(0),
-        isLoading: false,
-        isError: false,
-        isRefetching: true,
-        refetch: jest.fn(),
-      })
-      .mockReturnValueOnce({
-        data: BigInt(0),
-        isLoading: false,
-        isError: false,
-        isRefetching: false,
-        refetch: jest.fn(),
-      })
+  it('returns isRefetching when refetching', () => {
+    mockUseCrossChainRead.mockReturnValue({
+      data: { mantle: BigInt(0), ethereum: BigInt(0) },
+      isLoading: false,
+      isError: false,
+      isRefetching: true,
+      refetch: jest.fn(),
+    })
 
     const { result } = renderHook(() => useTvlPeg())
 

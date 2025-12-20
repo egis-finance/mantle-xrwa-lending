@@ -8,7 +8,7 @@ global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
 // Fetch polyfills for Node.js
-const crossFetch = require('cross-fetch')
+import * as crossFetch from 'cross-fetch'
 global.fetch = crossFetch.default || crossFetch
 global.Request = crossFetch.Request
 global.Response = crossFetch.Response

@@ -1,55 +1,44 @@
-import { render } from '@testing-library/react'
-import { Providers } from './providers'
+import { render } from '@testing-library/react';
+import { Providers } from './providers';
 
-jest.mock('@reown/appkit/react', () => ({
-  createAppKit: jest.fn(),
-}))
+// Mocks are handled by jest.config.js moduleNameMapper
+// @dynamic-labs/sdk-react-core -> __mocks__/dynamic.ts
+// @dynamic-labs/ethereum -> __mocks__/dynamicEthereum.ts
+// swr -> __mocks__/swr.ts
 
-jest.mock('@/lib/config', () => ({
-  wagmiAdapter: {
-    wagmiConfig: {
-      chains: [],
-      connectors: [],
+jest.mock('@/lib/env', () => ({
+  getEnv: jest.fn(() => ({
+    dynamicEnvId: 'test-env-id',
+    useMainnet: false,
+    rpc: {
+      mantleVte: 'http://localhost:8545',
+      ethereumVte: 'http://localhost:8546',
+      mantleMainnet: 'https://rpc.mantle.xyz',
+      ethereumMainnet: 'https://eth.llamarpc.com',
     },
-  },
-  projectId: 'test-project-id',
-  networks: [],
-}))
+    explorer: {
+      mantleVte: '',
+      ethereumVte: '',
+      mantleMainnet: 'https://mantlescan.xyz',
+      ethereumMainnet: 'https://etherscan.io',
+    },
+  })),
+}));
 
-jest.mock('wagmi', () => ({
-  WagmiProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  cookieToInitialState: jest.fn(() => ({})),
-}))
-
-jest.mock('@tanstack/react-query', () => ({
-  QueryClient: jest.fn(),
-  QueryClientProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
-
-jest.mock('@safe-global/safe-apps-react-sdk', () => ({
-  __esModule: true,
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}))
+jest.mock('@/lib/dynamic/chains', () => ({
+  supportedNetworks: [],
+  MANTLE_CHAIN_ID: 15000,
+  ETHEREUM_CHAIN_ID: 10001,
+}));
 
 describe('Providers', () => {
   it('renders children within provider tree', () => {
     const { getByText } = render(
-      <Providers cookies={null}>
+      <Providers>
         <div>Test Child</div>
       </Providers>
-    )
+    );
 
-    expect(getByText('Test Child')).toBeInTheDocument()
-  })
-
-  it('handles SSR cookies', () => {
-    const testCookies = 'test-cookie=value'
-    const { getByText } = render(
-      <Providers cookies={testCookies}>
-        <div>Test Child</div>
-      </Providers>
-    )
-
-    expect(getByText('Test Child')).toBeInTheDocument()
-  })
-})
+    expect(getByText('Test Child')).toBeInTheDocument();
+  });
+});

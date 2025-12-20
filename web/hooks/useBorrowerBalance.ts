@@ -1,7 +1,9 @@
-'use client'
-import { useReadContract } from 'wagmi'
-import { formatUnits } from 'viem'
-import { MANTLE_VTE_CHAIN_ID } from '@/lib/contracts'
+'use client';
+
+import type { Address } from 'viem';
+import { formatUnits } from 'viem';
+import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 
 // Standard ERC20 ABI for balance and decimals
 const ERC20_ABI = [
@@ -12,57 +14,42 @@ const ERC20_ABI = [
     inputs: [{ name: 'account', type: 'address' }],
     outputs: [{ type: 'uint256' }],
   },
-  {
-    name: 'decimals',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'uint8' }],
-  },
-] as const
+] as const;
 
-export function useBorrowerBalance(borrowerAddress?: `0x${string}`) {
-  const usdyAddress = (process.env.NEXT_PUBLIC_MANTLE_USDY ?? '0x5bE26527e817998A7206475496fDE1E68957c5A6') as `0x${string}`
-  const isConfigured = usdyAddress !== '0x0'
-  const shouldQuery = Boolean(borrowerAddress) && isConfigured
-
-  const { data: balance, isLoading: isBalanceLoading, isError: isBalanceError, refetch: refetchBalance } = useReadContract({
-    address: usdyAddress,
-    abi: ERC20_ABI,
-    functionName: 'balanceOf',
-    args: [borrowerAddress!],
-    chainId: MANTLE_VTE_CHAIN_ID,
-    query: {
-      enabled: shouldQuery,
-      refetchInterval: 10000,
-    },
-  })
-
-  const { data: decimals, isLoading: isDecimalsLoading } = useReadContract({
-    address: usdyAddress,
-    abi: ERC20_ABI,
-    functionName: 'decimals',
-    chainId: MANTLE_VTE_CHAIN_ID,
-    query: {
-      enabled: isConfigured,
-      staleTime: Infinity,
-    },
-  })
-
-  // Format balance using dynamic decimals (default to 18 for USDY if fetch fails)
-  const resolvedDecimals = decimals ?? 18
-  const balanceValue = balance !== undefined ? formatUnits(balance, resolvedDecimals) : null
-  
-  const isLoading = isBalanceLoading || isDecimalsLoading
-  const isError = isBalanceError
-
-  return {
-    value: balanceValue,
-    data: balance,
-    isLoading,
-    isError,
-    refetch: refetchBalance,
-  }
+interface BorrowerBalanceResult {
+  value: string | null;
+  raw: bigint | undefined;
 }
 
+/**
+ * Reads borrower's USDY balance on Mantle.
+ */
+export function useBorrowerBalance(
+  borrowerAddress: Address | undefined
+): ReadResult<BorrowerBalanceResult> {
+  const isConfigured = contracts.usdy.address !== UNCONFIGURED_ADDRESS;
+  const enabled = Boolean(borrowerAddress) && isConfigured;
 
+  const result = useMultiChainRead<typeof ERC20_BALANCE_ABI, 'balanceOf', bigint>({
+    chainId: contracts.usdy.chainId,
+    address: contracts.usdy.address,
+    abi: ERC20_BALANCE_ABI,
+    functionName: 'balanceOf',
+    args: [borrowerAddress!],
+    enabled,
+    refreshInterval: RefreshIntervals.USER_POSITION,
+  });
+
+  // Transform raw bigint to formatted value (USDY has 18 decimals)
+  const transformedData: BorrowerBalanceResult | undefined = result.data !== undefined
+    ? {
+        value: formatUnits(result.data, 18),
+        raw: result.data,
+      }
+    : undefined;
+
+  return {
+    ...result,
+    data: transformedData,
+  };
+}

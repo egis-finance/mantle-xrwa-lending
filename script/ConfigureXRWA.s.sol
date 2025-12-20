@@ -16,7 +16,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  * 3. Whitelists Morpho Blue in AcUSDY for collateral transfers
  *
  * CHAIN ID NOTICE:
- * - Tenderly VTE: Mantle = 14996, Ethereum = 10002
+ * - Tenderly VTE: Mantle = 15000, Ethereum = 10001
  * - Mainnet: Mantle = 5000, Ethereum = 1
  * - This script uses actual chain IDs from HelperConfig (.env)
  * - lockId computation includes chainId, so VTE lockIds ≠ mainnet lockIds
@@ -47,7 +47,7 @@ contract ConfigureXRWA is Script {
         HelperConfig.EthereumConfig memory ethConfig = config.getEthereumVteConfig();
 
         address mantleLocker = vm.envAddress("MANTLE_LOCKER");
-        address acUsdyAddr = vm.envAddress("ETH_XCUSDY");
+        address acUsdyAddr = vm.envAddress("ETH_ACUSDY");
         address receiverAddr = vm.envAddress("ETH_RECEIVER");
         address oracleAddr = vm.envAddress("ETH_ORACLE");
         address adapterAddr = vm.envAddress("ETH_ADAPTER");
