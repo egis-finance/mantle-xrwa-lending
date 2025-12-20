@@ -23,7 +23,7 @@ function decimalToWei(decimalStr) {
   const fracPadded = (fracPartRaw + '0'.repeat(18)).slice(0, 18);
   const scale = 10n ** 18n;
   const intBig = BigInt(intPart);
-  const fracBig = fracPadded === '' ? 0n : BigInt(fracPadded);
+  const fracBig = BigInt(fracPadded);
   return (intBig * scale + fracBig).toString();
 }
 
