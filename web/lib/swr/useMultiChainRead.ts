@@ -38,12 +38,14 @@ export function useMultiChainRead<
   // Defer reads until SDK is ready (prevents failed requests during initialization)
   const sdkReady = useSDKReady();
 
-  // Cache key: include chainId, normalized address, functionName, serialized args
-  // Only create key when SDK ready AND enabled - null key prevents fetch
+  // Cache key: include chainId, normalized address, functionName, serialized args.
+  // serializeArgs converts BigInts to strings - prevents cache misses from reference inequality.
+  // Only create key when SDK ready AND enabled - null key prevents fetch.
   const cacheKey = (sdkReady && enabled)
     ? ['contract', chainId, normalizeAddress(address), functionName, serializeArgs(args)]
     : null;
 
+  // Fetcher uses closure variables (not cache key) - SWR key is only for deduplication
   const swrResult = useSWR<TData, Error>(
     cacheKey,
     async () => {

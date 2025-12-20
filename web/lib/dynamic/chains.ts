@@ -5,7 +5,8 @@ import { getEnv } from '@/lib/env';
 
 const env = getEnv();
 
-// VTE networks (Tenderly dashboard explorers)
+// VTE networks use custom chain IDs (15000/10001) instead of mainnet IDs (5000/1).
+// This prevents MetaMask from confusing VTE with real mainnet since they share RPC state.
 export const mantleVTE: EvmNetwork = {
   blockExplorerUrls: env.explorer.mantleVte ? [env.explorer.mantleVte] : [],
   chainId: 15000,
@@ -55,7 +56,8 @@ export const ethereumMainnet: EvmNetwork = {
   vanityName: 'Ethereum',
 };
 
-// Env-scoped: Only expose VTE when USE_MAINNET=false (prevent accidental mainnet switch)
+// Env-scoped network list: providers.tsx uses this to filter Dynamic's network picker.
+// Only VTE shown in dev, only mainnet in prod - prevents accidental cross-env transactions.
 export const supportedNetworks: EvmNetwork[] = env.useMainnet
   ? [mantleMainnet, ethereumMainnet]
   : [mantleVTE, ethereumVTE];

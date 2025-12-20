@@ -42,8 +42,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         environmentId: env.dynamicEnvId,
         walletConnectors: [EthereumWalletConnectors],
 
-        // STRICT embedded wallet filter - no substring matching
-        // Uses TypeScript-safe guards to filter to embedded wallets only
+        // STRICT embedded wallet filter - runs synchronously on SDK init.
+        // Uses TypeScript-safe guards to filter to embedded wallets only.
         walletsFilter: (wallets) =>
           wallets.filter((w) => {
             const wallet = w as unknown as Record<string, unknown>;
@@ -54,7 +54,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             return false;
           }),
 
-        // Merge our supported networks with dashboard config, filter to allowed chains
+        // mergeNetworks: our supportedNetworks take precedence over dashboard config.
+        // Then filter to allowedChainIds - prevents Dynamic showing chains we don't support.
         overrides: {
           evmNetworks: (dashboardNetworks) =>
             mergeNetworks(supportedNetworks, dashboardNetworks).filter((n) =>

@@ -47,6 +47,7 @@ export function useDynamicWallet(): DynamicWalletState {
       return;
     }
 
+    // Cancelled flag prevents state updates if component unmounts during async fetch
     let cancelled = false;
     const walletAddress = primaryWallet.address as Address | undefined;
 
@@ -98,6 +99,8 @@ export function useDynamicWallet(): DynamicWalletState {
   const isConnected = !!primaryWallet;
   const isReady = sdkHasLoaded && isConnected;
 
+  // cacheReady guards against stale data during wallet switches: ensures cached
+  // clients match current wallet (type check + address identity check)
   const isActiveEthereumWallet = !!primaryWallet && isEthereumWallet(primaryWallet);
   const cacheReady = isActiveEthereumWallet && cachedWalletAddress === address;
 

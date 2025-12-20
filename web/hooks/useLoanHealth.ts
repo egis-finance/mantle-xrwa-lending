@@ -52,6 +52,8 @@ export function useLoanHealth(
     const debtVal = debt.data?.value;
     const priceVal = oraclePrice.data?.value;
 
+    // Return safe defaults when data unavailable - UI shows "safe" rather than
+    // alarming users during loading. Actual risk only calculable with all inputs.
     if (!collateralVal || !debtVal || !priceVal) {
       return {
         collateralValue: null,
@@ -74,7 +76,8 @@ export function useLoanHealth(
     // Debt value in USD (USDC is 1:1)
     const debtValueUSD = debtAmount;
 
-    // LTV = Debt / Collateral Value
+    // LTV = Debt / Collateral Value (as percentage)
+    // Guard against division by zero - LTV stays 0 if no collateral deposited
     let ltv = 0;
     if (collateralValueUSD > 0) {
       ltv = (debtValueUSD / collateralValueUSD) * 100;
@@ -95,7 +98,8 @@ export function useLoanHealth(
       liquidationPrice = debtValueUSD / (collateralAmount * effectiveLltv);
     }
 
-    // Risk level
+    // Risk level thresholds: danger at LLTV cap, warning at 90% of cap
+    // The 90% buffer is DeFi convention - gives users time to act before liquidation
     let riskLevel: 'safe' | 'warning' | 'danger' = 'safe';
     if (ltv >= effectiveLltv * 100) {
       riskLevel = 'danger';
@@ -114,6 +118,7 @@ export function useLoanHealth(
       isHealthy,
       riskLevel,
     };
+  // Recompute only when underlying string values change, not on every SWR revalidation
   }, [collateral.data?.value, debt.data?.value, oraclePrice.data?.value, effectiveLltv]);
 
   return {

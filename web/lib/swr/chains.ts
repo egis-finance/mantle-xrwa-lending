@@ -4,7 +4,8 @@ import { getChainById } from '@/lib/dynamic/chains';
 // Cache for PublicClient instances (one per chain)
 const clientCache = new Map<number, PublicClient>();
 
-// Multicall3 address (same on most EVM chains including mainnet forks)
+// Multicall3 uses deterministic CREATE2 deployment - same address on all EVM chains.
+// Works on Tenderly VTE forks because they inherit mainnet state including this contract.
 const MULTICALL3_ADDRESS: Address = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
 /**
@@ -31,12 +32,15 @@ export function getPublicClient(chainId: number): PublicClient {
       name: chain.name,
       nativeCurrency: chain.nativeCurrency,
       rpcUrls: { default: { http: chain.rpcUrls } },
-      // VTE chains need explicit multicall3 address
+      // VTE (Virtual TestNet) uses custom chain IDs (15000/10001) to prevent wallet
+      // conflicts with real mainnet. Must explicitly set multicall3 since viem
+      // doesn't recognize these as known chains.
       contracts: {
         multicall3: { address: MULTICALL3_ADDRESS },
       },
     },
     transport: http(rpcUrl),
+    // Batch up to 100 calls per multicall, wait 10ms to collect calls before sending
     batch: { multicall: { batchSize: 100, wait: 10 } },
   });
 

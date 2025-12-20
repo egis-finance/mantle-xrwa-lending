@@ -26,7 +26,7 @@ export interface ReadResult<T> {
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
-  refetch: () => void;
+  refetch: () => Promise<void>;
   /** Background revalidation in progress (has data, fetching fresh). */
   isRefetching: boolean;
 }
@@ -56,7 +56,7 @@ export function toReadResult<T>(
     isLoading,
     isError: !!error,
     error: error ?? null,
-    refetch: () => mutate(),
+    refetch: async () => { await mutate(); },
     isRefetching,
   };
 }
