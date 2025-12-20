@@ -27,7 +27,7 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  *
  * Post-deployment:
  *   - Update .env with deployed addresses:
- *     ETH_XCUSDY=<acUsdy_address>
+ *     ETH_ACUSDY=<acUsdy_address>
  *     ETH_RECEIVER=<receiver_address>
  *     ETH_ORACLE=<oracle_address>
  *     ETH_ADAPTER=<adapter_address>
@@ -35,6 +35,8 @@ import {HelperConfig} from "./HelperConfig.s.sol";
  *   - Test lock → mint → borrow flow
  */
 contract DeployEthereum is Script {
+    error AddressPredictionMismatch(address predicted, address actual);
+
     struct DeployedContracts {
         AcUSDY acUsdy;
         XRWAReceiver receiver;
@@ -102,7 +104,9 @@ contract DeployEthereum is Script {
         console2.log("2/4 Deploying XRWAReceiver...");
         XRWAReceiver receiver = new XRWAReceiver(address(acUsdy), ethConfig.admin, dvn1);
         console2.log("   XRWAReceiver deployed at:", address(receiver));
-        require(address(receiver) == predictedReceiver, "Address prediction mismatch");
+        if (address(receiver) != predictedReceiver) {
+            revert AddressPredictionMismatch(predictedReceiver, address(receiver));
+        }
 
         // 3. Deploy NAVOracle
         console2.log("3/4 Deploying NAVOracle...");
@@ -154,7 +158,7 @@ contract DeployEthereum is Script {
         console2.log("");
         console2.log("=== Next Steps ===");
         console2.log("1. Update .env with deployed addresses:");
-        console2.log("   ETH_XCUSDY=%s", address(acUsdy));
+        console2.log("   ETH_ACUSDY=%s", address(acUsdy));
         console2.log("   ETH_RECEIVER=%s", address(receiver));
         console2.log("   ETH_ORACLE=%s", address(oracle));
         console2.log("   ETH_ADAPTER=%s", address(adapter));

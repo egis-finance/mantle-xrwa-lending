@@ -1,3 +1,6 @@
+// Root layout. Dynamic SDK v4.50+ injects styles via shadow DOM, so no separate
+// CSS import is required for the wallet widget. See ARCHITECTURE.md for details.
+
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
@@ -20,14 +23,10 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // For static export (Firebase Hosting), we cannot use headers() or cookies() server-side.
-  // Wagmi will hydration on the client side.
-  const cookies = null; 
-
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable}`}>
       <body suppressHydrationWarning>
-        <Providers cookies={cookies}>{children}</Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

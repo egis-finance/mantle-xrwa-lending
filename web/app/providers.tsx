@@ -1,96 +1,70 @@
-'use client'
+/**
+ * Provider configuration for Dynamic SDK + SWR.
+ *
+ * Dynamic SDK v4.50+ architecture splits configuration between client code and the Dynamic Dashboard:
+ *
+ * Client-side (this file):
+ * - environmentId: Project identifier from app.dynamic.xyz
+ * - walletConnectors: EthereumWalletConnectors for EVM chain support
+ * - walletsFilter: Restricts to embedded wallets only (no MetaMask/WalletConnect)
+ * - overrides.evmNetworks: Merges env-specific chains, filters to allowed chain IDs
+ *
+ * Dashboard-side (app.dynamic.xyz > SDK Settings):
+ * - embeddedWallets.createOnLogin: Auto-create wallet on first auth
+ * - initialAuthenticationMode: connect-only vs full auth flow
+ * - Social login providers (email, Google, etc.)
+ * - Wallet UI branding and customization
+ *
+ * CSS injection note: Dynamic SDK v4.50+ uses shadow DOM for styles.
+ * No CSS import needed in layout.tsx - differs from earlier versions.
+ *
+ * See ARCHITECTURE.md for design rationale.
+ */
 
-import * as React from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiProvider, cookieToInitialState } from 'wagmi'
-import { createAppKit } from '@reown/appkit/react'
-import { wagmiAdapter, projectId, networks } from '@/lib/config'
-import SafeProvider from '@safe-global/safe-apps-react-sdk'
+'use client';
 
-// Create QueryClient as a module-level singleton with proper caching
-// This ensures it persists across page navigation in Next.js
-let queryClientSingleton: QueryClient | undefined = undefined
+import * as React from 'react';
+import { DynamicContextProvider, mergeNetworks } from '@dynamic-labs/sdk-react-core';
+import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
+import { SWRProvider } from '@/lib/swr';
+import { getEnv } from '@/lib/env';
+import { supportedNetworks, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/dynamic/chains';
 
-function getQueryClient() {
-    if (typeof window === 'undefined') {
-        // Server: always create a new QueryClient
-        return new QueryClient({
-            defaultOptions: {
-                queries: {
-                    staleTime: Infinity,
-                    gcTime: Infinity,
-                    refetchOnMount: false,
-                    refetchOnWindowFocus: false,
-                    refetchOnReconnect: false,
-                },
-            },
-        })
-    }
+const env = getEnv();
 
-    // Browser: create singleton
-    if (!queryClientSingleton) {
-        queryClientSingleton = new QueryClient({
-            defaultOptions: {
-                queries: {
-                    staleTime: Infinity, // Data never goes stale
-                    gcTime: Infinity, // Keep in cache forever
-                    refetchOnMount: false, // Don't refetch on component mount
-                    refetchOnWindowFocus: false, // Don't refetch when window regains focus
-                    refetchOnReconnect: false, // Don't refetch on reconnect
-                },
-            },
-        })
-    }
+// Allowed chain IDs (only expose env-appropriate chains)
+const allowedChainIds = new Set([MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID]);
 
-    return queryClientSingleton
-}
+export function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <DynamicContextProvider
+      settings={{
+        environmentId: env.dynamicEnvId,
+        walletConnectors: [EthereumWalletConnectors],
 
-const metadata = {
-    name: 'Egis Finance',
-    description: 'Cross-chain lending protocol enabling USDY collateral for DeFi',
-    // In development we should match the current origin (e.g. http://localhost:3000)
-    // WalletConnect warns or may misbehave if this does not match the page URL.
-    url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
-    icons: ['https://egis.finance/icon.png']
-}
+        // STRICT embedded wallet filter - runs synchronously on SDK init.
+        // Uses TypeScript-safe guards to filter to embedded wallets only.
+        walletsFilter: (wallets) =>
+          wallets.filter((w) => {
+            const wallet = w as unknown as Record<string, unknown>;
+            // Check isEmbeddedWallet flag (primary method)
+            if (wallet.isEmbeddedWallet === true) return true;
+            // Fallback: exact key match for embedded wallet
+            if (typeof wallet.key === 'string' && wallet.key === 'embeddedwallet') return true;
+            return false;
+          }),
 
-// Type assertion needed due to version mismatch between @reown/appkit and @reown/appkit-adapter-wagmi
-// Both packages pull different versions of @reown/appkit-common, causing type incompatibility
-// The adapter and networks work correctly at runtime despite the type error
-createAppKit({
-    // @ts-expect-error - WagmiAdapter type incompatibility with ChainAdapter (TON namespace mismatch)
-    adapters: [wagmiAdapter],
-    projectId,
-    // @ts-expect-error - Custom VTE chains not recognized as AppKitNetwork but work at runtime
-    networks: networks,
-    metadata,
-    features: {
-        analytics: true,
-    },
-    themeMode: 'light',
-    themeVariables: {
-        '--w3m-accent': '#627eea',
-        '--w3m-border-radius-master': '8px',
-    }
-})
-
-export function Providers({
-    children,
-    cookies
-}: {
-    children: React.ReactNode
-    cookies?: string | null
-}) {
-    const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig, cookies)
-    const queryClient = getQueryClient()
-
-    return (
-        <WagmiProvider config={wagmiAdapter.wagmiConfig} initialState={initialState}>
-            <QueryClientProvider client={queryClient}>
-                <SafeProvider>
-                    {children}
-                </SafeProvider>
-            </QueryClientProvider>
-        </WagmiProvider>
-    )
+        // mergeNetworks: our supportedNetworks take precedence over dashboard config.
+        // Then filter to allowedChainIds - prevents Dynamic showing chains we don't support.
+        overrides: {
+          evmNetworks: (dashboardNetworks) =>
+            mergeNetworks(supportedNetworks, dashboardNetworks).filter((n) =>
+              allowedChainIds.has(typeof n.chainId === 'string' ? parseInt(n.chainId, 10) : n.chainId)
+            ),
+        },
+      }}
+    >
+      <SWRProvider>{children}</SWRProvider>
+    </DynamicContextProvider>
+  );
 }

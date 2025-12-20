@@ -1,103 +1,107 @@
 /**
- * Integration test for wallet connection flow
+ * Integration test for wallet connection flow with Dynamic SDK
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports */
+import { renderHook } from '@testing-library/react'
+import { useDynamicContext, useIsLoggedIn } from '@dynamic-labs/sdk-react-core'
 
-import { renderHook, act } from '@testing-library/react'
-
-const mockConnect = jest.fn()
-const mockDisconnect = jest.fn()
-
-jest.mock('wagmi', () => ({
-  useConnect: jest.fn(() => ({
-    connect: mockConnect,
-    connectors: [
-      { id: 'safe', name: 'Safe', ready: true },
-      { id: 'injected', name: 'MetaMask', ready: true },
-      { id: 'walletConnect', name: 'WalletConnect', ready: true },
-    ],
-    isPending: false,
+// Mock Dynamic SDK
+jest.mock('@dynamic-labs/sdk-react-core', () => ({
+  useDynamicContext: jest.fn(() => ({
+    primaryWallet: null,
+    user: null,
+    isAuthenticated: false,
+    setShowAuthFlow: jest.fn(),
   })),
-  useAccount: jest.fn(() => ({
-    address: undefined,
-    isConnected: false,
-  })),
-  useDisconnect: jest.fn(() => ({
-    disconnect: mockDisconnect,
-  })),
+  useIsLoggedIn: jest.fn(() => false),
+  DynamicContextProvider: ({ children }: { children: React.ReactNode }) => children,
+  DynamicWidget: () => null,
+  mergeNetworks: jest.fn((custom, dashboard) => [...custom, ...(dashboard || [])]),
 }))
 
-jest.mock('@safe-global/safe-apps-react-sdk', () => ({
-  useSafeAppsSDK: jest.fn(() => ({
-    safe: null,
-    connected: false,
-  })),
-}))
-
-describe('Wallet Integration Tests', () => {
+describe('Dynamic Wallet Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks()
   })
 
   describe('Wallet Connection', () => {
-    it('should have access to multiple wallet connectors', () => {
-      const { useConnect } = require('wagmi')
-      const hook = renderHook(() => useConnect())
+    it('should have access to dynamic context', () => {
 
-      expect(hook.result.current.connectors).toHaveLength(3)
-      expect(hook.result.current.connectors.map((c: { id: string }) => c.id)).toEqual([
-        'safe',
-        'injected',
-        'walletConnect',
-      ])
+      const hook = renderHook(() => useDynamicContext())
+
+      expect(hook.result.current).toBeDefined()
+      expect(hook.result.current.primaryWallet).toBeNull()
+      expect(hook.result.current.isAuthenticated).toBe(false)
     })
 
-    it('should allow connecting to a wallet', () => {
-      const { useConnect } = require('wagmi')
-      const hook = renderHook(() => useConnect())
+    it('should detect logged in state', () => {
 
-      const safeConnector = hook.result.current.connectors[0]
-
-      act(() => {
-        hook.result.current.connect({ connector: safeConnector })
+      // Simulate connected state
+      useDynamicContext.mockReturnValue({
+        primaryWallet: {
+          address: '0x123',
+          chain: 'EVM',
+          connector: { supportsNetworkSwitching: () => true },
+        },
+        user: { email: 'test@example.com' },
+        isAuthenticated: true,
+        setShowAuthFlow: jest.fn(),
       })
+      useIsLoggedIn.mockReturnValue(true)
 
-      expect(mockConnect).toHaveBeenCalledWith({
-        connector: safeConnector,
-      })
+      const contextHook = renderHook(() => useDynamicContext())
+      const loggedInHook = renderHook(() => useIsLoggedIn())
+
+      expect(contextHook.result.current.isAuthenticated).toBe(true)
+      expect(contextHook.result.current.primaryWallet?.address).toBe('0x123')
+      expect(loggedInHook.result.current).toBe(true)
     })
 
-    it('should handle Safe App context', () => {
-      const { useSafeAppsSDK } = require('@safe-global/safe-apps-react-sdk')
-      useSafeAppsSDK.mockReturnValue({
-        safe: { safeAddress: '0xSafe123', chainId: 1 },
-        connected: true,
+    it('should support embedded wallet flow', () => {
+
+      // Simulate embedded wallet
+      useDynamicContext.mockReturnValue({
+        primaryWallet: {
+          address: '0xEmbedded456',
+          chain: 'EVM',
+          connector: {
+            isEmbeddedWallet: true,
+            supportsNetworkSwitching: () => true,
+          },
+        },
+        user: { email: 'embedded@example.com' },
+        isAuthenticated: true,
+        setShowAuthFlow: jest.fn(),
       })
 
-      const hook = renderHook(() => useSafeAppsSDK())
+      const hook = renderHook(() => useDynamicContext())
 
-      expect(hook.result.current.safe).toBeDefined()
-      expect(hook.result.current.safe.safeAddress).toBe('0xSafe123')
-      expect(hook.result.current.connected).toBe(true)
+      expect(hook.result.current.primaryWallet?.connector?.isEmbeddedWallet).toBe(true)
     })
   })
 
   describe('Wallet Disconnection', () => {
-    it('should allow disconnecting from wallet', () => {
-      const { useAccount, useDisconnect } = require('wagmi')
-      useAccount.mockReturnValue({
-        address: '0x123',
-        isConnected: true,
+    it('should handle disconnection', () => {
+
+      // First connected
+      useDynamicContext.mockReturnValue({
+        primaryWallet: { address: '0x123' },
+        isAuthenticated: true,
+        handleLogOut: jest.fn(),
       })
 
-      const hook = renderHook(() => useDisconnect())
+      const hook = renderHook(() => useDynamicContext())
+      expect(hook.result.current.primaryWallet).toBeDefined()
 
-      act(() => {
-        hook.result.current.disconnect()
+      // Then disconnected
+      useDynamicContext.mockReturnValue({
+        primaryWallet: null,
+        isAuthenticated: false,
+        handleLogOut: jest.fn(),
       })
 
-      expect(mockDisconnect).toHaveBeenCalled()
+      const disconnectedHook = renderHook(() => useDynamicContext())
+      expect(disconnectedHook.result.current.primaryWallet).toBeNull()
     })
   })
 })

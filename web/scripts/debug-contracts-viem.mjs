@@ -16,6 +16,28 @@ const __dirname = dirname(__filename);
 // Load environment variables
 config({ path: join(__dirname, '..', '.env.local') });
 
+/**
+ * Convert a decimal string to its 18-decimal fixed-point representation.
+ * Uses string manipulation to avoid floating-point precision loss.
+ * Example: '0.86' -> '860000000000000000'
+ */
+function decimalToWei(decimalStr) {
+  const normalized = (decimalStr || '0').trim();
+  const [intPartRaw, fracPartRaw = ''] = normalized.split('.');
+  const intPart = intPartRaw === '' ? '0' : intPartRaw;
+  const fracPadded = (fracPartRaw + '0'.repeat(18)).slice(0, 18);
+  const scale = 10n ** 18n;
+  const intBig = BigInt(intPart);
+  const fracBig = fracPadded === '' ? 0n : BigInt(fracPadded);
+  return (intBig * scale + fracBig).toString();
+}
+
+// LLTV can be overridden via env var (default: 86% matching deployed market)
+const LLTV_STR = process.env.DEBUG_LLTV || '0.86';
+const LLTV = parseFloat(LLTV_STR);
+// Derive LLTV_RAW using string math to avoid floating-point precision loss
+const LLTV_RAW = process.env.DEBUG_LLTV_RAW || decimalToWei(LLTV_STR);
+
 const envConfig = {
   ethereumRpc: process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE,
   morphoAddress: process.env.NEXT_PUBLIC_ETH_MORPHO,
@@ -45,7 +67,7 @@ function calculateMarketId() {
   const collateralToken = envConfig.acUsdyAddress;
   const oracle = envConfig.oracleAddress;
   const irm = envConfig.irmAddress;
-  const lltv = BigInt('750000000000000000'); // 0.75
+  const lltv = BigInt(LLTV_RAW);
 
   const encoded = encodeAbiParameters(
     parseAbiParameters('address, address, address, address, uint256'),
@@ -238,13 +260,15 @@ async function main() {
 
     if (collateralValue > 0 && debt > 0) {
       const ltv = (debt / collateralValue) * 100;
-      const healthFactor = (collateralValue * 0.75) / debt;
+      const healthFactor = (collateralValue * LLTV) / debt;
+      const warningThreshold = LLTV * 100 * 0.9; // 90% of LLTV
+      const dangerThreshold = LLTV * 100;
       console.log(`📊 LTV: ${ltv.toFixed(2)}%`);
-      console.log(`🏥 Health Factor: ${healthFactor.toFixed(2)}`);
+      console.log(`🏥 Health Factor: ${healthFactor.toFixed(2)} (LLTV: ${(LLTV * 100).toFixed(0)}%)`);
 
-      if (ltv >= 75) {
+      if (ltv >= dangerThreshold) {
         console.log(`\n⚠️  CRITICAL: Position at liquidation risk!`);
-      } else if (ltv >= 67.5) {
+      } else if (ltv >= warningThreshold) {
         console.log(`\n⚠️  WARNING: Approaching liquidation threshold`);
       } else {
         console.log(`\n✅ SAFE: Position is healthy`);

@@ -8,7 +8,6 @@ import { TvlPegDisplay } from '@/components/TvlPegDisplay';
 import { Activity, RefreshCw, Info } from 'lucide-react';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { formatTvl } from '@/lib/format';
-import { contracts } from '@/lib/contracts';
 
 export default function DashboardPage() {
     const systemParams = useSystemParams();
@@ -66,7 +65,7 @@ export default function DashboardPage() {
                                 <table className="w-full text-sm text-left">
                                     <thead className="bg-brand-light/50 text-brand-muted font-medium uppercase text-xs">
                                         <tr>
-                                            <th className="p-4">Safe Address</th>
+                                            <th className="p-4">Borrower Address</th>
                                             <th className="p-4">Health Factor</th>
                                             <th className="p-4">Debt</th>
                                             <th className="p-4 text-right">Action</th>

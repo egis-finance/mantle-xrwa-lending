@@ -1,122 +1,133 @@
-'use client'
-import { useReadContract } from 'wagmi'
-import { formatUnits } from 'viem'
-import { contracts } from '@/lib/contracts'
-import { getMarketId } from '@/lib/marketId'
-import { MorphoAbi } from '@/lib/contracts/abis/Morpho'
-import { useOraclePrice } from './useOraclePrice'
+'use client';
+
+import { formatUnits } from 'viem';
+import { useMultiChainBatchRead, RefreshIntervals } from '@/lib/swr';
+import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
+import { getMarketId } from '@/lib/marketId';
+import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
+import { useOraclePrice } from './useOraclePrice';
+
+interface MorphoMarketParams {
+  loanToken: `0x${string}`;
+  collateralToken: `0x${string}`;
+  oracle: `0x${string}`;
+  irm: `0x${string}`;
+  lltv: bigint;
+}
+
+interface MorphoMarket {
+  totalSupplyAssets: bigint;
+  totalSupplyShares: bigint;
+  totalBorrowAssets: bigint;
+  totalBorrowShares: bigint;
+  lastUpdate: bigint;
+  fee: bigint;
+}
 
 export interface SystemParams {
   // Market Parameters
-  lltv: number | null // Max LTV (e.g., 0.75 = 75%)
-  lltvPercentage: string | null // Formatted as "75%"
+  lltv: number | null;
+  lltvPercentage: string | null;
 
   // Liquidation Parameters
-  liquidationThreshold: number | null // Liquidation threshold (typically same as LLTV in Morpho)
-  liquidationThresholdPercentage: string | null // Formatted as "75%"
-  liquidationBonus: number | null // Liquidation bonus (e.g., 0.05 = 5%)
-  liquidationBonusPercentage: string | null // Formatted as "5%"
+  liquidationThreshold: number | null;
+  liquidationThresholdPercentage: string | null;
+  liquidationBonus: number | null;
+  liquidationBonusPercentage: string | null;
 
   // Market Stats
-  totalSupply: string | null // Total USDC supplied
-  totalBorrow: string | null // Total USDC borrowed
-  availableLiquidity: string | null // Available to borrow (supply - borrow)
-  utilizationRate: number | null // Borrow / Supply ratio
+  totalSupply: string | null;
+  totalBorrow: string | null;
+  availableLiquidity: string | null;
+  utilizationRate: number | null;
 
   // Protocol Fee
-  fee: number | null // Protocol fee (e.g., 0.01 = 1%)
-  feePercentage: string | null // Formatted as "1%"
+  fee: number | null;
+  feePercentage: string | null;
 
   // Oracle
-  oraclePrice: string | null // Current collateral price
-  oracleAddress: string | null
-  oracleHaircutPercentage: number | null // Haircut applied (e.g., 2)
-  oracleIsStale: boolean | null // Whether oracle price is stale
+  oraclePrice: string | null;
+  oracleAddress: string | null;
+  oracleHaircutPercentage: number | null;
+  oracleIsStale: boolean | null;
 
   // Timestamps
-  lastUpdate: number | null // Last market update timestamp
+  lastUpdate: number | null;
 
   // Loading states
-  isLoading: boolean
-  isError: boolean
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
 }
 
+/**
+ * Reads Morpho market parameters and statistics.
+ * idToMarketParams + market batched for efficiency.
+ */
 export function useSystemParams(): SystemParams {
-  const marketId = getMarketId()
-  const isConfigured = contracts.morpho.address !== '0x0' && marketId !== '0x0'
-  const oraclePrice = useOraclePrice()
+  const marketId = getMarketId();
+  const isConfigured = contracts.morpho.address !== UNCONFIGURED_ADDRESS && marketId !== UNCONFIGURED_ADDRESS;
+  const oraclePrice = useOraclePrice();
 
-  // Fetch market parameters (includes LLTV) - STATIC, fetch once only
-  const { data: marketParams, isLoading: paramsLoading, isError: paramsError } = useReadContract({
-    address: contracts.morpho.address,
-    abi: MorphoAbi,
-    functionName: 'idToMarketParams',
-    args: [marketId],
+  // Batch: idToMarketParams (static) + market (dynamic)
+  const batchResult = useMultiChainBatchRead<[MorphoMarketParams, MorphoMarket]>({
     chainId: contracts.morpho.chainId,
-    query: {
-      staleTime: Infinity, // Never consider stale - system params don't change
-      gcTime: Infinity, // Keep in cache forever
-      refetchOnMount: false, // Don't refetch on component mount
-      refetchOnWindowFocus: false, // Don't refetch when tab regains focus
-      refetchOnReconnect: false, // Don't refetch on reconnect
-    },
-  })
+    contracts: [
+      {
+        address: contracts.morpho.address,
+        abi: MorphoAbi,
+        functionName: 'idToMarketParams',
+        args: [marketId as `0x${string}`],
+      },
+      {
+        address: contracts.morpho.address,
+        abi: MorphoAbi,
+        functionName: 'market',
+        args: [marketId as `0x${string}`],
+      },
+    ],
+    enabled: isConfigured,
+    refreshInterval: RefreshIntervals.SYSTEM_PARAMS,
+  });
 
+  const isLoading = batchResult.isLoading || oraclePrice.isLoading;
+  const isError = batchResult.isError || oraclePrice.isError;
 
-  // Fetch market data (supply, borrow, lastUpdate) - changes as users interact
-  const { data: marketData, isLoading: marketLoading, isError: marketError } = useReadContract({
-    address: contracts.morpho.address,
-    abi: MorphoAbi,
-    functionName: 'market',
-    args: [marketId],
-    chainId: contracts.morpho.chainId,
-    query: {
-      staleTime: 30000, // Consider stale after 30s
-      gcTime: Infinity, // Keep in cache (avoid re-fetch on remount)
-      refetchInterval: 30000, // Poll every 30 seconds
-      refetchOnWindowFocus: true, // Refresh when user returns to tab
-    },
-  })
+  // Parse results
+  const [marketParams, marketData] = batchResult.data ?? [undefined, undefined];
 
-  const isLoading = paramsLoading || marketLoading || oraclePrice.isLoading
-  const isError = paramsError || marketError || oraclePrice.isError
-
-  // Parse and calculate values BEFORE logging
   const lltv = marketParams && marketParams.lltv > 0n
     ? Number(formatUnits(marketParams.lltv, 18))
-    : 0
-  const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null
+    : 0;
+  const lltvPercentage = lltv !== null ? `${(lltv * 100).toFixed(0)}%` : null;
 
-  const totalSupply = marketData ? formatUnits(marketData.totalSupplyAssets, 6) : null
-  const totalBorrow = marketData ? formatUnits(marketData.totalBorrowAssets, 6) : null
+  const totalSupply = marketData ? formatUnits(marketData.totalSupplyAssets, 6) : null;
+  const totalBorrow = marketData ? formatUnits(marketData.totalBorrowAssets, 6) : null;
 
   const utilizationRate = totalSupply && totalBorrow && parseFloat(totalSupply) > 0
     ? (parseFloat(totalBorrow) / parseFloat(totalSupply)) * 100
-    : 0
+    : 0;
 
-  // Liquidation Threshold: In Morpho Blue, liquidation happens at LLTV (same as max LTV)
-  // There is no separate warning threshold - liquidation occurs exactly at LLTV
-  const liquidationThreshold = lltv
-  const liquidationThresholdPercentage = lltvPercentage
+  // In Morpho Blue, liquidation happens at LLTV
+  const liquidationThreshold = lltv;
+  const liquidationThresholdPercentage = lltvPercentage;
 
-  // Liquidation Bonus: In Morpho Blue, derived from LLTV as (1/LLTV - 1)
-  // For 86% LLTV: 1/0.86 - 1 ≈ 0.163 = 16.3% bonus
-  const liquidationBonus = lltv && lltv > 0 ? (1 / lltv) - 1 : null
+  // Liquidation bonus: (1/LLTV - 1)
+  const liquidationBonus = lltv && lltv > 0 ? (1 / lltv) - 1 : null;
   const liquidationBonusPercentage = liquidationBonus !== null
     ? `${(liquidationBonus * 100).toFixed(0)}%`
-    : null
+    : null;
 
-  // Calculate available liquidity
   const availableLiquidity = totalSupply && totalBorrow
     ? (parseFloat(totalSupply) - parseFloat(totalBorrow)).toString()
-    : null
+    : null;
 
-  const fee = marketData && marketData.fee > 0n ? Number(formatUnits(marketData.fee, 18)) : 0
-  const feePercentage = fee !== null ? `${(fee * 100).toFixed(2)}%` : null
+  const fee = marketData && marketData.fee > 0n ? Number(formatUnits(marketData.fee, 18)) : 0;
+  const feePercentage = fee !== null ? `${(fee * 100).toFixed(2)}%` : null;
 
-  const lastUpdate = marketData && marketData.lastUpdate > 0n ? Number(marketData.lastUpdate) : null
+  const lastUpdate = marketData && marketData.lastUpdate > 0n ? Number(marketData.lastUpdate) : null;
 
-  const oracleAddress = marketParams?.oracle || contracts.navOracle.address
+  const oracleAddress = marketParams?.oracle ?? contracts.navOracle.address;
 
   return {
     lltv,
@@ -131,13 +142,16 @@ export function useSystemParams(): SystemParams {
     utilizationRate,
     fee,
     feePercentage,
-    oraclePrice: oraclePrice.value,
+    oraclePrice: oraclePrice.data?.value ?? null,
     oracleAddress,
-    oracleHaircutPercentage: oraclePrice.haircutPercentage,
-    oracleIsStale: oraclePrice.isStale,
+    oracleHaircutPercentage: oraclePrice.data?.haircutPercentage ?? null,
+    oracleIsStale: oraclePrice.data?.isStale ?? null,
     lastUpdate,
     isLoading,
     isError,
-  }
+    refetch: () => {
+      batchResult.refetch();
+      oraclePrice.refetch();
+    },
+  };
 }
-

@@ -4,12 +4,16 @@
 
 import { renderHook } from '@testing-library/react'
 import { useBorrowerDebt } from './useBorrowerDebt'
-import { useReadContract } from 'wagmi'
-import { contracts } from '@/lib/contracts'
-import { getMarketId } from '@/lib/marketId'
 
-// Mock wagmi and dependencies
-jest.mock('wagmi')
+const mockUseMultiChainBatchRead = jest.fn()
+
+jest.mock('@/lib/swr', () => ({
+  useMultiChainBatchRead: (...args: unknown[]) => mockUseMultiChainBatchRead(...args),
+  RefreshIntervals: {
+    USER_POSITION: 15000,
+  },
+}))
+
 jest.mock('@/lib/contracts', () => ({
   contracts: {
     morpho: {
@@ -18,237 +22,177 @@ jest.mock('@/lib/contracts', () => ({
     },
   },
 }))
-jest.mock('@/lib/marketId')
 
-const mockUseReadContract = useReadContract as jest.MockedFunction<typeof useReadContract>
-const mockGetMarketId = getMarketId as jest.MockedFunction<typeof getMarketId>
+jest.mock('@/lib/marketId', () => ({
+  getMarketId: () => '0xabcdef' as `0x${string}`,
+}))
 
 describe('useBorrowerDebt', () => {
   const mockBorrowerAddress = '0x1234567890123456789012345678901234567890' as `0x${string}`
-  const mockMarketId = '0xabcdef' as `0x${string}`
   const mockRefetch = jest.fn()
 
   beforeEach(() => {
     jest.clearAllMocks()
-    mockGetMarketId.mockReturnValue(mockMarketId)
-    // Cast contracts to any to allow assignment
-    ;(contracts as unknown as Record<string, unknown>).morpho = {
-      address: '0xMorphoAddress' as `0x${string}`,
-      chainId: 1,
-    }
   })
 
   describe('Query Conditions', () => {
     it('should not query when borrower address is undefined', () => {
-      mockUseReadContract.mockReturnValue({
+      mockUseMultiChainBatchRead.mockReturnValue({
         data: undefined,
         isLoading: false,
         isError: false,
         refetch: mockRefetch,
-      } as any)
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(undefined))
 
-      expect(result.current.value).toBeNull()
-    })
-
-    it('should not query when market ID is 0x0', () => {
-      mockGetMarketId.mockReturnValue('0x0' as `0x${string}`)
-      mockUseReadContract.mockReturnValue({
-        data: undefined,
-        isLoading: false,
-        isError: false,
-        refetch: mockRefetch,
-      } as any)
-
-      const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
-
-      expect(result.current.value).toBeNull()
+      expect(result.current.data?.value).toBeUndefined()
+      expect(mockUseMultiChainBatchRead).toHaveBeenCalledWith(
+        expect.objectContaining({
+          enabled: false,
+        })
+      )
     })
   })
 
   describe('Debt Calculations', () => {
     it('should calculate debt correctly from shares', () => {
-      // Mock position data: borrowShares = 100
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 100000000000000000000n }, // 100 shares (18 decimals)
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        // Mock market data
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 1000000000n, // $1000 (6 decimals for USDC)
-            totalBorrowShares: 200000000000000000000n, // 200 shares (18 decimals)
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      const mockPosition = { borrowShares: 100000000000000000000n } // 100 shares (18 decimals)
+      const mockMarket = {
+        totalBorrowAssets: 1000000000n, // $1000 (6 decimals for USDC)
+        totalBorrowShares: 200000000000000000000n, // 200 shares (18 decimals)
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (100 * 1000) / 200 = 500 USDC
-      expect(result.current.value).toBe('500')
+      expect(result.current.data?.value).toBe('500')
     })
 
     it('should return 0 when user has no borrow shares', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 0n },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 1000000000n,
-            totalBorrowShares: 200000000000000000000n,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      const mockPosition = { borrowShares: 0n }
+      const mockMarket = {
+        totalBorrowAssets: 1000000000n,
+        totalBorrowShares: 200000000000000000000n,
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      expect(result.current.value).toBe('0')
+      expect(result.current.data?.value).toBe('0')
     })
 
-    it('should return 0 when total borrow shares is 0', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 100000000000000000000n },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 1000000000n,
-            totalBorrowShares: 0n,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+    it('should return undefined when total borrow shares is 0', () => {
+      const mockPosition = { borrowShares: 100000000000000000000n }
+      const mockMarket = {
+        totalBorrowAssets: 1000000000n,
+        totalBorrowShares: 0n,
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      expect(result.current.value).toBe('0')
+      // When totalBorrowShares is 0, value should be null (division by zero)
+      expect(result.current.data?.value).toBeNull()
     })
 
     it('should handle large numbers correctly', () => {
       // $1,000,000 debt scenario
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 1000000000000000000000000n }, // 1M shares
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 5000000000000n, // $5M in USDC (6 decimals)
-            totalBorrowShares: 5000000000000000000000000n, // 5M shares
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      const mockPosition = { borrowShares: 1000000000000000000000000n } // 1M shares
+      const mockMarket = {
+        totalBorrowAssets: 5000000000000n, // $5M in USDC (6 decimals)
+        totalBorrowShares: 5000000000000000000000000n, // 5M shares
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (1M * 5M) / 5M = 1M USDC
-      expect(result.current.value).toBe('1000000')
+      expect(result.current.data?.value).toBe('1000000')
     })
 
     it('should handle fractional shares correctly', () => {
       // Small position
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 1500000000000000000n }, // 1.5 shares
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 10000000n, // $10 USDC
-            totalBorrowShares: 5000000000000000000n, // 5 shares
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      const mockPosition = { borrowShares: 1500000000000000000n } // 1.5 shares
+      const mockMarket = {
+        totalBorrowAssets: 10000000n, // $10 USDC
+        totalBorrowShares: 5000000000000000000n, // 5 shares
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       // Expected: (1.5 * 10) / 5 = 3 USDC
-      expect(result.current.value).toBe('3')
+      expect(result.current.data?.value).toBe('3')
     })
   })
 
   describe('Loading States', () => {
-    it('should show loading when position is loading', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: true,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+    it('should show loading state', () => {
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: true,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       expect(result.current.isLoading).toBe(true)
     })
 
-    it('should show loading when market is loading', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: true,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+    it('should not be loading when data is available', () => {
+      const mockPosition = { borrowShares: 100000000000000000000n }
+      const mockMarket = {
+        totalBorrowAssets: 1000000000n,
+        totalBorrowShares: 200000000000000000000n,
+      }
 
-      const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
-
-      expect(result.current.isLoading).toBe(true)
-    })
-
-    it('should not be loading when both queries complete', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 100000000000000000000n },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 1000000000n,
-            totalBorrowShares: 200000000000000000000n,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
@@ -257,40 +201,15 @@ describe('useBorrowerDebt', () => {
   })
 
   describe('Error States', () => {
-    it('should propagate position error', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: true,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-
-      const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
-
-      expect(result.current.isError).toBe(true)
-    })
-
-    it('should propagate market error', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: true,
-          refetch: mockRefetch,
-        } as any)
+    it('should propagate error state', () => {
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: true,
+        error: new Error('RPC error'),
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
@@ -304,83 +223,61 @@ describe('useBorrowerDebt', () => {
       const mockTotalBorrowAssets = 1000000000n
       const mockTotalBorrowShares = 200000000000000000000n
 
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: mockBorrowShares },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: mockTotalBorrowAssets,
-            totalBorrowShares: mockTotalBorrowShares,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+      const mockPosition = { borrowShares: mockBorrowShares }
+      const mockMarket = {
+        totalBorrowAssets: mockTotalBorrowAssets,
+        totalBorrowShares: mockTotalBorrowShares,
+      }
+
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [mockPosition, mockMarket],
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      expect(result.current.value).toBe('500')
-      expect(result.current.borrowShares).toBe(mockBorrowShares)
-      expect(result.current.totalBorrowAssets).toBe(mockTotalBorrowAssets)
-      expect(result.current.totalBorrowShares).toBe(mockTotalBorrowShares)
+      expect(result.current.data?.value).toBe('500')
+      expect(result.current.data?.borrowShares).toBe(mockBorrowShares)
+      expect(result.current.data?.totalBorrowAssets).toBe(mockTotalBorrowAssets)
+      expect(result.current.data?.totalBorrowShares).toBe(mockTotalBorrowShares)
       expect(result.current.isLoading).toBe(false)
       expect(result.current.isError).toBe(false)
       expect(typeof result.current.refetch).toBe('function')
     })
 
-    it('should return null when data is not available', () => {
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
-        .mockReturnValueOnce({
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch,
-        } as any)
+    it('should return undefined data when not available', () => {
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      expect(result.current.value).toBeNull()
+      expect(result.current.data).toBeUndefined()
     })
   })
 
   describe('Refetch', () => {
-    it('should call both refetch functions', () => {
-      const mockRefetch1 = jest.fn()
-      const mockRefetch2 = jest.fn()
-
-      mockUseReadContract
-        .mockReturnValueOnce({
-          data: { borrowShares: 100000000000000000000n },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch1,
-        } as any)
-        .mockReturnValueOnce({
-          data: {
-            totalBorrowAssets: 1000000000n,
-            totalBorrowShares: 200000000000000000000n,
-          },
-          isLoading: false,
-          isError: false,
-          refetch: mockRefetch2,
-        } as any)
+    it('should expose refetch function', () => {
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       result.current.refetch()
 
-      expect(mockRefetch1).toHaveBeenCalledTimes(1)
-      expect(mockRefetch2).toHaveBeenCalledTimes(1)
+      expect(mockRefetch).toHaveBeenCalledTimes(1)
     })
   })
 })
