@@ -3,6 +3,7 @@
  */
 
 import { renderHook } from '@testing-library/react'
+import { parseUnits } from 'viem'
 import { useLoanHealth } from './useLoanHealth'
 import { useMorphoCollateral } from './useMorphoCollateral'
 import { useBorrowerDebt } from './useBorrowerDebt'
@@ -51,7 +52,7 @@ describe('useLoanHealth', () => {
       value,
       haircutPercentage: 2,
       isStale: false,
-      raw: BigInt(Math.floor(parseFloat(value || '0') * 1e24)),
+      raw: parseUnits(value || '0', 24),
     } : undefined,
     isLoading,
     isError,
