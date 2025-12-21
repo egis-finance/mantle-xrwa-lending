@@ -8,17 +8,19 @@
  * 3. useCrossChainRead - Parallel reads from Mantle + Ethereum
  *
  * Return shape (via toReadResult adapter):
- *   { data, isLoading, isError, error, refetch, isRefetching }
+ *   { data, isLoading, isError, error, categorizedError, refetch, isRefetching }
  *
  * Design notes:
  * - SWR chosen over React Query for simpler API and direct cache key control
  * - Cache keys include chainId + normalized address to prevent cross-chain collisions
  * - All hex strings (addresses, bytes32) lowercased in cache keys
  * - RefreshIntervals define polling rates by data sensitivity
+ * - Error categorization provides structured handling (network/contract/wallet/config)
  *
  * The toReadResult() adapter normalizes SWR's raw response, handling edge cases:
  * - Disabled hooks (enabled=false) don't show "loading" state
  * - isRefetching distinguishes background revalidation from initial load
+ * - categorizedError provides user-friendly messages and retry info
  *
  * See ARCHITECTURE.md for full design rationale.
  */
@@ -39,6 +41,9 @@ export {
   toReadResult,
   type ReadResult,
 } from './utils';
+
+// Error types (re-exported from lib/errors for convenience)
+export type { CategorizedError } from '../errors';
 
 // Hooks
 export { useMultiChainRead, type UseMultiChainReadOptions } from './useMultiChainRead';

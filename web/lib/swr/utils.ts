@@ -1,5 +1,7 @@
 import type { Address } from 'viem';
 import type { SWRResponse } from 'swr';
+import type { CategorizedError } from '../errors';
+import { categorizeError } from '../errors';
 
 /**
  * Normalize address for cache key consistency (lowercase).
@@ -26,6 +28,8 @@ export interface ReadResult<T> {
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
+  /** Structured error with category, user message, and retry info. */
+  categorizedError: CategorizedError | null;
   refetch: () => Promise<void>;
   /** Background revalidation in progress (has data, fetching fresh). */
   isRefetching: boolean;
@@ -51,11 +55,15 @@ export function toReadResult<T>(
   // isRefetching: validating with existing data (background revalidation)
   const isRefetching = enabled && isValidating && !swrIsLoading;
 
+  // Categorize error for structured handling (lazy - only compute when error exists)
+  const categorized = error ? categorizeError(error) : null;
+
   return {
     data,
     isLoading,
     isError: !!error,
     error: error ?? null,
+    categorizedError: categorized,
     refetch: async () => { await mutate(); },
     isRefetching,
   };

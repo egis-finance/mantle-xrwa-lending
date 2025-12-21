@@ -4,6 +4,7 @@ import { formatUnits } from 'viem';
 import { useMultiChainRead, useMultiChainBatchRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { OracleAbi } from '@/lib/contracts/abis/Oracle';
+import type { CategorizedError } from '@/lib/errors';
 
 interface OraclePriceResult {
   value: string | null;
@@ -77,12 +78,18 @@ export function useOraclePrice(): ReadResult<OraclePriceResult> {
   const isLoading = batchResult.isLoading || haircutResult.isLoading;
   const isError = batchResult.isError || haircutResult.isError;
   const isRefetching = batchResult.isRefetching || haircutResult.isRefetching;
+  const error = batchResult.error ?? haircutResult.error ?? null;
+
+  // Use categorized error from whichever request failed first
+  const categorizedError: CategorizedError | null =
+    batchResult.categorizedError ?? haircutResult.categorizedError ?? null;
 
   return {
     data: transformedData,
     isLoading,
     isError,
-    error: batchResult.error ?? haircutResult.error ?? null,
+    error,
+    categorizedError,
     isRefetching,
     refetch: async () => {
       await Promise.all([batchResult.refetch(), haircutResult.refetch()]);

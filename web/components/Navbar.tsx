@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { DynamicWidget } from '@dynamic-labs/sdk-react-core';
 import { cn } from '@/lib/utils';
+import { ConnectionIndicator } from './ConnectionIndicator';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -52,6 +53,7 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
+          <ConnectionIndicator />
           <DynamicWidget />
         </div>
       </div>

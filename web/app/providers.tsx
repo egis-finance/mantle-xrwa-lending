@@ -27,6 +27,8 @@ import * as React from 'react';
 import { DynamicContextProvider, mergeNetworks } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import { SWRProvider } from '@/lib/swr';
+import { ConnectionProvider } from '@/lib/connection';
+import { Toaster, TOAST_CONFIG } from '@/lib/toast';
 import { getEnv } from '@/lib/env';
 import { supportedNetworks, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/dynamic/chains';
 
@@ -64,7 +66,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      <SWRProvider>{children}</SWRProvider>
+      <SWRProvider>
+        <ConnectionProvider>
+          {children}
+          <Toaster {...TOAST_CONFIG} />
+        </ConnectionProvider>
+      </SWRProvider>
     </DynamicContextProvider>
   );
 }
