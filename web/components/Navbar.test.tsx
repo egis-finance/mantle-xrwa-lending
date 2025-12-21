@@ -7,6 +7,9 @@ jest.mock('next/navigation', () => ({
 
 // DynamicWidget is mocked via jest.config.js moduleNameMapper
 
+// Mock connection module for ConnectionIndicator
+jest.mock('@/lib/connection', () => require('../__mocks__/connection'));
+
 describe('Navbar', () => {
   it('renders navigation items', () => {
     render(<Navbar />);
