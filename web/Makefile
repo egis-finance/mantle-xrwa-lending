@@ -6,19 +6,19 @@ export
 
 # Install dependencies
 install:
-	npm install
+	pnpm install
 
 # Hot-reloading dev server - changes reflect instantly in browser
 dev:
-	npm run dev
+	pnpm run dev
 
 # Build optimized production bundle (run before 'serve')
 build:
-	npm run build
+	pnpm run build
 
 # Serve static export from out/ directory (requires 'build' first)
 serve:
-	npx serve out
+	pnpm exec serve out
 
 # Build and serve production bundle in one step
 prod: build serve
@@ -28,11 +28,11 @@ start: serve
 
 # Run linting
 lint:
-	npm run lint
+	pnpm run lint
 
 # Run unit tests
 test:
-	npm test
+	pnpm test
 
 # Clear webpack cache only - run when builds slow down or after major dep updates
 # Preserves node_modules and build output, just removes cached compilation artifacts
@@ -47,4 +47,4 @@ clean:
 # Nuclear option - removes everything including node_modules
 # Requires 'make install' before next build
 clean-all: clean
-	rm -rf node_modules
+	rm -rf node_modules pnpm-lock.yaml
