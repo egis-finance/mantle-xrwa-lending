@@ -5,12 +5,29 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
-import { Activity, RefreshCw, Info } from 'lucide-react';
+import { Activity, RefreshCw, Info, ShieldCheck, Lock, Coins, Wallet } from 'lucide-react';
 import { useSystemParams } from '@/hooks/useSystemParams';
+import { useDynamicWallet } from '@/hooks/useDynamicWallet';
+import { useLockedUSDY } from '@/hooks/useLockedUSDY';
+import { useLoanHealth } from '@/hooks/useLoanHealth';
+import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';
+import { useAcUSDYBalance } from '@/hooks/useAcUSDYBalance';
+import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { formatTvl } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
+    const { address: userAddress, isConnected } = useDynamicWallet();
     const systemParams = useSystemParams();
+    
+    // User-specific data
+    const lockedUSDY = useLockedUSDY(userAddress);
+    const borrowerDebt = useBorrowerDebt(userAddress);
+    const morphoCollateral = useMorphoCollateral(userAddress);
+    const acUsdyBalance = useAcUSDYBalance(userAddress);
+    const loanHealth = useLoanHealth(userAddress, { lltv: systemParams.lltv ?? 0.86 });
+
+    const totalAcUsdy = (Number(acUsdyBalance.data?.value ?? 0) + Number(morphoCollateral.data?.value ?? 0)).toString();
 
     return (
         <div className="min-h-screen bg-slate-50/50 flex flex-col relative overflow-hidden">
@@ -29,30 +46,95 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Global Health Bar */}
-                <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl bg-gradient-to-r from-white via-white to-emerald-50/30">
-                    <CardContent className="p-6 flex flex-wrap items-center gap-6">
-
-                        <div className="flex-1 min-w-[300px]">
-                            <TvlPegDisplay />
-                        </div>
-
-                        <div className="h-20 w-px bg-border hidden md:block mx-4"></div>
-
-                        <div className="flex items-center gap-4 min-w-fit">
-                            <div className="space-y-1 text-right">
-                                <p className="text-xs text-brand-muted uppercase tracking-wider">Oracle Heartbeat</p>
-                                <div className="flex items-center gap-2 justify-end">
-                                    <span className="text-sm font-medium text-brand-dark">Last Update: 2m ago</span>
-                                    <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-DEFAULT opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-success-DEFAULT"></span>
-                                    </span>
-                                </div>
+                <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
+                    <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl bg-gradient-to-r from-white via-white to-emerald-50/30">
+                        <CardContent className="p-6 flex flex-wrap items-center gap-6 h-full">
+                            <div className="flex-1 min-w-[300px]">
+                                <TvlPegDisplay />
                             </div>
-                        </div>
+                        </CardContent>
+                    </Card>
 
-                    </CardContent>
-                </Card>
+                    {/* My Position Summary */}
+                    <Card className={cn(
+                        "border-l-4 shadow-soft-xl transition-all duration-500",
+                        isConnected ? "border-l-brand-DEFAULT bg-white" : "border-l-gray-300 bg-gray-50 opacity-60"
+                    )}>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-bold text-brand-muted uppercase tracking-wider flex items-center gap-2">
+                                <Wallet className="h-4 w-4" />
+                                My Position
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {!isConnected ? (
+                                <div className="flex flex-col items-center justify-center py-4 text-center">
+                                    <p className="text-xs text-brand-muted italic">Connect wallet to view your active position</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-[10px] text-brand-muted uppercase font-bold flex items-center gap-1">
+                                                <Lock className="h-2 w-2" />
+                                                Mantle Locked
+                                            </p>
+                                            <p className="text-lg font-bold text-brand-dark">
+                                                {lockedUSDY.isLoading ? '...' : formatTvl(lockedUSDY.data?.value ?? '0')} <span className="text-[10px] font-normal text-brand-muted">USDY</span>
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] text-brand-muted uppercase font-bold flex items-center gap-1 justify-end">
+                                                <Coins className="h-2 w-2" />
+                                                Eth Collateral
+                                            </p>
+                                            <p className="text-lg font-bold text-brand-dark">
+                                                {acUsdyBalance.isLoading || morphoCollateral.isLoading ? '...' : formatTvl(totalAcUsdy)} <span className="text-[10px] font-normal text-brand-muted">AcUSDY</span>
+                                            </p>
+                                            {Number(acUsdyBalance.data?.value ?? 0) > 0 && (
+                                                <p className="text-[9px] text-emerald-600 font-medium leading-none mt-1">
+                                                    +{formatTvl(acUsdyBalance.data?.value ?? '0')} in wallet
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-between items-center py-2 px-3 bg-brand-light/5 rounded-lg border border-brand-light/10">
+                                        <p className="text-[10px] text-brand-muted uppercase font-bold">Active Debt</p>
+                                        <p className="text-sm font-bold text-brand-dark">
+                                            {borrowerDebt.isLoading ? '...' : formatTvl(borrowerDebt.data?.value ?? '0')} <span className="text-[10px] font-normal text-brand-muted ml-1">USDC</span>
+                                        </p>
+                                    </div>
+                                    
+                                    <div className="pt-1">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-bold text-brand-muted uppercase">Position Health</span>
+                                            <span className={cn(
+                                                "text-xs font-bold px-2 py-0.5 rounded-full",
+                                                loanHealth.riskLevel === 'safe' ? "text-success-DEFAULT bg-success-light/10" :
+                                                loanHealth.riskLevel === 'warning' ? "text-warning-DEFAULT bg-warning-light/10" :
+                                                "text-danger-DEFAULT bg-danger-light/10"
+                                            )}>
+                                                {loanHealth.healthFactor ? Number(loanHealth.healthFactor).toFixed(2) : '--'}
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                            <div 
+                                                className={cn(
+                                                    "h-full transition-all duration-1000",
+                                                    loanHealth.riskLevel === 'safe' ? "bg-success-DEFAULT" :
+                                                    loanHealth.riskLevel === 'warning' ? "bg-warning-DEFAULT" :
+                                                    "bg-danger-DEFAULT"
+                                                )}
+                                                style={{ width: `${Math.min(100, (loanHealth.ltv ?? 0) / (systemParams.lltv ?? 0.86) * 100)}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </div>
 
                 {/* Main Ops Tables */}
                 <div className="grid lg:grid-cols-[3fr_2fr] gap-6">
@@ -82,6 +164,26 @@ export default function DashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
+                                        {isConnected && borrowerDebt.data?.borrowShares && borrowerDebt.data.borrowShares > 0n ? (
+                                            <tr className="bg-brand-light/5 hover:bg-brand-light/10 transition-colors group">
+                                                <td className="p-4 font-mono text-brand-DEFAULT font-bold">
+                                                    {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
+                                                    <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                </td>
+                                                <td className={cn(
+                                                    "p-4 font-bold bg-success-light/5 rounded-r-lg",
+                                                    loanHealth.riskLevel === 'safe' ? "text-success-DEFAULT" :
+                                                    loanHealth.riskLevel === 'warning' ? "text-warning-DEFAULT" :
+                                                    "text-danger-DEFAULT"
+                                                )}>
+                                                    {loanHealth.healthFactor ? Number(loanHealth.healthFactor).toFixed(2) : '--'}
+                                                </td>
+                                                <td className="p-4 font-bold text-brand-dark">${formatTvl(borrowerDebt.data.value)}</td>
+                                                <td className="p-4 text-right">
+                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-brand-light/20 text-brand-DEFAULT font-medium border border-brand-light shadow-sm">Active</span>
+                                                </td>
+                                            </tr>
+                                        ) : null}
                                         <tr className="bg-white hover:bg-blue-50/30 transition-colors group">
                                             <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">0xab...45</td>
                                             <td className="p-4 text-success-DEFAULT font-bold bg-success-light/5 rounded-r-lg">1.66</td>
@@ -153,181 +255,189 @@ export default function DashboardPage() {
 
                 </div>
 
-                {/* System Params - Enhanced Compact Design */}
+                {/* System Parameters - Horizontal Layout */}
                 <Card className="shadow-lg">
-                    <CardHeader className="pb-4">
-                        <CardTitle className="text-xl font-bold">System Parameters</CardTitle>
+                    <CardHeader className="pb-4 border-b border-gray-100 bg-gray-50/30">
+                        <CardTitle className="text-xl font-bold flex items-center gap-2">
+                            <RefreshCw className="h-5 w-5 text-brand-DEFAULT" />
+                            System Parameters
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="p-6">
                         {systemParams.isLoading && !systemParams.lltvPercentage ? (
                             <div className="flex items-center justify-center py-12">
                                 <RefreshCw className="h-6 w-6 animate-spin text-brand-DEFAULT" />
                                 <span className="ml-3 text-sm font-medium text-brand-muted">Loading parameters...</span>
                             </div>
                         ) : (
-                            <>
-                                {/* Enhanced 3-column grid with circular charts */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    {/* Max LTV with circular chart */}
-                                    <div className="flex flex-col items-center p-5 rounded-2xl bg-gradient-to-br from-blue-50 via-white to-blue-50/50 border-2 border-blue-100 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                                        <div className="relative w-20 h-20 mb-3">
-                                            <svg className="transform -rotate-90 w-20 h-20">
-                                                <circle cx="40" cy="40" r="34" stroke="#e0e7ff" strokeWidth="7" fill="none" />
-                                                <circle
-                                                    cx="40" cy="40" r="34"
-                                                    stroke="url(#blueGradient)"
-                                                    strokeWidth="7"
-                                                    fill="none"
-                                                    strokeDasharray={`${((systemParams.lltv ?? 0) * 213.6)} 213.6`}
-                                                    strokeLinecap="round"
-                                                    className="transition-all duration-700"
-                                                />
-                                                <defs>
-                                                    <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                        <stop offset="0%" stopColor="#3b82f6" />
-                                                        <stop offset="100%" stopColor="#1e40af" />
-                                                    </linearGradient>
-                                                </defs>
-                                            </svg>
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-lg font-bold text-blue-700">{systemParams.lltvPercentage ?? '--'}</span>
-                                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Max LTV */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="relative w-12 h-12 flex-shrink-0">
+                                        <svg className="transform -rotate-90 w-12 h-12">
+                                            <circle cx="24" cy="24" r="20" stroke="#e0e7ff" strokeWidth="4" fill="none" />
+                                            <circle
+                                                cx="24" cy="24" r="20"
+                                                stroke="#3b82f6"
+                                                strokeWidth="4"
+                                                fill="none"
+                                                strokeDasharray={`${((systemParams.lltv ?? 0) * 125.6)} 125.6`}
+                                                strokeLinecap="round"
+                                                className="transition-all duration-700"
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className="text-xs font-bold text-blue-700">{systemParams.lltvPercentage ?? '--'}</span>
                                         </div>
+                                    </div>
+                                    <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-blue-600 uppercase font-semibold tracking-wide text-center">Max LTV</p>
+                                            <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Max LTV</p>
                                             <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-blue-400 hover:text-blue-600 cursor-help transition-colors" />
+                                                <Info className="h-3 w-3 text-blue-400 cursor-help" />
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
                                                     <p className="font-semibold mb-1">Max LTV (LLTV)</p>
                                                     <p className="text-white/80 text-[10px]">Maximum loan-to-value ratio from Morpho Blue</p>
                                                 </div>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-blue-400/80">Loan to Value</p>
                                     </div>
+                                </div>
 
-                                    {/* Utilization with circular chart */}
-                                    <div className="flex flex-col items-center p-5 rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-emerald-50/50 border-2 border-emerald-100 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                                        <div className="relative w-20 h-20 mb-3">
-                                            <svg className="transform -rotate-90 w-20 h-20">
-                                                <circle cx="40" cy="40" r="34" stroke="#d1fae5" strokeWidth="7" fill="none" />
-                                                <circle
-                                                    cx="40" cy="40" r="34"
-                                                    stroke={systemParams.utilizationRate && systemParams.utilizationRate > 90 ? "url(#orangeGradient)" : "url(#greenGradient)"}
-                                                    strokeWidth="7"
-                                                    fill="none"
-                                                    strokeDasharray={`${((systemParams.utilizationRate || 0) / 100) * 213.6} 213.6`}
-                                                    strokeLinecap="round"
-                                                    className="transition-all duration-700"
-                                                />
-                                                <defs>
-                                                    <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                        <stop offset="0%" stopColor="#10b981" />
-                                                        <stop offset="100%" stopColor="#059669" />
-                                                    </linearGradient>
-                                                    <linearGradient id="orangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                                        <stop offset="0%" stopColor="#f59e0b" />
-                                                        <stop offset="100%" stopColor="#d97706" />
-                                                    </linearGradient>
-                                                </defs>
-                                            </svg>
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className={`text-lg font-bold ${systemParams.utilizationRate && systemParams.utilizationRate > 90 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                                    {systemParams.utilizationRate?.toFixed(0) || 0}%
-                                                </span>
-                                            </div>
+                                {/* Utilization */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="relative w-12 h-12 flex-shrink-0">
+                                        <svg className="transform -rotate-90 w-12 h-12">
+                                            <circle cx="24" cy="24" r="20" stroke="#d1fae5" strokeWidth="4" fill="none" />
+                                            <circle
+                                                cx="24" cy="24" r="20"
+                                                stroke={systemParams.utilizationRate && systemParams.utilizationRate > 90 ? "#f59e0b" : "#10b981"}
+                                                strokeWidth="4"
+                                                fill="none"
+                                                strokeDasharray={`${((systemParams.utilizationRate || 0) / 100) * 125.6} 125.6`}
+                                                strokeLinecap="round"
+                                                className="transition-all duration-700"
+                                            />
+                                        </svg>
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <span className={`text-xs font-bold ${systemParams.utilizationRate && systemParams.utilizationRate > 90 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                                {systemParams.utilizationRate?.toFixed(0) || 0}%
+                                            </span>
                                         </div>
+                                    </div>
+                                    <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-emerald-600 uppercase font-semibold tracking-wide text-center">Utilization</p>
+                                            <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Util. Rate</p>
                                             <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-emerald-400 hover:text-emerald-600 cursor-help transition-colors" />
+                                                <Info className="h-3 w-3 text-emerald-400 cursor-help" />
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
                                                     <p className="font-semibold mb-1">Utilization Rate</p>
                                                     <p className="text-white/80 text-[10px]">Percentage of supplied capital currently borrowed</p>
                                                 </div>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-emerald-400/80">Capital Usage</p>
                                     </div>
+                                </div>
 
-                                    {/* Oracle Status with indicator */}
-                                    <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-gradient-to-br from-purple-50 via-white to-purple-50/50 border-2 border-purple-100 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                                        <div className="mb-3">
-                                            {systemParams.oracleIsStale === false ? (
-                                                <div className="relative w-20 h-20 flex items-center justify-center">
-                                                    <span className="absolute animate-ping h-16 w-16 rounded-full bg-emerald-400 opacity-30"></span>
-                                                    <span className="relative h-14 w-14 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </span>
-                                                </div>
-                                            ) : (
-                                                <div className="w-20 h-20 flex items-center justify-center">
-                                                    <span className="h-14 w-14 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center shadow-lg">
-                                                        <span className="text-white text-2xl font-bold">?</span>
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
+                                {/* Oracle Status */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50/50 border border-purple-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="w-12 h-12 flex items-center justify-center flex-shrink-0">
+                                        {systemParams.oracleIsStale === false ? (
+                                            <div className="relative flex items-center justify-center">
+                                                <span className="absolute animate-ping h-8 w-8 rounded-full bg-emerald-400 opacity-30"></span>
+                                                <span className="relative h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center border-2 border-emerald-200">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="h-10 w-10 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center border-2 border-gray-200">
+                                                <span className="text-sm font-bold">?</span>
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-purple-600 uppercase font-semibold tracking-wide text-center">Oracle</p>
+                                            <p className="text-xs text-purple-600 uppercase font-bold tracking-wider">Oracle</p>
                                             <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-purple-400 hover:text-purple-600 cursor-help transition-colors" />
+                                                <Info className="h-3 w-3 text-purple-400 cursor-help" />
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
                                                     <p className="font-semibold mb-1">Oracle Status</p>
                                                     <p className="text-white/80 text-[10px]">Price feed freshness indicator</p>
                                                 </div>
                                             </div>
                                         </div>
+                                        <p className="text-[10px] text-purple-400/80">Feed Health</p>
                                     </div>
                                 </div>
 
-                                {/* Enhanced stats row with better styling */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t-2 border-gray-100">
-                                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-gradient-to-br from-green-50 to-white border border-green-100 hover:shadow-md transition-shadow">
-                                        <p className="text-xl font-bold text-green-700 mb-2">
-                                            {systemParams.availableLiquidity ? formatTvl(systemParams.availableLiquidity) : '$0'}
-                                        </p>
+                                {/* Available Liquidity */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-200">
+                                        <span className="text-gray-500 font-serif font-bold">$</span>
+                                    </div>
+                                    <div className="flex flex-col">
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-green-600 uppercase font-semibold tracking-wide text-center">Available Liquidity</p>
+                                            <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Liquidity</p>
                                             <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-green-400 hover:text-green-600 cursor-help transition-colors" />
+                                                <Info className="h-3 w-3 text-gray-400 cursor-help" />
                                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
                                                     <p className="font-semibold mb-1">Available Liquidity</p>
-                                                    <p className="text-white/80 text-[10px]">Amount of USDC available to borrow (Total Supply - Total Borrowed)</p>
+                                                    <p className="text-white/80 text-[10px]">Amount of USDC available to borrow</p>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-gradient-to-br from-amber-50 to-white border border-amber-100 hover:shadow-md transition-shadow">
-                                        <p className="text-xl font-bold text-amber-700 mb-2">{systemParams.liquidationBonusPercentage ?? '0%'}</p>
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-amber-600 uppercase font-semibold tracking-wide text-center">Liq. Bonus</p>
-                                            <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-amber-400 hover:text-amber-600 cursor-help transition-colors" />
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
-                                                    <p className="font-semibold mb-1">Liquidation Bonus</p>
-                                                    <p className="text-white/80 text-[10px]">Bonus percentage awarded to liquidators for maintaining protocol health</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 hover:shadow-md transition-shadow">
-                                        <p className="text-xl font-bold text-indigo-700 mb-2">
-                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '2%'}
+                                        <p className="text-lg font-bold text-gray-700 leading-none mt-0.5">
+                                            {systemParams.availableLiquidity ? formatTvl(systemParams.availableLiquidity) : '$0'}
                                         </p>
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-indigo-600 uppercase font-semibold tracking-wide text-center">Oracle Haircut</p>
-                                            <div className="group/info relative">
-                                                <Info className="h-3.5 w-3.5 text-indigo-400 hover:text-indigo-600 cursor-help transition-colors" />
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
-                                                    <p className="font-semibold mb-1">Oracle Haircut</p>
-                                                    <p className="text-white/80 text-[10px]">Safety margin applied to collateral price for conservative valuation (2% discount)</p>
-                                                </div>
-                                            </div>
-                                        </div>
                                     </div>
                                 </div>
-                            </>
+
+                                {/* Liquidation Bonus */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-50/50 border border-amber-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 border border-amber-200">
+                                        <Activity className="h-5 w-5 text-amber-600" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-amber-600 uppercase font-bold tracking-wider">Liq. Bonus</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-amber-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Liquidation Bonus</p>
+                                                    <p className="text-white/80 text-[10px]">Bonus percentage awarded to liquidators</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-amber-700 leading-none mt-0.5">{systemParams.liquidationBonusPercentage ?? '0%'}</p>
+                                    </div>
+                                </div>
+
+                                {/* Oracle Haircut */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                    <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 border border-indigo-200">
+                                        <ShieldCheck className="h-5 w-5 text-indigo-600" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider">Haircut</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-indigo-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Oracle Haircut</p>
+                                                    <p className="text-white/80 text-[10px]">Safety margin applied to collateral price</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5">
+                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '2%'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                     </CardContent>
                 </Card>

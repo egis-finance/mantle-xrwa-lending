@@ -5,21 +5,30 @@ import type { ReactElement } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, ShieldCheck, Lock, Wallet, RefreshCw } from 'lucide-react';
+import { ArrowRightLeft, ShieldCheck, Lock, Wallet, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useSDKReady } from '@/hooks/useSDKReady';
 import { useLockedUSDY } from '@/hooks/useLockedUSDY';
 import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
+import { useAcUSDYBalance } from '@/hooks/useAcUSDYBalance';
 import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { useSystemParams } from '@/hooks/useSystemParams';
+import { useChainAbstracted } from '@/hooks/useChainAbstracted';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId, DEFAULT_LLTV_DECIMAL } from '@/lib/marketId';
 import { formatTvl } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import { parseUnits } from 'viem';
+import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
+import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
+import { invalidateUserReads, invalidateCrossChainReads } from '@/lib/swr/invalidation';
+import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
 export default function BorrowPage(): ReactElement {
   const sdkReady = useSDKReady();
   const { address: borrowerAddress, isConnected, connect } = useDynamicWallet();
+  const { signOnMantle, waitForTransaction } = useChainAbstracted();
 
   // Basic config guard (prevents confusing "0" UI when contracts are not wired)
   const marketId = getMarketId();
@@ -32,6 +41,8 @@ export default function BorrowPage(): ReactElement {
   const lockedUSDY = useLockedUSDY(borrowerAddress);
   // Borrower's AcUSDY collateral in Morpho on Ethereum
   const morphoCollateral = useMorphoCollateral(borrowerAddress);
+  // Borrower's AcUSDY balance in wallet on Ethereum
+  const acUsdyBalance = useAcUSDYBalance(borrowerAddress);
   // Borrower's total USDY balance on Mantle
   const borrowerBalance = useBorrowerBalance(borrowerAddress);
   // Morpho market parameters (LLTV from on-chain)
@@ -44,6 +55,7 @@ export default function BorrowPage(): ReactElement {
   const isLoading =
     lockedUSDY.isLoading ||
     morphoCollateral.isLoading ||
+    acUsdyBalance.isLoading ||
     borrowerBalance.isLoading ||
     systemParams.isLoading;
 
@@ -56,9 +68,15 @@ export default function BorrowPage(): ReactElement {
 
   // Calculate available balance = total balance - locked amount
   const availableBalance = React.useMemo(() => {
-    if (borrowerBalance.data?.value && lockedUSDY.data?.value) {
+    if (borrowerBalance.data?.value) {
+      // borrowerBalance.data.value is already formatted string from useBorrowerBalance
+      // But we need to subtract lockedUSDY if it represents the same token.
+      // ARCHITECTURE.md says: 
+      // useLockedUSDY: Mantle-side collateral (CollateralLocker)
+      // useBorrowerBalance: Borrower's total USDY balance on Mantle
+      // So available = total - locked is correct.
       const total = parseFloat(borrowerBalance.data.value);
-      const locked = parseFloat(lockedUSDY.data.value);
+      const locked = parseFloat(lockedUSDY.data?.value ?? '0');
       return Math.max(0, total - locked).toFixed(2);
     }
     return null;
@@ -67,6 +85,8 @@ export default function BorrowPage(): ReactElement {
   const [isSwapped, setIsSwapped] = React.useState(false);
   const [lockAmount, setLockAmount] = React.useState('');
   const [lockError, setLockError] = React.useState('');
+  const [isLocking, setIsLocking] = React.useState(false);
+  const [txStatus, setTxStatus] = React.useState<'idle' | 'approving' | 'locking' | 'success' | 'error'>('idle');
 
   const handleSwap = () => {
     setIsSwapped(!isSwapped);
@@ -82,6 +102,11 @@ export default function BorrowPage(): ReactElement {
     // Clear error when user types
     if (lockError) {
       setLockError('');
+    }
+
+    // Reset status if user starts typing again after success/error
+    if (txStatus === 'success' || txStatus === 'error') {
+      setTxStatus('idle');
     }
 
     // Validate
@@ -111,6 +136,9 @@ export default function BorrowPage(): ReactElement {
     if (availableBalance) {
       setLockAmount(availableBalance);
       setLockError('');
+      if (txStatus === 'success' || txStatus === 'error') {
+        setTxStatus('idle');
+      }
     }
   };
 
@@ -119,10 +147,62 @@ export default function BorrowPage(): ReactElement {
       const amount = ((parseFloat(availableBalance) * percentage) / 100).toString();
       setLockAmount(amount);
       setLockError('');
+      if (txStatus === 'success' || txStatus === 'error') {
+        setTxStatus('idle');
+      }
     }
   };
 
-  const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalanceNum === 0;
+  const handleLockAndDeposit = async () => {
+    if (!borrowerAddress || !lockAmount || isLocking) return;
+
+    try {
+      setIsLocking(true);
+      setLockError('');
+      
+      const amountWei = parseUnits(lockAmount, 18);
+
+      // 1. Approve CollateralLocker to spend USDY
+      setTxStatus('approving');
+      const approveHash = await signOnMantle({
+        address: contracts.usdy.address,
+        abi: ERC20Abi,
+        functionName: 'approve',
+        args: [contracts.collateralLocker.address, amountWei],
+      });
+      await waitForTransaction(MANTLE_CHAIN_ID, approveHash);
+
+      // 2. Call lock(amount, validUntil, vcHash)
+      // Set expiration to 1 hour from now
+      const validUntil = BigInt(Math.floor(Date.now() / 1000) + 3600);
+      setTxStatus('locking');
+      const lockHash = await signOnMantle({
+        address: contracts.collateralLocker.address,
+        abi: CollateralLockerAbi,
+        functionName: 'lock',
+        args: [amountWei, validUntil, '0x0000000000000000000000000000000000000000000000000000000000000000'],
+      });
+      await waitForTransaction(MANTLE_CHAIN_ID, lockHash);
+
+      setTxStatus('success');
+      setLockAmount('');
+      
+      // Invalidate cache to refresh UI
+      if (borrowerAddress) {
+        await invalidateUserReads(borrowerAddress);
+        invalidateCrossChainReads();
+      }
+    } catch (err) {
+      const error = err as { shortMessage?: string; message?: string };
+      console.error('Lock failed:', error);
+      setTxStatus('error');
+      setLockError(error.shortMessage || error.message || 'Transaction failed');
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
+  const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalanceNum === 0 || isLocking;
 
   return (
     <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -270,11 +350,41 @@ export default function BorrowPage(): ReactElement {
                 {/* Lock Button */}
                 <Button
                   variant="mantle"
+                  onClick={handleLockAndDeposit}
                   disabled={isLockDisabled}
                   className="w-full h-12 text-sm font-semibold shadow-lg shadow-mantle/20 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-xl hover:scale-[1.01] transition-all"
                 >
-                  <Lock className="mr-2 h-4 w-4" /> Lock and Deposit
+                  {isLocking ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {txStatus === 'approving' ? 'Approving USDY...' : 'Locking Collateral...'}
+                    </>
+                  ) : txStatus === 'success' ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Locked Successfully
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="mr-2 h-4 w-4" /> Lock and Deposit
+                    </>
+                  )}
                 </Button>
+
+                {/* Transaction Status Info */}
+                {txStatus !== 'idle' && !lockError && (
+                  <div className="mt-2 text-center">
+                    {txStatus === 'success' ? (
+                      <p className="text-xs text-success-DEFAULT font-medium flex items-center justify-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        Assets locked on Mantle. Relayer will attest soon.
+                      </p>
+                    ) : isLocking ? (
+                      <p className="text-xs text-brand-muted animate-pulse">
+                        Please confirm the transaction in your wallet...
+                      </p>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -309,14 +419,45 @@ export default function BorrowPage(): ReactElement {
               <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent mb-4"></div>
 
               {/* Balance Display */}
-              <div className="space-y-1 pb-4 p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
-                <p className="text-xs text-gray-600 font-medium uppercase tracking-wider">
-                  Attested Collateral
-                </p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {isLoading ? '...' : formatTvl(morphoCollateral.data?.value ?? null)}{' '}
-                  <span className="text-sm text-gray-600 font-normal">AcUSDY</span>
-                </p>
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-white/60 border border-gray-200 shadow-sm">
+                  <p className="text-xs text-gray-600 font-medium uppercase tracking-wider mb-1">
+                    Supplied to Morpho
+                  </p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {isLoading ? '...' : formatTvl(morphoCollateral.data?.value ?? null)}{' '}
+                    <span className="text-sm text-gray-600 font-normal">AcUSDY</span>
+                  </p>
+                </div>
+
+                <div className={cn(
+                  "p-3 rounded-xl border transition-all duration-500",
+                  acUsdyBalance.data?.raw && acUsdyBalance.data.raw > 0n 
+                    ? "bg-emerald-50 border-emerald-200 shadow-emerald-100/50 shadow-md scale-[1.02]" 
+                    : "bg-white/40 border-gray-200 opacity-60"
+                )}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider mb-1">
+                        Wallet Balance (Minted)
+                      </p>
+                      <p className="text-lg font-bold text-emerald-900">
+                        {acUsdyBalance.isLoading ? '...' : formatTvl(acUsdyBalance.data?.value ?? '0')}{' '}
+                        <span className="text-xs font-normal opacity-70">AcUSDY</span>
+                      </p>
+                    </div>
+                    {acUsdyBalance.data?.raw && acUsdyBalance.data.raw > 0n && (
+                      <div className="p-1 rounded-full bg-emerald-500 text-white animate-pulse">
+                        <CheckCircle2 className="h-3 w-3" />
+                      </div>
+                    )}
+                  </div>
+                  {acUsdyBalance.data?.raw && acUsdyBalance.data.raw > 0n && (
+                    <p className="text-[9px] text-emerald-600 font-medium mt-1">
+                      Ready to be supplied to Morpho below ↓
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Spacer to push status box to bottom */}
