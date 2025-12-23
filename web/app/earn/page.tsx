@@ -96,12 +96,6 @@ export default function EarnPage() {
                         <h1 className="text-3xl font-serif font-bold text-brand-dark">Lender Yield</h1>
                         <p className="text-brand-muted">Supply USDY to earn yield backed by verified real-world assets.</p>
                     </div>
-                    {lenderAddress && (
-                        <HardcodedUsdyBalance 
-                            address={lenderAddress} 
-                            label="Lender balance" 
-                        />
-                    )}
                 </div>
 
 

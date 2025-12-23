@@ -80,8 +80,8 @@ export function TvlPegDisplay() {
                 </div>
                  {/* Pattern overlay */}
                  <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:8px_8px]"></div>
+                </div>
             </div>
-        </div>
 
         {/* Detailed Breakdown */}
         <div className="grid grid-cols-2 gap-8">
