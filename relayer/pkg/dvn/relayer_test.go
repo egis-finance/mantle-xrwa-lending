@@ -580,12 +580,17 @@ func TestPollingLoop_FailureRetriesWholeBlock(t *testing.T) {
 	<-ctx.Done()
 	<-done
 
-	// Verify cursor was set to failedBlock - 1
-	// This ensures the next poll will retry the failed block
-	expectedCursor := failedBlock - 1
+	// Verify cursor advanced past failed block
+	// Failed locks are now persisted to prevent infinite retry loops,
+	// so the next poll skips them and cursor advances to latestBlock
+	expectedCursor := latestBlock
 	actualCursor := store.GetLastProcessedBlock()
 	require.Equal(t, expectedCursor, actualCursor,
-		"cursor should be set to block before failure so next poll retries failed block")
+		"cursor should advance past failed block since failed locks are now persisted")
+
+	// Verify the failed lock was persisted
+	require.True(t, store.IsProcessed(lockId2),
+		"failed lock should be persisted to prevent infinite retry")
 }
 
 func TestCatchUpFromBlock_ClosesGap(t *testing.T) {

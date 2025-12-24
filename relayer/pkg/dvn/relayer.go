@@ -724,6 +724,26 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) error 
 		r.processedLocks[event.LockId] = true
 		r.mu.Unlock()
 		r.metrics.LocksDuplicate.Inc()
+
+		// Persist to avoid re-checking on-chain next restart
+		if r.store != nil {
+			// Use zero hash to indicate already-consumed (no Ethereum tx from this session)
+			zeroHash := common.Hash{}
+			if err := r.store.MarkProcessed(
+				event.LockId,
+				event.Borrower,
+				event.Amount.String(),
+				event.SourceChainId.String(),
+				vLog.TxHash,
+				zeroHash,
+				vLog.BlockNumber,
+			); err != nil {
+				logger.Warnw("Failed to persist already-consumed lock",
+					"error", err,
+					"lock_id", common.Bytes2Hex(event.LockId[:]),
+				)
+			}
+		}
 		return nil // Already consumed, skip is intentional
 	}
 
@@ -816,6 +836,30 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) error 
 		)
 		r.metrics.LocksFailed.Inc()
 		observability.RecordError(spanCtx, err)
+
+		// Persist failed lock to avoid infinite retry loop (e.g., expired locks)
+		r.mu.Lock()
+		r.processedLocks[event.LockId] = true
+		r.mu.Unlock()
+
+		if r.store != nil {
+			// Use 0x1 hash to indicate failed submission (distinct from 0x0 for already-consumed)
+			failedHash := common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
+			if persistErr := r.store.MarkProcessed(
+				event.LockId,
+				event.Borrower,
+				event.Amount.String(),
+				event.SourceChainId.String(),
+				vLog.TxHash,
+				failedHash,
+				vLog.BlockNumber,
+			); persistErr != nil {
+				logger.Warnw("Failed to persist failed lock",
+					"error", persistErr,
+					"lock_id", common.Bytes2Hex(event.LockId[:]),
+				)
+			}
+		}
 		return fmt.Errorf("failed to submit attestation: %w", err)
 	}
 
