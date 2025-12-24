@@ -7,17 +7,10 @@ Automated relayer service that monitors lock events on Mantle and submits cross-
 The relayer implements the Data Verification Network (DVN) pattern for cross-chain authentication:
 
 1. **Event Monitoring** - Subscribes to `Locked` events from CollateralLocker on Mantle VTE
-2. **EIP-712 Signing** - Generates typed data signatures using DVN private key (includes vcHash for VC/DID compatibility)
-3. **Attestation Submission** - Calls `XRWAReceiver.mintWithAttestation()` on Ethereum VTE with signed message
-
-## Hybrid Design
-
-This relayer implements the **hybrid Phase 1 + Phase 2 design** that combines:
-- **VC/DID Integration**: Preserves `vcHash` field for Verifiable Credential support
-- **Auto-Managed Nonces**: Simplifies user experience (nonces auto-increment per user)
-- **Cross-Chain Semantics**: Explicit `sourceChainId`, `validUntil`, and `sourceLocker` fields for security
-
-See `../HYBRID_DESIGN_CHANGES.md` for complete design documentation.
+2. **Backfill & Catch-up** - On startup, processes missed events from persisted cursor to current block
+3. **EIP-712 Signing** - Generates typed data signatures using DVN private key
+4. **Attestation Submission** - Calls `XRWAReceiver.mintWithAttestation()` on Ethereum VTE
+5. **Persistence** - Tracks processed locks in `data/processed_locks.json` with cursor for restarts
 
 ## Prerequisites
 
@@ -26,232 +19,135 @@ See `../HYBRID_DESIGN_CHANGES.md` for complete design documentation.
 - DVN private key configured in `.env`
 - Deployed contracts (see parent README)
 
-## Configuration
-
-The relayer reads configuration from environment variables (compatible with existing `.env` file):
-
-### Required Variables
-```bash
-# Chain IDs
-MANTLE_CHAIN_ID=15000          # Tenderly VTE chain ID
-ETHEREUM_CHAIN_ID=10001        # Tenderly VTE chain ID
-
-# RPC Endpoints
-MANTLE_RPC_VTE=https://virtual.mantle.eu.rpc.tenderly.co/...
-ETHEREUM_RPC_VTE=https://virtual.mainnet.rpc.tenderly.co/...
-
-# Deployed Contracts
-MANTLE_LOCKER=0x...            # CollateralLocker address on Mantle
-ETH_RECEIVER=0x...             # XRWAReceiver address on Ethereum
-
-# DVN Credentials
-DVN1_ADDRESS=0x...             # DVN signer address
-DVN1_PRIVATE_KEY=0x...         # DVN private key (without 0x prefix also works)
-```
-
-All these variables are already configured in the project's `.env` file at the root directory.
-
-## Building
-
-From the `relayer/` directory:
+## Quick Start
 
 ```bash
-# Install dependencies
-go mod tidy
+# Using Makefile (preferred)
+make build    # Build to bin/relayer
+make run      # Build and run
+make test     # Run tests with race detector
+make lint     # Run golangci-lint
+make dev      # Full dev workflow: fmt → lint → test → build
 
-# Build the relayer
+# Direct commands
 go build -o bin/relayer ./cmd/relayer
-
-# Or build from project root
-cd /path/to/mantle-xrwa-lending
-go build -o relayer/bin/relayer ./relayer/cmd/relayer
-```
-
-## Running
-
-### From the `relayer/` directory:
-```bash
 ./bin/relayer
 ```
 
-### From the project root:
+## Configuration
+
+The relayer reads from `.env` in the parent directory (auto-searches `../../.env`, `../.env`, `./.env`).
+
+### Required Variables
 ```bash
-./relayer/bin/relayer
+MANTLE_CHAIN_ID=15000          # Tenderly VTE chain ID
+ETHEREUM_CHAIN_ID=10001        # Tenderly VTE chain ID
+MANTLE_RPC_VTE=https://...     # Mantle RPC endpoint
+ETHEREUM_RPC_VTE=https://...   # Ethereum RPC endpoint
+MANTLE_LOCKER=0x...            # CollateralLocker address
+ETH_RECEIVER=0x...             # XRWAReceiver address
+DVN1_ADDRESS=0x...             # DVN signer address
+DVN1_PRIVATE_KEY=0x...         # DVN private key (with or without 0x)
 ```
 
-The relayer will:
-1. Load configuration from `../.env`
-2. Connect to Mantle and Ethereum VTEs
-3. Subscribe to `Locked` events
-4. Automatically sign and submit attestations
-
-### Expected Output
-```
-INFO [timestamp] Starting xRWA DVN Relayer
-INFO [timestamp] Configuration loaded mantle_chain_id=15000 ethereum_chain_id=10001
-INFO [timestamp] DVN relayer initialized dvn_address=0x... mantle_locker=0x... ethereum_receiver=0x...
-INFO [timestamp] Relayer started successfully
-INFO [timestamp] Subscribed to Locked events contract=0x...
-INFO [timestamp] New lock detected borrower=0x... lock_id=0x... amount=1000000
-INFO [timestamp] Lock message signed lock_id=0x... v=27
-INFO [timestamp] Attestation transaction submitted tx_hash=0x... receiver=0x...
-INFO [timestamp] Attestation submitted successfully lock_id=0x... borrower=0x...
+### Optional Variables
+```bash
+RELAYER_MAX_RETRIES=5
+RELAYER_ENABLE_BACKOFF=true
+RELAYER_HEALTH_CHECK_INTERVAL=30
+RELAYER_PERSISTENCE_ENABLED=true
+RELAYER_PERSISTENCE_FILE=./data/processed_locks.json
+LOG_LEVEL=info                 # debug, info, warn, error
+LOG_FORMAT=console             # console or json
 ```
 
 ## Testing
 
+### Unit Tests
+```bash
+make test                                           # All tests
+go test ./pkg/dvn/... -v -race -run TestSignLock   # Single test
+```
+
 ### Manual E2E Test
+```bash
+# Terminal 1: Start relayer
+make run
 
-1. **Start the relayer**
-   ```bash
-   ./bin/relayer
-   ```
+# Terminal 2: Lock USDY on Mantle
+source ../.env
+VC_HASH="0x$(echo -n "test-vc" | sha256sum | cut -d' ' -f1)"
+cast send $MANTLE_LOCKER "lock(uint256,uint64,bytes32)" \
+  1000000 $(date -v+1H +%s) $VC_HASH \
+  --rpc-url $MANTLE_RPC_VTE --private-key $BORROWER_PRIVATE_KEY
 
-2. **Lock USDY on Mantle** (from project root)
-   ```bash
-   source .env
-   VC_HASH="0x$(echo -n "test-vc-credential" | sha256sum | cut -d' ' -f1)"
-   cast send $MANTLE_LOCKER \
-     "lock(uint256,uint64,bytes32)" \
-     1000000 \
-     $(date -d "+1 hour" +%s) \
-     $VC_HASH \
-     --rpc-url $MANTLE_RPC_VTE \
-     --private-key $BORROWER_PRIVATE_KEY
-   ```
-
-3. **Observe relayer logs** - Should show:
-   - Lock detected
-   - Message signed
-   - Attestation submitted
-
-4. **Verify minting on Ethereum**
-   ```bash
-   cast call $ETH_ACUSDY \
-     "balanceOf(address)(uint256)" \
-     $BORROWER_ADDRESS \
-     --rpc-url $ETHEREUM_RPC_VTE
-   ```
+# Verify AcUSDY minted
+cast call $ETH_ACUSDY "balanceOf(address)(uint256)" $BORROWER_ADDRESS --rpc-url $ETHEREUM_RPC_VTE
+```
 
 ## Project Structure
 
 ```
 relayer/
-├── cmd/
-│   └── relayer/
-│       └── main.go              # Entry point
+├── cmd/relayer/main.go           # Entry point, graceful shutdown
 ├── pkg/
-│   ├── config/
-│   │   └── config.go            # Configuration loader
+│   ├── config/config.go          # Environment configuration
 │   ├── dvn/
-│   │   ├── eip712.go            # EIP-712 signature generation
-│   │   └── relayer.go           # Main relayer logic
-│   └── chain/
-│       └── utils.go             # Blockchain utilities
-├── internal/
-│   └── contracts/
-│       ├── locker.go            # CollateralLocker bindings
-│       └── receiver.go          # XRWAReceiver bindings
-├── go.mod
-├── go.sum
-└── README.md
+│   │   ├── relayer.go            # Event loop, backfill, dedup
+│   │   └── eip712.go             # EIP-712 signing
+│   ├── persistence/store.go      # JSON storage, cursor tracking
+│   ├── observability/            # Metrics, tracing, health HTTP
+│   ├── logger/                   # Zap structured logging
+│   └── chain/utils.go            # RPC helpers, retry logic
+├── internal/contracts/           # Generated Go bindings
+├── data/processed_locks.json     # Persistence (git-tracked)
+└── Makefile
 ```
 
-## Key Components
+## Key Features
 
-### EIP-712 Signer (`pkg/dvn/eip712.go`)
-- Computes domain separator for XRWAReceiver
-- Generates typed data signatures for LockMessage
-- Returns v, r, s signature components
+### Three-Layer Deduplication
+1. **Memory map** - Fast runtime lookups
+2. **JSON persistence** - Survives restarts
+3. **On-chain `consumed`** - Authoritative source of truth
 
-### Relayer (`pkg/dvn/relayer.go`)
-- Event subscription with automatic reconnection
-- Falls back to polling if subscription fails
-- Duplicate detection (tracks processed lockIds)
-- Gas estimation and transaction submission
+### Fault Tolerance
+- WebSocket subscription with 2s polling fallback
+- Exponential backoff on RPC failures
+- Cursor-based backfill for missed events during downtime
 
-### Configuration (`pkg/config/config.go`)
-- Loads from `.env` file (auto-detects parent directories)
-- Compatible with existing project configuration
-- Validates all required variables
-
-## Troubleshooting
-
-### "Failed to connect to Mantle: dial tcp: connection refused"
-- Check that `MANTLE_RPC_VTE` is correct in `.env`
-- Verify Tenderly VTE is running
-- Test connectivity: `curl $MANTLE_RPC_VTE`
-
-### "Failed to create signer: invalid private key"
-- Ensure `DVN1_PRIVATE_KEY` is set correctly
-- Private key can be with or without `0x` prefix
-
-### "Failed to submit attestation: insufficient funds"
-- DVN address needs ETH on Ethereum VTE for gas
-- Fund address: `cast send $DVN1_ADDRESS --value 0.1ether --rpc-url $ETHEREUM_RPC_VTE --private-key ...`
-
-### "Lock already processed"
-- Relayer tracks processed lockIds in memory
-- Restart relayer to reprocess (for testing)
-- Or use different lockIds for each test
+### Observability
+- **Health endpoints**: `/health/live`, `/health/ready`, `/health`
+- **Prometheus metrics**: `/metrics` (port 8080)
+- **OpenTelemetry tracing**: Jaeger integration
 
 ## Development
 
-### Adding Logging
+### Logging (use zap, not go-ethereum log)
 ```go
-import "github.com/ethereum/go-ethereum/log"
+import "github.com/egis-finance/mantle-xrwa-lending/relayer/pkg/logger"
 
-log.Info("Message", "key", value)
-log.Warn("Warning", "error", err)
-log.Error("Error occurred", "error", err)
+logger.Infow("Message", "key", value)
+logger.Warnw("Warning", "error", err)
 ```
 
-### Testing Signature Generation
-```go
-signer, _ := dvn.NewEIP712Signer(privateKey, receiverAddr, chainID)
-v, r, s, _ := signer.SignLockMessage(lockMsg)
-fmt.Printf("Signature: v=%d r=%x s=%x\n", v, r, s)
+### Docker
+```bash
+make docker-up       # Start full stack (relayer + Jaeger + Prometheus + Grafana)
+make docker-logs     # Tail logs
+make docker-locks    # View processed locks in volume
+make docker-set-cursor BLOCK=87000000  # Reset backfill cursor
 ```
 
-## Security Considerations
+## Troubleshooting
 
-1. **Private Key Protection**
-   - DVN private key stored in `.env` (gitignored)
-   - Never commit private keys to version control
-   - Use hardware wallets or key management systems in production
-
-2. **Replay Protection**
-   - In-memory duplicate detection (lockId tracking)
-   - On-chain replay protection via XRWAReceiver
-
-3. **Signature Validation**
-   - EIP-712 domain separator includes chain ID
-   - Signatures are chain-specific and cannot be replayed
-
-## Production Deployment
-
-For production use:
-
-1. **Use Secure Key Management**
-   - AWS KMS, HashiCorp Vault, or hardware wallets
-   - Remove private key from `.env`
-
-2. **Implement Persistent Storage**
-   - Track processed lockIds in database
-   - Survive relayer restarts
-
-3. **Add Monitoring & Alerts**
-   - Prometheus metrics
-   - Alerting for failed attestations
-   - Health check endpoints
-
-4. **Deploy with Redundancy**
-   - Multiple relayer instances
-   - M-of-N DVN threshold (requires contract changes)
-
-5. **Use Production RPC Endpoints**
-   - Replace Tenderly VTE with mainnet RPCs
-   - Configure appropriate gas strategies
+| Error | Solution |
+|-------|----------|
+| Connection refused | Check RPC URLs, test with `curl -X POST -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' $URL` |
+| Invalid private key | `DVN1_PRIVATE_KEY` must be 64 hex chars (with or without 0x) |
+| Insufficient funds | Fund DVN: `cast send $DVN1_ADDRESS --value 0.1ether --rpc-url $ETHEREUM_RPC_VTE` |
+| Lock already processed | Normal dedup behavior; delete `data/processed_locks.json` to reprocess |
+| Signature verification fails | Check chain IDs match between config and deployed contracts |
 
 ## License
 
