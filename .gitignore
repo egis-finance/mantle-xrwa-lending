@@ -24,7 +24,6 @@ relayer/bin/
 
 # Go runtime state and data
 go/data/
-relayer/data/
 
 # Log files
 *.log
