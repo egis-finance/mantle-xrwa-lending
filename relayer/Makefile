@@ -2,7 +2,7 @@
 -include ../.env
 export
 
-.PHONY: help build test test-race lint clean run docker-build docker-up docker-down docker-logs
+.PHONY: help build test test-race lint clean run docker-build docker-up docker-down docker-logs docker-locks docker-sync-local docker-set-cursor
 
 # Default target
 help:
@@ -18,6 +18,9 @@ help:
 	@echo "  docker-up       - Start Docker Compose stack"
 	@echo "  docker-down     - Stop Docker Compose stack"
 	@echo "  docker-logs     - Follow Docker logs"
+	@echo "  docker-locks    - View processed locks in Docker volume"
+	@echo "  docker-sync-local - Copy Docker state to local data/"
+	@echo "  docker-set-cursor BLOCK=N - Set backfill cursor to block N"
 	@echo "  fmt             - Format code with gofmt"
 	@echo "  mod-tidy        - Tidy go modules"
 
@@ -74,7 +77,7 @@ mod-tidy:
 # Docker targets
 docker-build:
 	@echo "Building Docker image..."
-	docker build -t xrwa-dvn-relayer:latest .
+	docker-compose build --no-cache relayer
 
 docker-up:
 	@echo "Starting Docker Compose stack..."
@@ -91,6 +94,26 @@ docker-down:
 docker-logs:
 	@echo "Following Docker logs..."
 	docker-compose logs -f relayer
+
+# Docker volume management
+DOCKER_VOLUME := relayer_relayer-data
+
+docker-locks:
+	@docker run --rm -v $(DOCKER_VOLUME):/data alpine cat /data/processed_locks.json 2>/dev/null | python3 -m json.tool || echo "No processed locks found"
+
+docker-sync-local:
+	@echo "Copying Docker volume state to local data/..."
+	@mkdir -p data
+	@docker run --rm -v $(DOCKER_VOLUME):/data -v $(PWD)/data:/local alpine cp /data/processed_locks.json /local/processed_locks.json 2>/dev/null || echo "No state to copy"
+	@echo "Done. Check data/processed_locks.json"
+
+docker-set-cursor:
+ifndef BLOCK
+	$(error BLOCK is required. Usage: make docker-set-cursor BLOCK=87008000)
+endif
+	@echo "Setting cursor to block $(BLOCK)..."
+	@docker run --rm -v $(DOCKER_VOLUME):/data alpine sh -c 'echo "{\"lastProcessedBlock\": $(BLOCK), \"locks\": []}" > /data/processed_locks.json'
+	@echo "Cursor set. Restart relayer to backfill from block $(BLOCK)"
 
 # Development workflow
 dev: fmt mod-tidy lint test build
