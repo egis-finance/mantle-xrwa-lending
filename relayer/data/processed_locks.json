@@ -1,12 +1,125 @@
-[
-  {
-    "lockId": "44e45f0df733147c6d98c0e38360c1047541b2ce33a75c994ddbc9930d0dac56",
-    "borrower": "0x91c5CA0B262fDefbb1468AfAE65c0229650B4fBC",
-    "amount": "1000000000000000000",
-    "sourceChainId": "15000",
-    "mantleTxHash": "0xbb7b93482c6a321dceca8255459593ce0b9f542b42ebf3e955c026d6573bd9da",
-    "ethereumTxHash": "0x80f0b6c0d3ce69b5f0b245bb97f0d93a43659a6223e0d94bd34364fdf83e0a40",
-    "processedAt": "2025-11-19T02:44:02.354785Z",
-    "blockNumber": 87688017
-  }
-]
+{
+  "lastProcessedBlock": 87688082,
+  "locks": [
+    {
+      "lockId": "1c5b8a6c3bccdb7e90d30ba933a5575b276aa102c5988ada706282c6347c0376",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "15000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xe8b75095506d89842aa21abeffc8ba198decddaa3e4a141b3461cb779c35a4b5",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:13.079428634Z",
+      "blockNumber": 87688070
+    },
+    {
+      "lockId": "e9a3d009338015ddb97ddd4fc34ff7eb3e363834f89270afe0e344f9e83e0d71",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "750000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x09f102cd01f2542aa03ab963fbed24d5a106d41d5e09f6133c214d26fdf4425a",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:13.522453968Z",
+      "blockNumber": 87688080
+    },
+    {
+      "lockId": "277ac0310f5a1007e98d1723b26ae27600518acc0a51c199151506104c167e60",
+      "borrower": "0x91c5CA0B262fDefbb1468AfAE65c0229650B4fBC",
+      "amount": "1000000000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xd9d7c5f582a348e502ba15fab8c38228c4f3ce3acec0e14216f74c8ee7519e21",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:12.632339759Z",
+      "blockNumber": 87688024
+    },
+    {
+      "lockId": "194bca618ce72b7bc58aa021df0961fed4d5e8334fb02610acd7b71d9b5a335b",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "551000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xb544b73e98d77689007b6acbc5e544e2840ab213f8fdf2d20ea52e5c4afb2828",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:13.168465051Z",
+      "blockNumber": 87688072
+    },
+    {
+      "lockId": "9739af18f4b6c55348272ab806f7bcb55966a7f739410dfd19a492437c62e2c2",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "77837000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x3e4eb1724036a25bd57134d8652ffe8fd5d216b72a5d0a85488f0fab755b77f9",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:13.261169884Z",
+      "blockNumber": 87688076
+    },
+    {
+      "lockId": "1a6d9f29c39df76f30366dff1ddba7001fc9e34a6513f4ad951cfcecddac0551",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "100000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xebc8cfe22390707ce8a8f2ed6903b4e424d0b02cc5595764e35b0502e46780ad",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:13.612027009Z",
+      "blockNumber": 87688082
+    },
+    {
+      "lockId": "44e45f0df733147c6d98c0e38360c1047541b2ce33a75c994ddbc9930d0dac56",
+      "borrower": "0x91c5CA0B262fDefbb1468AfAE65c0229650B4fBC",
+      "amount": "1000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xbb7b93482c6a321dceca8255459593ce0b9f542b42ebf3e955c026d6573bd9da",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:07:37.639819506Z",
+      "blockNumber": 87688017
+    },
+    {
+      "lockId": "2fba8477d55966d49ddee865b48bb34e90c31975cfb7e7da23320f0703870354",
+      "borrower": "0x91c5CA0B262fDefbb1468AfAE65c0229650B4fBC",
+      "amount": "1000000000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x610cdb3e2c50aafc44200700094afd93358b0983b8aa8210caa58068f947afb7",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000001",
+      "processedAt": "2025-12-24T01:08:10.371818674Z",
+      "blockNumber": 87688022
+    },
+    {
+      "lockId": "5249a563a376e02757557c1a36ebf1ac6f625ad746daedd5490476ef6c51583f",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "250000000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x9c235fc85ed4b38e750efd1132e996f64adac4a1d3e99bfe56477eebcf2ba0ee",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:12.720532551Z",
+      "blockNumber": 87688058
+    },
+    {
+      "lockId": "50207fdbaddfdbf47a3f8dd44a66d2e53221e026d49822d3dbd99ec8925f7e39",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "125000000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x570e728349c471b86e8e75746ba81a53532dc8562a7b99f846e0fb35eed15cb8",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:12.809906509Z",
+      "blockNumber": 87688060
+    },
+    {
+      "lockId": "bf8e001b69f64f986ef895ec97990709f7ad866dd42bf2423ac678d3ea303a1c",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "312500000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0x0ccca573aef16a3460ce41992c6278d28ba4cf44547f26597720b6cad158325f",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:12.899412217Z",
+      "blockNumber": 87688064
+    },
+    {
+      "lockId": "bd1a0ad888d60833224b3cd13f8b35ac305a69c638227bdca06291e1502e2d29",
+      "borrower": "0xa3eEE7a1B8513579788c2C83EE44475E513182Fd",
+      "amount": "10000000000000000000",
+      "sourceChainId": "15000",
+      "mantleTxHash": "0xeb86fb3337e66a2741691099dd7757321d7febae46d49d1b2108090219b5f172",
+      "ethereumTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "processedAt": "2025-12-24T01:08:12.990503009Z",
+      "blockNumber": 87688068
+    }
+  ]
+}
