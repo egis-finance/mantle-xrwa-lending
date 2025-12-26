@@ -52,36 +52,34 @@ export function TvlPegDisplay() {
             <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Total Value Locked</span>
         </div>
 
-        {/* Visual Bar Graph */}
-        <div className="relative h-12 w-full flex rounded-xl overflow-hidden mb-6 bg-gray-50 ring-1 ring-gray-100">
-            {/* Mantle Segment */}
-            <div 
-                className="h-full bg-mantle/10 relative group/mantle transition-all duration-1000 ease-out border-r border-white/50"
+        {/* Visual Bar Graph - shows TVL distribution across chains */}
+        <div className="relative h-10 w-full flex rounded-lg overflow-hidden mb-6 ring-1 ring-gray-200">
+            {/* Mantle Segment (teal) */}
+            <div
+                className="h-full bg-[#65b3ad] relative transition-all duration-1000 ease-out"
                 style={{ width: `${mantlePercent}%` }}
             >
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/mantle:opacity-100 transition-opacity">
-                    <span className="text-[10px] font-bold text-mantle bg-white/90 px-2 py-1 rounded-full shadow-sm">
-                        {mantlePercent.toFixed(1)}%
+                <div className="absolute inset-0 flex items-center justify-center gap-1.5">
+                    <span className="text-[11px] font-medium text-white/90">Mantle</span>
+                    <span className="text-xs font-bold text-white">
+                        {mantlePercent.toFixed(0)}%
                     </span>
                 </div>
-                {/* Pattern overlay */}
-                <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:8px_8px]"></div>
             </div>
 
-            {/* Ethereum Segment */}
-            <div 
-                className="h-full bg-eth/10 relative group/eth transition-all duration-1000 ease-out"
+            {/* Ethereum Segment (purple) */}
+            <div
+                className="h-full bg-[#627eea] relative transition-all duration-1000 ease-out"
                 style={{ width: `${ethPercent}%` }}
             >
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/eth:opacity-100 transition-opacity">
-                    <span className="text-[10px] font-bold text-eth bg-white/90 px-2 py-1 rounded-full shadow-sm">
-                        {ethPercent.toFixed(1)}%
+                <div className="absolute inset-0 flex items-center justify-center gap-1.5">
+                    <span className="text-[11px] font-medium text-white/90">Ethereum</span>
+                    <span className="text-xs font-bold text-white">
+                        {ethPercent.toFixed(0)}%
                     </span>
                 </div>
-                 {/* Pattern overlay */}
-                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:8px_8px]"></div>
-                </div>
             </div>
+        </div>
 
         {/* Detailed Breakdown */}
         <div className="grid grid-cols-2 gap-8">
