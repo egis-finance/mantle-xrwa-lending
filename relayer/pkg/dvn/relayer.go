@@ -214,10 +214,27 @@ func (r *Relayer) monitorEvents(ctx context.Context) {
 
 // runSubscription attempts to subscribe and process events, returns error on failure
 func (r *Relayer) runSubscription(ctx context.Context) error {
+	// 1. Snapshot current block BEFORE backfill to close the gap later
+	gapStartBlock, err := r.getLatestBlock(ctx)
+	if err != nil {
+		logger.Warnw("Failed to get block for gap tracking, gap may exist", "error", err)
+		gapStartBlock = 0 // Will skip catch-up if we couldn't get the block
+	}
+
+	// 2. Backfill from cursor - on failure, fall back to polling (has retry semantics)
+	if err := r.backfillFromCursor(ctx); err != nil {
+		logger.Warnw("Backfill failed, falling back to polling mode",
+			"chain", "mantle",
+			"error", err,
+		)
+		r.pollEvents(ctx) // Cursor already at failedBlock-1, polling retries from there
+		return nil
+	}
+
 	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
 
-	// Subscribe to new logs
-	logs := make(chan types.Log)
+	// 3. Start subscription for real-time events
+	logs := make(chan types.Log, 100) // Buffer prevents blocking during catch-up
 	sub, err := r.mantleClient.SubscribeFilterLogs(ctx, query, logs)
 	if err != nil {
 		logger.Errorw("Failed to subscribe to logs, falling back to polling", "error", err)
@@ -230,19 +247,153 @@ func (r *Relayer) runSubscription(ctx context.Context) error {
 
 	logger.Infow("Subscribed to Locked events", "contract", r.cfg.Mantle.LockerAddress)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case err := <-sub.Err():
-			return fmt.Errorf("subscription error: %w", err)
-		case vLog := <-logs:
-			// Process with timeout to prevent blocking
+	// 5. Start log consumer goroutine - drains events while catch-up runs
+	// This prevents buffer overflow if many events arrive during catch-up
+	logsDone := make(chan struct{})
+	go func() {
+		defer close(logsDone)
+		for vLog := range logs {
 			processCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-			r.processLockedEvent(processCtx, vLog)
+			_ = r.processLockedEvent(processCtx, vLog)
 			cancel()
 		}
+	}()
+
+	// 6. Catch-up query to close gap between backfill end and subscription start
+	// Runs concurrently with log draining - dedup handles any overlap
+	if gapStartBlock > 0 {
+		if err := r.catchUpFromBlock(ctx, gapStartBlock); err != nil {
+			logger.Warnw("Catch-up failed, falling back to polling mode",
+				"chain", "mantle",
+				"from_block", gapStartBlock,
+				"error", err,
+			)
+			sub.Unsubscribe() // Closes logs channel, goroutine will exit
+			<-logsDone        // Wait for goroutine to finish draining
+			r.pollEvents(ctx) // Polling has retry semantics from cursor
+			return nil
+		}
 	}
+
+	// 7. Wait for subscription error or context cancellation
+	// Log consumer goroutine continues processing events in parallel
+	select {
+	case <-ctx.Done():
+		// Context cancelled - sub.Unsubscribe() called via defer, closes logs channel
+		<-logsDone // Wait for goroutine to finish
+		return nil
+	case err := <-sub.Err():
+		// Subscription error - goroutine will exit when logs channel closes
+		<-logsDone
+		return fmt.Errorf("subscription error: %w", err)
+	}
+}
+
+// backfillFromCursor processes missed events between the persisted cursor and current block.
+// Called on subscription startup to catch events missed during downtime.
+func (r *Relayer) backfillFromCursor(ctx context.Context) error {
+	if r.store == nil {
+		return nil // No persistence, nothing to backfill
+	}
+
+	cursor := r.store.GetLastProcessedBlock()
+	if cursor == 0 {
+		return nil // First run, no backfill needed
+	}
+
+	// Get current block
+	var currentBlock uint64
+	blockCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "get_block_number", func() error {
+		var blockErr error
+		currentBlock, blockErr = r.mantleClient.BlockNumber(blockCtx)
+		return blockErr
+	})
+	cancel()
+
+	if err != nil {
+		return fmt.Errorf("failed to get current block: %w", err)
+	}
+
+	// Guard against underflow when currentBlock == 0 (genesis or chain reset)
+	if currentBlock == 0 {
+		return nil
+	}
+
+	// Range validation: cursor+1 to currentBlock-1 must be valid
+	// If cursor >= currentBlock-1, range would be empty or invalid
+	if cursor >= currentBlock-1 {
+		return nil // Already caught up or would create invalid range
+	}
+
+	logger.Infow("Backfilling missed events",
+		"chain", "mantle",
+		"from_block", cursor+1,
+		"to_block", currentBlock-1,
+	)
+
+	// Query historical logs
+	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
+	query.FromBlock = big.NewInt(int64(cursor + 1))
+	query.ToBlock = big.NewInt(int64(currentBlock - 1))
+
+	var logs []types.Log
+	logsCtx, logsCancel := context.WithTimeout(ctx, 60*time.Second)
+	err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "filter_logs", func() error {
+		var filterErr error
+		logs, filterErr = r.mantleClient.FilterLogs(logsCtx, query)
+		return filterErr
+	})
+	logsCancel()
+
+	if err != nil {
+		return fmt.Errorf("failed to filter backfill logs: %w", err)
+	}
+
+	if len(logs) == 0 {
+		logger.Infow("No missed events to backfill", "chain", "mantle")
+		if err := r.store.SetLastProcessedBlock(currentBlock - 1); err != nil {
+			logger.Warnw("Failed to update cursor after empty backfill", "error", err)
+		}
+		return nil
+	}
+
+	logger.Infow("Processing backfill events", "chain", "mantle", "count", len(logs))
+
+	// Process events - on failure, set cursor to retry entire failed block
+	var failedBlock uint64
+	hasFailure := false
+
+	for _, vLog := range logs {
+		if err := r.processLockedEvent(ctx, vLog); err != nil {
+			logger.Errorw("Backfill event failed, will retry block on next startup",
+				"chain", "mantle",
+				"block", vLog.BlockNumber,
+				"error", err,
+			)
+			failedBlock = uint64(vLog.BlockNumber)
+			hasFailure = true
+			break
+		}
+	}
+
+	// Set cursor: block before failure (to retry), or end of range (all succeeded)
+	if hasFailure {
+		if failedBlock > 0 {
+			cursorBlock := failedBlock - 1
+			if err := r.store.SetLastProcessedBlock(cursorBlock); err != nil {
+				logger.Warnw("Failed to persist backfill cursor", "error", err, "block", cursorBlock)
+			}
+		}
+		// Cursor set for retry; return error to signal partial failure
+		return fmt.Errorf("backfill failed at block %d", failedBlock)
+	}
+
+	// All succeeded: advance to end of queried range
+	if err := r.store.SetLastProcessedBlock(currentBlock - 1); err != nil {
+		logger.Warnw("Failed to persist backfill cursor", "error", err, "block", currentBlock-1)
+	}
+	return nil
 }
 
 // pollEvents uses cursor-based polling with persistence
@@ -299,16 +450,51 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 			logger.Debugw("No events in block range", "chain", "mantle", "from", fromBlock, "to", latestBlock)
 		}
 
+		// Process events - on failure, retry entire failed block (dedup handles repeats)
+		var failedBlock uint64
+		hasFailure := false
+
 		for _, vLog := range logs {
-			r.processLockedEvent(ctx, vLog)
+			if err := r.processLockedEvent(ctx, vLog); err != nil {
+				logger.Errorw("Event processing failed, will retry entire block",
+					"chain", "mantle",
+					"block", vLog.BlockNumber,
+					"error", err,
+				)
+				failedBlock = uint64(vLog.BlockNumber)
+				hasFailure = true
+				break
+			}
 		}
 
-		// Update cursor and persist
-		fromBlock = latestBlock + 1
-		if r.store != nil {
-			if err := r.store.SetLastProcessedBlock(latestBlock); err != nil {
-				logger.Errorw("Failed to persist block cursor", "chain", "mantle", "chain", "mantle",
-			"error", err, "block", latestBlock)
+		// Cursor advancement: retry whole failed block, or advance past range
+		if hasFailure {
+			// Set cursor to block BEFORE failure so next poll includes failed block
+			if failedBlock > 0 {
+				cursorBlock := failedBlock - 1
+				fromBlock = failedBlock // Next poll starts from failed block
+				if r.store != nil {
+					if err := r.store.SetLastProcessedBlock(cursorBlock); err != nil {
+						logger.Errorw("Failed to persist block cursor",
+							"chain", "mantle",
+							"error", err,
+							"block", cursorBlock,
+						)
+					}
+				}
+			}
+			// failedBlock == 0: don't advance cursor, retry from current fromBlock
+		} else {
+			// All succeeded (or no logs): advance past the queried range
+			fromBlock = latestBlock + 1
+			if r.store != nil {
+				if err := r.store.SetLastProcessedBlock(latestBlock); err != nil {
+					logger.Errorw("Failed to persist block cursor",
+						"chain", "mantle",
+						"error", err,
+						"block", latestBlock,
+					)
+				}
 			}
 		}
 	}
@@ -350,6 +536,93 @@ func (r *Relayer) getInitialFromBlock(ctx context.Context) uint64 {
 	return latestBlock
 }
 
+// getLatestBlock fetches the current block number from Mantle with retry
+func (r *Relayer) getLatestBlock(ctx context.Context) (uint64, error) {
+	blockCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	var latestBlock uint64
+	err := chain.RetryWithBackoff(blockCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "get_latest_block", func() error {
+		var blockErr error
+		latestBlock, blockErr = r.mantleClient.BlockNumber(blockCtx)
+		if blockErr != nil {
+			r.metrics.RPCErrorsTotal.WithLabelValues("mantle", "block_number").Inc()
+		} else {
+			r.metrics.RPCCallsTotal.WithLabelValues("mantle", "block_number").Inc()
+		}
+		return blockErr
+	})
+
+	if err != nil {
+		return 0, fmt.Errorf("failed to get latest block: %w", err)
+	}
+	return latestBlock, nil
+}
+
+// catchUpFromBlock queries and processes logs from fromBlock to latest.
+// Used to close the gap between backfill end and subscription start.
+// Deduplication (memory + persistence) handles any overlap with already-processed events.
+func (r *Relayer) catchUpFromBlock(ctx context.Context, fromBlock uint64) error {
+	// Get current block for the range upper bound
+	currentBlock, err := r.getLatestBlock(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current block for catch-up: %w", err)
+	}
+
+	// Nothing to catch up if we're already past or at current
+	if fromBlock > currentBlock {
+		return nil
+	}
+
+	logger.Infow("Catching up events after backfill",
+		"chain", "mantle",
+		"from_block", fromBlock,
+		"to_block", currentBlock,
+	)
+
+	query := chain.CreateLockedEventQuery(r.cfg.Mantle.LockerAddress)
+	query.FromBlock = big.NewInt(int64(fromBlock))
+	query.ToBlock = big.NewInt(int64(currentBlock))
+
+	var logs []types.Log
+	logsCtx, logsCancel := context.WithTimeout(ctx, 60*time.Second)
+	err = chain.RetryWithBackoff(logsCtx, r.cfg.Retry.MaxRetries, r.cfg.Retry.BaseRetryDelay, r.metrics, "filter_logs", func() error {
+		var filterErr error
+		logs, filterErr = r.mantleClient.FilterLogs(logsCtx, query)
+		return filterErr
+	})
+	logsCancel()
+
+	if err != nil {
+		return fmt.Errorf("failed to filter catch-up logs: %w", err)
+	}
+
+	if len(logs) == 0 {
+		logger.Debugw("No events in catch-up range", "chain", "mantle")
+		return nil
+	}
+
+	logger.Infow("Processing catch-up events", "chain", "mantle", "count", len(logs))
+
+	// Process each log - stop on first failure to trigger polling fallback
+	for _, vLog := range logs {
+		processCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		if err := r.processLockedEvent(processCtx, vLog); err != nil {
+			cancel()
+			logger.Warnw("Failed to process catch-up event",
+				"chain", "mantle",
+				"block", vLog.BlockNumber,
+				"error", err,
+			)
+			// Return error so caller can fall back to polling (has retry semantics)
+			return fmt.Errorf("catch-up failed at block %d: %w", vLog.BlockNumber, err)
+		}
+		cancel()
+	}
+
+	return nil
+}
+
 // waitForNewBlock blocks until a new block is available or context is cancelled
 func (r *Relayer) waitForNewBlock(ctx context.Context, lastProcessedBlock uint64) (uint64, error) {
 	ticker := time.NewTicker(2 * time.Second)
@@ -380,7 +653,7 @@ func (r *Relayer) waitForNewBlock(ctx context.Context, lastProcessedBlock uint64
 }
 
 // processLockedEvent handles a single Locked event
-func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
+func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) error {
 	startTime := time.Now()
 
 	// Start parent tracing span
@@ -403,7 +676,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		)
 		r.metrics.LocksFailed.Inc()
 		observability.RecordError(spanCtx, err)
-		return
+		return fmt.Errorf("failed to parse Locked event: %w", err)
 	}
 
 	// Add event details to span
@@ -421,7 +694,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 	if alreadyProcessed {
 		logger.Debugw("Lock already processed (memory cache)", "lock_id", common.Bytes2Hex(event.LockId[:]))
 		r.metrics.LocksDuplicate.Inc()
-		return
+		return nil // Skip is intentional, not a failure
 	}
 
 	// Double-check persistence store
@@ -431,7 +704,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		r.processedLocks[event.LockId] = true
 		r.mu.Unlock()
 		r.metrics.LocksDuplicate.Inc()
-		return
+		return nil // Skip is intentional, not a failure
 	}
 
 	// Check on-chain consumed status (authoritative source of truth)
@@ -451,7 +724,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		r.processedLocks[event.LockId] = true
 		r.mu.Unlock()
 		r.metrics.LocksDuplicate.Inc()
-		return
+		return nil // Already consumed, skip is intentional
 	}
 
 	r.mu.Lock()
@@ -510,7 +783,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		)
 		r.metrics.LocksFailed.Inc()
 		observability.RecordError(spanCtx, err)
-		return
+		return fmt.Errorf("failed to sign lock message: %w", err)
 	}
 
 	logger.Infow("Lock message signed",
@@ -543,7 +816,7 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		)
 		r.metrics.LocksFailed.Inc()
 		observability.RecordError(spanCtx, err)
-		return
+		return fmt.Errorf("failed to submit attestation: %w", err)
 	}
 
 	// Mark as processed in memory
@@ -581,6 +854,8 @@ func (r *Relayer) processLockedEvent(ctx context.Context, vLog types.Log) {
 		"processing_time", processingTime,
 		"total_processed", r.eventCount,
 	)
+
+	return nil
 }
 
 // submitAttestationWithHash sends the signed attestation and returns the transaction hash

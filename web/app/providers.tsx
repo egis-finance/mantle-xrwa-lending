@@ -5,8 +5,8 @@
  *
  * Client-side (this file):
  * - environmentId: Project identifier from app.dynamic.xyz
- * - walletConnectors: EthereumWalletConnectors for EVM chain support
- * - walletsFilter: Restricts to embedded wallets only (no MetaMask/WalletConnect)
+ * - walletConnectors: EthereumWalletConnectors for EVM chain support (includes embedded wallets)
+ * - walletsFilter: Restricts to embedded wallets only (filters out MetaMask/WalletConnect at runtime)
  * - overrides.evmNetworks: Merges env-specific chains, filters to allowed chain IDs
  *
  * Dashboard-side (app.dynamic.xyz > SDK Settings):
