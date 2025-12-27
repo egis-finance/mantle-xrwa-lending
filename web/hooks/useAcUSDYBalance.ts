@@ -5,7 +5,6 @@ import { formatUnits } from 'viem';
 import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 
-// Standard ERC20 ABI for balance and decimals
 const ERC20_ABI = [
   {
     name: 'balanceOf',
@@ -16,23 +15,24 @@ const ERC20_ABI = [
   },
 ] as const;
 
-interface BorrowerBalanceResult {
+interface AcUSDYBalanceResult {
   value: string | null;
   raw: bigint | undefined;
 }
 
 /**
- * Reads borrower's USDY balance on Mantle.
+ * Reads borrower's AcUSDY balance in their wallet on Ethereum.
+ * This represents collateral that has been minted/attested but not yet supplied to Morpho.
  */
-export function useBorrowerBalance(
+export function useAcUSDYBalance(
   borrowerAddress: Address | undefined
-): ReadResult<BorrowerBalanceResult> {
-  const isConfigured = contracts.usdy.address !== UNCONFIGURED_ADDRESS;
+): ReadResult<AcUSDYBalanceResult> {
+  const isConfigured = contracts.acUSDY.address !== UNCONFIGURED_ADDRESS;
   const enabled = Boolean(borrowerAddress) && isConfigured;
 
   const result = useMultiChainRead<typeof ERC20_ABI, 'balanceOf', bigint>({
-    chainId: contracts.usdy.chainId,
-    address: contracts.usdy.address,
+    chainId: contracts.acUSDY.chainId,
+    address: contracts.acUSDY.address,
     abi: ERC20_ABI,
     functionName: 'balanceOf',
     args: [borrowerAddress!],
@@ -40,8 +40,7 @@ export function useBorrowerBalance(
     refreshInterval: RefreshIntervals.USER_POSITION,
   });
 
-  // Transform raw bigint to formatted value (USDY has 18 decimals)
-  const transformedData: BorrowerBalanceResult | undefined = result.data !== undefined
+  const transformedData: AcUSDYBalanceResult | undefined = result.data !== undefined
     ? {
         value: formatUnits(result.data, 18),
         raw: result.data,

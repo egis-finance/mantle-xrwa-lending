@@ -5,6 +5,10 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { DynamicWidget } from '@dynamic-labs/sdk-react-core';
 import { cn } from '@/lib/utils';
+import { useFundWallet } from '@/hooks/useFundWallet';
+import { getEnv } from '@/lib/env';
+import { Coins, Loader2 } from 'lucide-react';
+import { Button } from './ui/button';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard' },
@@ -14,6 +18,9 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname();
+  const { fund, isFunding } = useFundWallet();
+  const env = getEnv();
+  const isVte = !env.useMainnet;
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border/40 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
@@ -52,6 +59,22 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
+          {isVte && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fund}
+              disabled={isFunding}
+              className="hidden sm:flex items-center gap-2 border-brand-light text-brand-DEFAULT hover:bg-brand-light/10"
+            >
+              {isFunding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Coins className="h-4 w-4" />
+              )}
+              {isFunding ? 'Funding...' : 'Fund Wallet'}
+            </Button>
+          )}
           <DynamicWidget />
         </div>
       </div>

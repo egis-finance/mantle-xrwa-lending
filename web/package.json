@@ -11,7 +11,9 @@
     "lint": "eslint",
     "test": "jest",
     "clean": "rm -rf .next out",
-    "clean:cache": "rm -rf .next/cache"
+    "clean:cache": "rm -rf .next/cache",
+    "fund": "node scripts/fund-wallet.mjs",
+    "relayer": "node scripts/relayer.mjs"
   },
   "dependencies": {
     "@dynamic-labs/ethereum": "~4.51.2",
