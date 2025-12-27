@@ -21,7 +21,7 @@ if (fs.existsSync(envPath)) {
 
 const MANTLE_RPC = process.env.NEXT_PUBLIC_MANTLE_RPC_VTE;
 const ETHEREUM_RPC = process.env.NEXT_PUBLIC_ETHEREUM_RPC_VTE;
-const DVN_KEY = process.env.DVN1_PRIVATE_KEY || process.env.NEXT_PUBLIC_DVN1_PRIVATE_KEY;
+const DVN_KEY = process.env.DVN1_PRIVATE_KEY;
 const MANTLE_LOCKER = process.env.NEXT_PUBLIC_MANTLE_LOCKER;
 const ETH_RECEIVER = process.env.ETH_RECEIVER || process.env.NEXT_PUBLIC_ETH_RECEIVER;
 
