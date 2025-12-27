@@ -181,6 +181,7 @@ export default function BorrowPage(): ReactElement {
         address: contracts.collateralLocker.address,
         abi: CollateralLockerAbi,
         functionName: 'lock',
+        // vcHash: zero placeholder - verification credential system not yet implemented
         args: [amountWei, validUntil, '0x0000000000000000000000000000000000000000000000000000000000000000'],
       });
       await waitForTransaction(MANTLE_CHAIN_ID, lockHash);

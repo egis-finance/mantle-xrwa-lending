@@ -13,8 +13,8 @@ export function TvlPegDisplay() {
   // These represent the total protocol TVL split across two chains.
   // There is no "balance" requirement - users can lock as much USDY as they want.
   
-  const mantleVal = mantle.value ? parseFloat(mantle.value) : 0
-  const ethVal = ethereum.value ? parseFloat(ethereum.value) : 0
+  const mantleVal = parseFloat(mantle.value || '0') || 0
+  const ethVal = parseFloat(ethereum.value || '0') || 0
   const totalTvl = mantleVal + ethVal
 
   // Calculate percentages for the visual bar
