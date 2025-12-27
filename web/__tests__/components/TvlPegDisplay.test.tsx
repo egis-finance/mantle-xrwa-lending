@@ -29,8 +29,8 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    // Loading shows "..." placeholders for both values
-    expect(screen.getAllByText('...')).toHaveLength(2)
+    // Loading shows "..." placeholders for total + both chain values
+    expect(screen.getAllByText('...')).toHaveLength(3)
   })
 
   it('shows balanced state with correct values', () => {
@@ -46,13 +46,16 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
+    // Total TVL shows $50M (25M + 25M)
+    expect(screen.getByText('$50.00M')).toBeInTheDocument()
+    // Individual chain values each show $25M
     expect(screen.getAllByText('$25.00M')).toHaveLength(2)
-    expect(screen.getByText('Synced')).toBeInTheDocument()
-    expect(screen.getByText('USDY')).toBeInTheDocument()
-    expect(screen.getByText('AcUSDY')).toBeInTheDocument()
+    // Chain-specific labels
+    expect(screen.getByText('Locked USDY')).toBeInTheDocument()
+    expect(screen.getByText('AcUSDY Supply')).toBeInTheDocument()
   })
 
-  it('shows warning on peg deviation', () => {
+  it('shows different chain values correctly', () => {
     mockUseTvlPeg.mockReturnValue({
       mantle: { value: '25000000', isLoading: false, isError: false },
       ethereum: { value: '20000000', isLoading: false, isError: false },
@@ -65,10 +68,10 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
+    // Total TVL shows $45M (25M + 20M)
+    expect(screen.getByText('$45.00M')).toBeInTheDocument()
     expect(screen.getByText('$25.00M')).toBeInTheDocument()
     expect(screen.getByText('$20.00M')).toBeInTheDocument()
-    // Component shows "Deviation: X.XXX%" for unbalanced state
-    expect(screen.getByText(/Deviation:/)).toBeInTheDocument()
   })
 
   it('shows header title', () => {
@@ -84,7 +87,7 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    expect(screen.getByText('TVL Peg Stability')).toBeInTheDocument()
+    expect(screen.getByText('Protocol TVL')).toBeInTheDocument()
   })
 
   it('handles zero values correctly', () => {
@@ -100,8 +103,8 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    expect(screen.getAllByText('$0.00')).toHaveLength(2)
-    expect(screen.getByText('Synced')).toBeInTheDocument()
+    // Total + both chain values show $0.00
+    expect(screen.getAllByText('$0.00')).toHaveLength(3)
   })
 
   it('calls refetch when refresh button is clicked', () => {
