@@ -90,7 +90,7 @@ export const MyPosition: React.FC<MyPositionProps> = ({
                             <p className="text-[10px] text-brand-muted uppercase font-bold">Protocol Debt</p>
                         </div>
                         <p className="text-sm font-bold text-brand-dark">
-                            {systemParams.totalBorrowed ? formatTvl(systemParams.totalBorrowed) : '$243K'}
+                            {systemParams.totalBorrow ? formatTvl(systemParams.totalBorrow) : '$0'}
                             <span className="text-[10px] font-normal text-brand-muted ml-1">USDC</span>
                         </p>
                     </div>
