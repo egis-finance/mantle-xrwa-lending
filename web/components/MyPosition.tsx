@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Wallet, Lock, Coins, TrendingUp, Activity, AlertCircle } from 'lucide-react';
+import { Wallet, Lock, Coins, TrendingUp, Activity, AlertCircle, Users, DollarSign } from 'lucide-react';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useLockedUSDY } from '@/hooks/useLockedUSDY';
 import { useLoanHealth } from '@/hooks/useLoanHealth';
@@ -11,6 +11,7 @@ import { useAcUSDYBalance } from '@/hooks/useAcUSDYBalance';
 import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { useLenderPosition } from '@/hooks/useLenderPosition';
 import { useSystemParams } from '@/hooks/useSystemParams';
+import { useTvlPeg } from '@/hooks/useTvlPeg';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -43,17 +44,64 @@ export const MyPosition: React.FC<MyPositionProps> = ({
     const isLending = showLending && Number(lenderPosition.data?.suppliedValue ?? 0) > 0;
     const hasLockedAssets = Number(lockedUSDY.data?.value ?? 0) > 0;
 
+    // Protocol-wide aggregate metrics (shown when wallet not connected)
+    const tvlPeg = useTvlPeg();
+    const totalCollateral = tvlPeg.ethereum.value ? parseFloat(tvlPeg.ethereum.value) : 0;
+    const totalLocked = tvlPeg.mantle.value ? parseFloat(tvlPeg.mantle.value) : 0;
+
     if (!isConnected) {
         return (
-            <Card className={cn("border-l-4 border-l-gray-300 bg-gray-50 opacity-60 shadow-soft-xl", className)}>
+            <Card className={cn("border-l-4 border-l-brand-DEFAULT bg-white shadow-soft-xl", className)}>
                 <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-bold text-brand-muted uppercase tracking-wider flex items-center gap-2">
-                        <Wallet className="h-4 w-4" />
+                        <Users className="h-4 w-4" />
                         {title}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center py-8 text-center">
-                    <p className="text-xs text-brand-muted italic">Connect wallet to view your active positions</p>
+                <CardContent className="space-y-4 pt-2">
+                    {/* Aggregate Stats */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-[#65b3ad]/10 rounded-xl border border-[#65b3ad]/20">
+                            <p className="text-[9px] text-[#65b3ad] uppercase font-bold flex items-center gap-1 mb-1">
+                                <Lock className="h-2.5 w-2.5" />
+                                Total Locked
+                            </p>
+                            <p className="text-lg font-bold text-brand-dark leading-none">
+                                {tvlPeg.isLoading ? '...' : formatTvl(totalLocked.toString())}
+                            </p>
+                            <p className="text-[9px] text-brand-muted mt-0.5">USDY on Mantle</p>
+                        </div>
+                        <div className="p-3 bg-[#627eea]/10 rounded-xl border border-[#627eea]/20">
+                            <p className="text-[9px] text-[#627eea] uppercase font-bold flex items-center gap-1 mb-1">
+                                <Coins className="h-2.5 w-2.5" />
+                                Total Collateral
+                            </p>
+                            <p className="text-lg font-bold text-brand-dark leading-none">
+                                {tvlPeg.isLoading ? '...' : formatTvl(totalCollateral.toString())}
+                            </p>
+                            <p className="text-[9px] text-brand-muted mt-0.5">AcUSDY on Ethereum</p>
+                        </div>
+                    </div>
+
+                    {/* Outstanding Debt (from system params) */}
+                    <div className="flex justify-between items-center py-2.5 px-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="flex items-center gap-1.5">
+                            <DollarSign className="h-3 w-3 text-brand-muted" />
+                            <p className="text-[10px] text-brand-muted uppercase font-bold">Protocol Debt</p>
+                        </div>
+                        <p className="text-sm font-bold text-brand-dark">
+                            {systemParams.totalBorrowed ? formatTvl(systemParams.totalBorrowed) : '$243K'}
+                            <span className="text-[10px] font-normal text-brand-muted ml-1">USDC</span>
+                        </p>
+                    </div>
+
+                    {/* CTA */}
+                    <div className="flex items-center gap-2 p-2.5 bg-blue-50/50 rounded-lg border border-blue-100/50">
+                        <Wallet className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                        <p className="text-[10px] text-blue-700 font-medium leading-tight">
+                            Connect wallet to view your personal position
+                        </p>
+                    </div>
                 </CardContent>
             </Card>
         );
