@@ -7,7 +7,7 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "export": "next build --webpack",
-    "start": "serve out",
+    "start": "lsof -ti:3000 && echo 'ERROR: Port 3000 is already in use' && exit 1 || serve out -l tcp://localhost:3000",
     "lint": "eslint",
     "test": "jest",
     "clean": "rm -rf .next out",
