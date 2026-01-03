@@ -51,6 +51,16 @@ export const contracts = {
     address: (process.env.NEXT_PUBLIC_MANTLE_USDY ?? '0x5bE26527e817998A7206475496fDE1E68957c5A6') as `0x${string}`,
     chainId: MANTLE_CHAIN_ID,
   },
+  // Morpho Bundler3 - mainnet address works on VTE fork
+  bundler3: {
+    address: '0x6566194141eefa99Af43Bb5Aa71460Ca2Dc90245' as `0x${string}`,
+    chainId: ETHEREUM_CHAIN_ID,
+  },
+  // EthereumGeneralAdapter1 - mainnet address works on VTE fork
+  generalAdapter1: {
+    address: '0x4A6c312ec70E8747a587EE860a0353cd42Be0aE0' as `0x${string}`,
+    chainId: ETHEREUM_CHAIN_ID,
+  },
 } as const;
 
 // Re-export chain IDs for backward compatibility
