@@ -5,19 +5,17 @@ import type { ReactElement } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, ShieldCheck, Lock, Wallet, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowRightLeft, Lock, Wallet, Loader2, CheckCircle2 } from 'lucide-react';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useSDKReady } from '@/hooks/useSDKReady';
 import { useLockedUSDY } from '@/hooks/useLockedUSDY';
 import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
 import { useAcUSDYBalance } from '@/hooks/useAcUSDYBalance';
-import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useChainAbstracted } from '@/hooks/useChainAbstracted';
-import { MyPosition } from '@/components/MyPosition';
-import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
-import { getMarketId, DEFAULT_LLTV_DECIMAL } from '@/lib/marketId';
+import { LoanHealthCard } from '@/components/LoanHealthCard';
+import { contracts } from '@/lib/contracts';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { parseUnits } from 'viem';
@@ -28,15 +26,8 @@ import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
 export default function BorrowPage(): ReactElement {
   const sdkReady = useSDKReady();
-  const { address: borrowerAddress, isConnected, connect } = useDynamicWallet();
+  const { address: borrowerAddress, isConnected } = useDynamicWallet();
   const { signOnMantle, waitForTransaction } = useChainAbstracted();
-
-  // Basic config guard (prevents confusing "0" UI when contracts are not wired)
-  const marketId = getMarketId();
-  const isAppConfigured =
-    contracts.collateralLocker.address !== UNCONFIGURED_ADDRESS &&
-    contracts.morpho.address !== UNCONFIGURED_ADDRESS &&
-    marketId !== UNCONFIGURED_ADDRESS;
 
   // Borrower's locked USDY on Mantle (not protocol TVL)
   const lockedUSDY = useLockedUSDY(borrowerAddress);
@@ -48,10 +39,6 @@ export default function BorrowPage(): ReactElement {
     const borrowerBalance = useBorrowerBalance(borrowerAddress);
   // Morpho market parameters (LLTV from on-chain)
   const systemParams = useSystemParams();
-  // Loan health metrics (LLTV derived from Morpho market, fallback during loading)
-  const loanHealth = useLoanHealth(borrowerAddress, { lltv: systemParams.lltv ?? DEFAULT_LLTV_DECIMAL });
-  // LLTV as percentage for gauge display (e.g., 86 for 86% LLTV)
-  const effectiveLltvPercent = (systemParams.lltv ?? DEFAULT_LLTV_DECIMAL) * 100;
 
   const isLoading =
     lockedUSDY.isLoading ||
@@ -59,13 +46,6 @@ export default function BorrowPage(): ReactElement {
     acUsdyBalance.isLoading ||
     borrowerBalance.isLoading ||
     systemParams.isLoading;
-
-  const isWalletInitializing = !sdkReady;
-  const isWalletDisconnected = sdkReady && (!isConnected || borrowerAddress === undefined);
-
-  const isLoanHealthUnavailable = isWalletDisconnected || !isAppConfigured;
-  const isLoanHealthLoading = isWalletInitializing || (!isLoanHealthUnavailable && loanHealth.isLoading);
-  const isLoanHealthError = !isLoanHealthUnavailable && !isLoanHealthLoading && loanHealth.isError;
 
   // Calculate available balance = total balance - locked amount
     const availableBalance = React.useMemo(() => {
@@ -516,8 +496,8 @@ export default function BorrowPage(): ReactElement {
                         </CardContent>
                     </Card>
 
-          {/* My Position Aggregate */}
-          <MyPosition showLending={false} />
+          {/* Loan Health Card */}
+          <LoanHealthCard />
                 </div>
             </main>
         </div>
