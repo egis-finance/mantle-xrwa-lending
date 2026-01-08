@@ -135,7 +135,13 @@ contract LenderSupplyTest is Test {
         }
     }
 
-    function _getMarketParamsFromId(Id /* _marketId */) internal pure returns (MarketParams memory) {
+    function _getMarketParamsFromId(
+        Id /* _marketId */
+    )
+        internal
+        pure
+        returns (MarketParams memory)
+    {
         // In production, we'd call idToMarketParams on Morpho
         // For now, return empty and let test skip if needed
         return MarketParams({
@@ -228,9 +234,7 @@ contract LenderSupplyTest is Test {
         uint256 usdcBalanceAfter = usdc.balanceOf(lender);
 
         assertGt(supplySharesAfter, supplySharesBefore, "Supply shares should increase");
-        assertEq(
-            usdcBalanceAfter, usdcBalanceBefore - supplyAmount, "USDC balance should decrease by supply amount"
-        );
+        assertEq(usdcBalanceAfter, usdcBalanceBefore - supplyAmount, "USDC balance should decrease by supply amount");
 
         console2.log("Bundler3 supply success");
         console2.log("  Supply shares before:", supplySharesBefore);
