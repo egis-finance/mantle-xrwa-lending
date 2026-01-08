@@ -67,7 +67,7 @@ export function useSupplyAPY(): SupplyAPYResult {
   const { utilizationRate, fee, isLoading } = useSystemParams();
 
   // Return null state when loading or data unavailable
-  if (isLoading || utilizationRate === null || fee === null || fee === undefined) {
+  if (isLoading || utilizationRate === null || fee == null) {
     return {
       apy: null,
       apyFormatted: null,
