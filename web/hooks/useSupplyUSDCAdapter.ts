@@ -154,7 +154,7 @@ export function useSupplyUSDCAdapter(): UseSupplyUSDCAdapterResult {
         setStatus('success');
         return supplyHash;
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
+        const error = err instanceof Error ? err : new Error('Unknown error', { cause: err });
         setError(error);
         setStatus('error');
         throw error;
