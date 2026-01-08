@@ -1,11 +1,11 @@
 /**
- * USDC Supply to Morpho via MorphoAdapter
+ * USDC Supply to Morpho Blue - Direct Integration
  *
- * Simpler two-step supply flow:
- * 1. Approve USDC to MorphoAdapter
- * 2. Call supplyUSDC() on adapter
+ * Two-step supply flow calling Morpho directly (no adapter):
+ * 1. approve() - grant Morpho spending rights
+ * 2. supply() - call Morpho.supply() directly
  *
- * More reliable than Bundler3 for testing environments.
+ * Eliminates adapter abstraction for simpler, more reliable integration.
  */
 
 'use client';
@@ -16,12 +16,14 @@ import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import { getPublicClient } from '@/lib/swr/chains';
 import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
+import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import type { MorphoMarketParams } from './useSystemParams';
 
 export type SupplyStatus = 'idle' | 'approving' | 'supplying' | 'confirming' | 'success' | 'error';
 
-export interface UseSupplyUSDCAdapterResult {
+export interface UseSupplyUSDCDirectResult {
   supply: (amount: bigint) => Promise<Hash>;
   status: SupplyStatus;
   statusMessage: string;
@@ -30,7 +32,7 @@ export interface UseSupplyUSDCAdapterResult {
   reset: () => void;
 }
 
-// Minimal ABIs for approve and supplyUSDC
+// Minimal ABI for ERC20 approve
 const ERC20ApproveAbi = [
   {
     name: 'approve',
@@ -41,16 +43,6 @@ const ERC20ApproveAbi = [
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [{ type: 'bool' }],
-  },
-] as const;
-
-const MorphoAdapterAbi = [
-  {
-    name: 'supplyUSDC',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [{ name: 'amount', type: 'uint256' }],
-    outputs: [],
   },
 ] as const;
 
@@ -72,10 +64,12 @@ function getStatusMessage(status: SupplyStatus): string {
 }
 
 /**
- * Hook for supplying USDC to Morpho market via MorphoAdapter.
- * Uses two transactions: approve + supplyUSDC.
+ * Hook for supplying USDC directly to Morpho Blue.
+ * Accepts canonical marketParams from on-chain to ensure correct market targeting.
  */
-export function useSupplyUSDCAdapter(): UseSupplyUSDCAdapterResult {
+export function useSupplyUSDCDirect(
+  marketParams: MorphoMarketParams | undefined
+): UseSupplyUSDCDirectResult {
   const { primaryWallet } = useDynamicContext();
   const [status, setStatus] = useState<SupplyStatus>('idle');
   const [error, setError] = useState<Error | null>(null);
@@ -98,8 +92,31 @@ export function useSupplyUSDCAdapter(): UseSupplyUSDCAdapterResult {
       }
 
       // Validate contracts configured
-      if (contracts.adapter.address === UNCONFIGURED_ADDRESS) {
-        const err = new Error('MorphoAdapter contract not configured');
+      if (contracts.morpho.address === UNCONFIGURED_ADDRESS) {
+        const err = new Error('Morpho contract not configured');
+        setError(err);
+        setStatus('error');
+        throw err;
+      }
+
+      if (contracts.usdc.address === UNCONFIGURED_ADDRESS) {
+        const err = new Error('USDC contract not configured');
+        setError(err);
+        setStatus('error');
+        throw err;
+      }
+
+      // Validate market params loaded from on-chain
+      if (!marketParams) {
+        const err = new Error('Market params not loaded');
+        setError(err);
+        setStatus('error');
+        throw err;
+      }
+
+      // Validate amount is positive (UI enforces but hook defends itself)
+      if (amount <= 0n) {
+        const err = new Error('Amount must be greater than zero');
         setError(err);
         setStatus('error');
         throw err;
@@ -118,27 +135,33 @@ export function useSupplyUSDCAdapter(): UseSupplyUSDCAdapterResult {
         const [userAddress] = await walletClient.getAddresses();
         const publicClient = getPublicClient(ETHEREUM_CHAIN_ID);
 
-        // Step 1: Approve USDC to MorphoAdapter
+        // Step 1: Approve USDC to Morpho directly
         setStatus('approving');
         const approveHash = await walletClient.writeContract({
           account: userAddress,
           address: contracts.usdc.address,
           abi: ERC20ApproveAbi,
           functionName: 'approve',
-          args: [contracts.adapter.address as Address, amount],
+          args: [contracts.morpho.address as Address, amount],
         });
 
         // Wait for approve confirmation
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-        // Step 2: Call supplyUSDC on MorphoAdapter
+        // Step 2: Call Morpho.supply() directly
         setStatus('supplying');
         const supplyHash = await walletClient.writeContract({
           account: userAddress,
-          address: contracts.adapter.address,
-          abi: MorphoAdapterAbi,
-          functionName: 'supplyUSDC',
-          args: [amount],
+          address: contracts.morpho.address,
+          abi: MorphoAbi,
+          functionName: 'supply',
+          args: [
+            marketParams,   // canonical market params from on-chain
+            amount,         // assets (exact USDC amount)
+            0n,             // shares (0 = use assets)
+            userAddress,    // onBehalf (credit position to user)
+            '0x',           // data (empty callback)
+          ],
         });
 
         setTxHash(supplyHash);
@@ -160,7 +183,7 @@ export function useSupplyUSDCAdapter(): UseSupplyUSDCAdapterResult {
         throw error;
       }
     },
-    [primaryWallet, reset]
+    [primaryWallet, marketParams, reset]
   );
 
   return {

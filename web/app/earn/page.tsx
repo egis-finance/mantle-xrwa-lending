@@ -10,7 +10,7 @@ import { useOraclePrice } from '@/hooks/useOraclePrice';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useSupplyAPY } from '@/hooks/useSupplyAPY';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
-import { useSupplyUSDCAdapter } from '@/hooks/useSupplyUSDCAdapter';
+import { useSupplyUSDCDirect } from '@/hooks/useSupplyUSDCDirect';
 import { useLenderPosition } from '@/hooks/useLenderPosition';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { formatTvl } from '@/lib/format';
@@ -26,7 +26,7 @@ export default function EarnPage() {
     // Lender's USDC balance and current position
     const usdcBalance = useUSDCBalance(walletAddress);
     const lenderPosition = useLenderPosition(walletAddress);
-    const { supply, status: supplyStatus, statusMessage, error: supplyError, reset: resetSupply } = useSupplyUSDCAdapter();
+    const { supply, status: supplyStatus, statusMessage, error: supplyError, reset: resetSupply } = useSupplyUSDCDirect(systemParams.marketParams);
 
     const [activeTab, setActiveTab] = React.useState<'supply' | 'withdraw'>('supply');
     const [amount, setAmount] = React.useState('');
@@ -314,7 +314,7 @@ export default function EarnPage() {
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-brand-muted">
-                                    <Info className="h-3 w-3" /> Approve + supply via MorphoAdapter
+                                    <Info className="h-3 w-3" /> Approve + supply to Morpho
                                 </div>
                             </div>
 
