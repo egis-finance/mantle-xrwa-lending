@@ -211,17 +211,17 @@ contract MorphoAdapter {
 
     /// Get user's supply position (lender)
     function getSupplyPosition(address user) external view returns (uint256) {
-        return MORPHO.supplyShares(marketId, user);
+        return MORPHO.position(marketId, user).supplyShares;
     }
 
     /// Get user's borrow position
     function getBorrowPosition(address user) external view returns (uint256) {
-        return MORPHO.borrowShares(marketId, user);
+        return MORPHO.position(marketId, user).borrowShares;
     }
 
     /// Get user's collateral balance
     function getCollateralBalance(address user) external view returns (uint256) {
-        return MORPHO.collateral(marketId, user);
+        return MORPHO.position(marketId, user).collateral;
     }
 
     // ═══════════════════════════════════════════════════════════════

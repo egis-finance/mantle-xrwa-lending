@@ -62,4 +62,30 @@ export const MorphoAbi = [
     inputs: [{ name: 'id', type: 'bytes32' }],
     outputs: [{ type: 'uint256' }],
   },
+  {
+    name: 'supply',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'marketParams',
+        type: 'tuple',
+        components: [
+          { name: 'loanToken', type: 'address' },
+          { name: 'collateralToken', type: 'address' },
+          { name: 'oracle', type: 'address' },
+          { name: 'irm', type: 'address' },
+          { name: 'lltv', type: 'uint256' },
+        ],
+      },
+      { name: 'assets', type: 'uint256' },
+      { name: 'shares', type: 'uint256' },
+      { name: 'onBehalf', type: 'address' },
+      { name: 'data', type: 'bytes' },
+    ],
+    outputs: [
+      { name: 'assetsSupplied', type: 'uint256' },
+      { name: 'sharesSupplied', type: 'uint256' },
+    ],
+  },
 ] as const

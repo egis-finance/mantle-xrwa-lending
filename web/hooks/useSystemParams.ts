@@ -7,7 +7,7 @@ import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { useOraclePrice } from './useOraclePrice';
 
-interface MorphoMarketParams {
+export interface MorphoMarketParams {
   loanToken: `0x${string}`;
   collateralToken: `0x${string}`;
   oracle: `0x${string}`;
@@ -53,6 +53,9 @@ export interface SystemParams {
 
   // Timestamps
   lastUpdate: number | null;
+
+  // Raw market params from on-chain (for passing to supply/borrow hooks)
+  marketParams: MorphoMarketParams | undefined;
 
   // Loading states
   isLoading: boolean;
@@ -147,6 +150,7 @@ export function useSystemParams(): SystemParams {
     oracleHaircutPercentage: oraclePrice.data?.haircutPercentage ?? null,
     oracleIsStale: oraclePrice.data?.isStale ?? null,
     lastUpdate,
+    marketParams,
     isLoading,
     isError,
     refetch: () => {

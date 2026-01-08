@@ -89,13 +89,4 @@ interface IMorpho {
 
     /// Get market state
     function market(Id marketId) external view returns (Market memory);
-
-    /// Get user's supply shares
-    function supplyShares(Id marketId, address user) external view returns (uint256);
-
-    /// Get user's borrow shares
-    function borrowShares(Id marketId, address user) external view returns (uint256);
-
-    /// Get user's collateral balance
-    function collateral(Id marketId, address user) external view returns (uint256);
 }

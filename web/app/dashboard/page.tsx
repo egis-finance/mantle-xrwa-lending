@@ -5,7 +5,7 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
-import { Activity, RefreshCw, Info, ShieldCheck, Lock, Coins, Wallet } from 'lucide-react';
+import { Activity, RefreshCw, Info, ShieldCheck } from 'lucide-react';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';

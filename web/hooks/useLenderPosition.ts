@@ -24,6 +24,7 @@ interface MorphoMarket {
 
 interface LenderPositionResult {
   suppliedValue: string | null;
+  suppliedRaw: bigint;  // Raw BigInt for exact validation (USDC 6 decimals)
   supplyShares: bigint;
   totalSupplyAssets: bigint;
   totalSupplyShares: bigint;
@@ -73,18 +74,16 @@ export function useLenderPosition(
     const [position, market] = result.data;
     if (!position || !market) return undefined;
 
-    // Calculate supplied assets from shares
-    let suppliedValue: string | null = null;
-    if (position.supplyShares === 0n) {
-      suppliedValue = '0';
-    } else if (market.totalSupplyShares > 0n) {
-      // (supplyShares * totalSupplyAssets) / totalSupplyShares (USDC has 6 decimals)
-      const suppliedAmount = (position.supplyShares * market.totalSupplyAssets) / market.totalSupplyShares;
-      suppliedValue = formatUnits(suppliedAmount, 6);
+    // Calculate supplied assets from shares: (supplyShares * totalSupplyAssets) / totalSupplyShares
+    let suppliedRaw = 0n;
+    if (position.supplyShares > 0n && market.totalSupplyShares > 0n) {
+      suppliedRaw = (position.supplyShares * market.totalSupplyAssets) / market.totalSupplyShares;
     }
+    const suppliedValue = formatUnits(suppliedRaw, 6);
 
     return {
       suppliedValue,
+      suppliedRaw,
       supplyShares: position.supplyShares,
       totalSupplyAssets: market.totalSupplyAssets,
       totalSupplyShares: market.totalSupplyShares,
