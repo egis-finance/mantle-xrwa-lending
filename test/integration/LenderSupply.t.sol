@@ -139,10 +139,12 @@ contract LenderSupplyTest is Test {
         morphoAdapter.initializeMarket(marketParams);
     }
 
-    function _getMarketParamsFromId(Id) internal pure returns (MarketParams memory) {
+    function _getMarketParamsFromId(Id /* _marketId */) internal pure returns (MarketParams memory) {
         // In production, we'd call idToMarketParams on Morpho
         // For now, return empty and let test skip if needed
-        return MarketParams({loanToken: address(0), collateralToken: address(0), oracle: address(0), irm: address(0), lltv: 0});
+        return MarketParams({
+            loanToken: address(0), collateralToken: address(0), oracle: address(0), irm: address(0), lltv: 0
+        });
     }
 
     /**
