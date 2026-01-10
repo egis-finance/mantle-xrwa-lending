@@ -19,6 +19,7 @@ import { useChainAbstracted } from '@/hooks/useChainAbstracted';
 import { contracts, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/contracts';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
+import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
 
 export default function DashboardPage() {
     const { address: userAddress, isConnected } = useDynamicWallet();
@@ -69,7 +70,7 @@ export default function DashboardPage() {
             // Note: In a real bot this would be atomic, but here we do it simply
             const approveHash = await executeOnEthereum({
                 address: contracts.usdc.address,
-                abi: [{ name: 'approve', type: 'function', inputs: [{ name: 's', type: 'address' }, { name: 'a', type: 'uint256' }], outputs: [{ type: 'bool' }] }],
+                abi: ERC20Abi,
                 functionName: 'approve',
                 args: [contracts.morpho.address, position.debtRaw],
             });
