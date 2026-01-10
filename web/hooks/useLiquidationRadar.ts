@@ -117,9 +117,9 @@ export function useLiquidationRadar(lltv: number = 0.86) {
                 abi: MorphoAbi,
                 functionName: 'position',
                 args: [marketId as `0x${string}`, borrower],
-              }) as [bigint, bigint, bigint];
+              }) as { supplyShares: bigint; borrowShares: bigint; collateral: bigint };
 
-              const [supplyShares, borrowShares, collateral] = position;
+              const { borrowShares, collateral } = position;
 
               // Only track active borrowers
               if (borrowShares === 0n) return null;

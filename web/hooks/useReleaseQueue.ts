@@ -112,9 +112,9 @@ export function useReleaseQueue() {
               abi: MorphoAbi,
               functionName: 'position',
               args: [marketId as `0x${string}`, borrower],
-            }) as [bigint, bigint, bigint];
+            }) as { supplyShares: bigint; borrowShares: bigint; collateral: bigint };
 
-            const debtShares = position[1];
+            const debtShares = position.borrowShares;
 
             return {
               borrower,
