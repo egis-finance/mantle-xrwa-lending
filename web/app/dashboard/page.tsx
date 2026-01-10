@@ -5,7 +5,7 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
-import { Activity, RefreshCw, Info, ShieldCheck } from 'lucide-react';
+import { Activity, RefreshCw, Info, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';
@@ -13,12 +13,91 @@ import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { MyPosition } from '@/components/MyPosition';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useReleaseQueue } from '@/hooks/useReleaseQueue';
+import { useLiquidationRadar, type BorrowerPosition } from '@/hooks/useLiquidationRadar';
+import { useChainAbstracted } from '@/hooks/useChainAbstracted';
+import { contracts, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/contracts';
+import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
+import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 
 export default function DashboardPage() {
     const { address: userAddress, isConnected } = useDynamicWallet();
     const systemParams = useSystemParams();
     const borrowerDebt = useBorrowerDebt(userAddress);
     const loanHealth = useLoanHealth(userAddress, { lltv: systemParams.lltv ?? 0.86 });
+    
+    const { requests, isLoading: isQueueLoading, refetch: refetchQueue } = useReleaseQueue();
+    const { positions: radarPositions, isLoading: isRadarLoading, refetch: refetchRadar } = useLiquidationRadar(systemParams.lltv ?? 0.86);
+    const { signOnMantle, executeOnEthereum, waitForTransaction } = useChainAbstracted();
+    
+    const [processingId, setProcessingId] = React.useState<string | null>(null);
+    const [processError, setProcessError] = React.useState<string | null>(null);
+    
+    const [liquidatingId, setLiquidatingId] = React.useState<string | null>(null);
+    const [liqError, setLiquidatingError] = React.useState<string | null>(null);
+
+    const handleProcessRelease = async (borrower: string, amount: bigint, lockId: string) => {
+        try {
+            setProcessingId(borrower);
+            setProcessError(null);
+            
+            const hash = await signOnMantle({
+                address: contracts.collateralLocker.address,
+                abi: CollateralLockerAbi,
+                functionName: 'unlock',
+                args: [borrower, amount, lockId],
+            });
+            
+            await waitForTransaction(MANTLE_CHAIN_ID, hash);
+            await refetchQueue();
+        } catch (err) {
+            console.error('Release failed:', err);
+            setProcessError(err instanceof Error ? err.message : 'Processing failed');
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleLiquidate = async (position: BorrowerPosition) => {
+        if (!systemParams.marketParams) return;
+        
+        try {
+            setLiquidatingId(position.borrower);
+            setLiquidatingError(null);
+
+            // 1. Approve Morpho to spend USDC (liquidator pays debt)
+            // Note: In a real bot this would be atomic, but here we do it simply
+            const approveHash = await executeOnEthereum({
+                address: contracts.usdc.address,
+                abi: [{ name: 'approve', type: 'function', inputs: [{ name: 's', type: 'address' }, { name: 'a', type: 'uint256' }], outputs: [{ type: 'bool' }] }],
+                functionName: 'approve',
+                args: [contracts.morpho.address, position.debtRaw],
+            });
+            await waitForTransaction(ETHEREUM_CHAIN_ID, approveHash);
+
+            // 2. Trigger liquidation on Morpho Blue
+            const hash = await executeOnEthereum({
+                address: contracts.morpho.address,
+                abi: MorphoAbi,
+                functionName: 'liquidate',
+                args: [
+                    systemParams.marketParams,
+                    position.borrower,
+                    position.collateralRaw, // seize all collateral
+                    position.debtRaw,       // repay all debt
+                    '0x'                    // no callback data
+                ],
+            });
+            
+            await waitForTransaction(ETHEREUM_CHAIN_ID, hash);
+            await refetchRadar();
+        } catch (err) {
+            console.error('Liquidation failed:', err);
+            setLiquidatingError(err instanceof Error ? err.message : 'Liquidation failed');
+        } finally {
+            setLiquidatingId(null);
+        }
+    };
     
     return (
         <div className="min-h-screen bg-slate-50/50 flex flex-col relative overflow-hidden">
@@ -61,9 +140,17 @@ export default function DashboardPage() {
                                 </div>
                                 Liquidation Radar
                             </CardTitle>
-                            <Button variant="outline" size="sm" className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors">
-                                <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                {isRadarLoading && <Loader2 className="h-4 w-4 animate-spin text-brand-DEFAULT" />}
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={() => refetchRadar()}
+                                    className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors"
+                                >
+                                    <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent className="p-0">
                             <div className="overflow-hidden">
@@ -77,55 +164,60 @@ export default function DashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
-                                        {isConnected && borrowerDebt.data?.borrowShares && borrowerDebt.data.borrowShares > 0n ? (
-                                            <tr className="bg-brand-light/5 hover:bg-brand-light/10 transition-colors group">
-                                                <td className="p-4 font-mono text-brand-DEFAULT font-bold">
-                                                    {userAddress?.slice(0, 6)}...{userAddress?.slice(-4)}
-                                                    <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
-                                                </td>
-                                                <td className={cn(
-                                                    "p-4 font-bold bg-success-light/5 rounded-r-lg",
-                                                    loanHealth.riskLevel === 'safe' ? "text-success-DEFAULT" :
-                                                    loanHealth.riskLevel === 'warning' ? "text-warning-DEFAULT" :
-                                                    "text-danger-DEFAULT"
-                                                )}>
-                                                    {loanHealth.healthFactor ? Number(loanHealth.healthFactor).toFixed(2) : '--'}
-                                                </td>
-                                                <td className="p-4 font-bold text-brand-dark">${formatTvl(borrowerDebt.data.value)}</td>
-                                                <td className="p-4 text-right">
-                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-brand-light/20 text-brand-DEFAULT font-medium border border-brand-light shadow-sm">Active</span>
-                                                </td>
+                                        {radarPositions.length === 0 && !isRadarLoading ? (
+                                            <tr>
+                                                <td colSpan={4} className="p-8 text-center text-brand-muted italic">No active borrowers found</td>
                                             </tr>
-                                        ) : null}
-                                        <tr className="bg-white hover:bg-blue-50/30 transition-colors group">
-                                            <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">0xab...45</td>
-                                            <td className="p-4 text-success-DEFAULT font-bold bg-success-light/5 rounded-r-lg">1.66</td>
-                                            <td className="p-4">$60,000</td>
-                                            <td className="p-4 text-right text-brand-muted">
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium border border-gray-200 shadow-sm">Mock Data</span>
-                                            </td>
-                                        </tr>
-                                        <tr className="bg-amber-50/20 hover:bg-amber-50/40 transition-colors">
-                                            <td className="p-4 font-mono text-brand-dark">0xcd...89</td>
-                                            <td className="p-4 text-warning-DEFAULT font-bold bg-warning-light/10">1.17</td>
-                                            <td className="p-4">$85,000</td>
-                                            <td className="p-4 text-right text-brand-muted">
-                                                 <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500 font-medium border border-gray-200 shadow-sm">Mock Data</span>
-                                            </td>
-                                        </tr>
-                                        <tr className="bg-red-50/20 hover:bg-red-50/40 transition-colors">
-                                            <td className="p-4 font-mono text-brand-dark">0xef...12</td>
-                                            <td className="p-4 text-danger-DEFAULT font-bold bg-danger-light/10">1.02</td>
-                                            <td className="p-4">$98,000</td>
-                                            <td className="p-4 text-right">
-                                                <div className="flex flex-col items-end gap-1">
-                                                    <Button size="sm" variant="destructive" className="h-8 hover:bg-red-700 transition-colors shadow-sm hover:shadow-red-200">Trigger Liq</Button>
-                                                    <span className="text-[10px] text-gray-400">Mock Data</span>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        ) : (
+                                            radarPositions.map((pos) => (
+                                                <tr key={pos.borrower} className="bg-white hover:bg-blue-50/30 transition-colors group">
+                                                    <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">
+                                                        {pos.borrower.slice(0, 6)}...{pos.borrower.slice(-4)}
+                                                        {pos.borrower === userAddress && (
+                                                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                        )}
+                                                    </td>
+                                                    <td className={cn(
+                                                        "p-4 font-bold bg-success-light/5 rounded-r-lg",
+                                                        pos.riskLevel === 'liquidatable' ? "text-danger-DEFAULT animate-pulse" :
+                                                        pos.riskLevel === 'danger' ? "text-danger-DEFAULT" :
+                                                        pos.riskLevel === 'warning' ? "text-warning-DEFAULT" :
+                                                        "text-success-DEFAULT"
+                                                    )}>
+                                                        {pos.healthFactor ? pos.healthFactor.toFixed(2) : '--'}
+                                                    </td>
+                                                    <td className="p-4 font-bold text-brand-dark">${pos.debtValue}</td>
+                                                    <td className="p-4 text-right">
+                                                        {liquidatingId === pos.borrower ? (
+                                                            <Button size="sm" disabled className="bg-danger-DEFAULT text-white opacity-70">
+                                                                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                                                Liquidating
+                                                            </Button>
+                                                        ) : pos.riskLevel === 'liquidatable' ? (
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="destructive" 
+                                                                onClick={() => handleLiquidate(pos)}
+                                                                className="h-8 hover:bg-red-700 transition-all shadow-sm hover:shadow-red-200 hover:scale-105 active:scale-95"
+                                                            >
+                                                                Trigger Liq
+                                                            </Button>
+                                                        ) : (
+                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-brand-light/20 text-brand-DEFAULT font-medium border border-brand-light shadow-sm">Safe</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
+                                {liqError && (
+                                    <div className="p-3 m-4 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {liqError}
+                                        <button onClick={() => setLiquidatingError(null)} className="ml-auto underline">Dismiss</button>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -133,35 +225,74 @@ export default function DashboardPage() {
                     {/* Release Queue */}
                     <Card className="border-t-4 border-t-purple-500 shadow-md bg-gradient-to-br from-white to-purple-50/20">
                         <CardHeader className="border-b border-gray-100 bg-white/50 backdrop-blur-sm">
-                            <CardTitle className="text-lg text-purple-900 flex items-center gap-2">
-                                <div className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
-                                    <Activity className="h-5 w-5 rotate-90" />
-                                </div>
-                                Release Queue
-                            </CardTitle>
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-lg text-purple-900 flex items-center gap-2">
+                                    <div className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
+                                        <Activity className="h-5 w-5 rotate-90" />
+                                    </div>
+                                    Release Queue
+                                </CardTitle>
+                                {isQueueLoading && <Loader2 className="h-4 w-4 animate-spin text-purple-600" />}
+                            </div>
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-4">
-                                {[1, 2].map((i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all hover:border-purple-100 group">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                                <p className="font-mono text-sm text-brand-dark group-hover:text-purple-700 transition-colors">0xab...45</p>
-                                                <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-gray-100 text-gray-500 font-medium border border-gray-200">Mock Data</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500">Request: <span className="font-bold text-gray-900">50,000 USDY</span></p>
-                                        </div>
-                                        {i === 1 ? (
-                                            <Button size="sm" variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-colors">
-                                                Process Release
-                                            </Button>
-                                        ) : (
-                                            <Button size="sm" disabled variant="secondary" className="bg-gray-100 text-gray-400">
-                                                Waiting...
-                                            </Button>
-                                        )}
+                                {requests.length === 0 && !isQueueLoading ? (
+                                    <div className="text-center py-8">
+                                        <p className="text-sm text-brand-muted italic">No pending releases found</p>
                                     </div>
-                                ))}
+                                ) : (
+                                    requests.map((request) => (
+                                        <div key={request.borrower} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all hover:border-purple-100 group">
+                                            <div className="space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-mono text-sm text-brand-dark group-hover:text-purple-700 transition-colors">
+                                                        {request.borrower.slice(0, 6)}...{request.borrower.slice(-4)}
+                                                    </p>
+                                                    {request.borrower === userAddress && (
+                                                        <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Locked: <span className="font-bold text-gray-900">{request.lockedAmount} USDY</span>
+                                                </p>
+                                                {request.status === 'waiting' && (
+                                                    <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        Repayment pending on Ethereum
+                                                    </p>
+                                                )}
+                                            </div>
+                                            
+                                            {processingId === request.borrower ? (
+                                                <Button size="sm" disabled className="bg-purple-100 text-purple-600 border-purple-200">
+                                                    <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                                    Processing
+                                                </Button>
+                                            ) : request.status === 'ready' ? (
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="outline" 
+                                                    onClick={() => handleProcessRelease(request.borrower, request.lockedAmountRaw, request.lastLockId)}
+                                                    className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-all hover:scale-105 active:scale-95"
+                                                >
+                                                    Process Release
+                                                </Button>
+                                            ) : (
+                                                <Button size="sm" disabled variant="secondary" className="bg-gray-100 text-gray-400">
+                                                    Waiting...
+                                                </Button>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                                {processError && (
+                                    <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {processError}
+                                        <button onClick={() => setProcessError(null)} className="ml-auto underline">Dismiss</button>
+                                    </div>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

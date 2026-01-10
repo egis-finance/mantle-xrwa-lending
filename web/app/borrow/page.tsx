@@ -17,6 +17,7 @@ import { useChainAbstracted } from '@/hooks/useChainAbstracted';
 import { LoanHealthCard } from '@/components/LoanHealthCard';
 import { contracts } from '@/lib/contracts';
 import { formatTvl } from '@/lib/format';
+import { formatError } from '@/lib/errors';
 import { cn } from '@/lib/utils';
 import { parseUnits } from 'viem';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
@@ -175,16 +176,21 @@ export default function BorrowPage(): ReactElement {
         invalidateCrossChainReads();
       }
     } catch (err) {
-      const error = err as { shortMessage?: string; message?: string };
-      console.error('Lock failed:', error);
+      console.error('Lock failed:', err);
       setTxStatus('error');
-      setLockError(error.shortMessage || error.message || 'Transaction failed');
+      setLockError(formatError(err));
     } finally {
       setIsLocking(false);
     }
   };
 
   const isLockDisabled = !lockAmount || !!lockError || isLoading || availableBalanceNum === 0 || isLocking;
+
+  const handleReset = () => {
+    setTxStatus('idle');
+    setLockAmount('');
+    setLockError('');
+  };
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -243,7 +249,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={() => handlePercentageClick(25)}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-110 active:scale-95 hover:shadow-md"
                                             >
                                                 25%
                                             </button>
@@ -251,7 +257,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={() => handlePercentageClick(50)}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-110 active:scale-95 hover:shadow-md"
                                             >
                                                 50%
                                             </button>
@@ -259,7 +265,7 @@ export default function BorrowPage(): ReactElement {
                                                 onClick={handleMaxClick}
                                                 disabled={isLoading || availableBalanceNum === 0}
                                                 type="button"
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                className="px-3 py-1.5 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-110 active:scale-95 hover:shadow-md"
                                             >
                                                 MAX
                                             </button>
@@ -290,8 +296,16 @@ export default function BorrowPage(): ReactElement {
                                     {/* Error Message */}
                                     {lockError && (
                                         <div className="flex items-start gap-2 p-3 rounded-lg bg-red-50 border-2 border-red-200">
-                      <span className="text-red-600 font-bold text-sm mt-0.5">!</span>
-                                            <p className="text-sm text-red-700 font-medium">{lockError}</p>
+                                            <span className="text-red-600 font-bold text-sm mt-0.5">!</span>
+                                            <div className="flex-1">
+                                                <p className="text-sm text-red-700 font-medium">{lockError}</p>
+                                                <button 
+                                                    onClick={handleReset}
+                                                    className="text-xs text-red-600 underline mt-1 hover:text-red-800 transition-colors"
+                                                >
+                                                    Reset Form
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
 
