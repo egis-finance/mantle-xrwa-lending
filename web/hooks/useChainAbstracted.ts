@@ -52,6 +52,9 @@ interface ChainAbstractedOperations {
   // Transaction confirmation
   waitForTransaction: (chainId: number, hash: Hash) => Promise<TransactionReceipt>;
 
+  // Wallet utilities
+  getSignerAddress: () => Promise<Address>;
+
   // State
   canSign: boolean;
 }
@@ -148,12 +151,22 @@ export function useChainAbstracted(): ChainAbstractedOperations {
     []
   );
 
+  const getSignerAddress = useCallback(async (): Promise<Address> => {
+    if (!primaryWallet || !isEthereumWallet(primaryWallet)) {
+      throw new Error('No Ethereum wallet connected');
+    }
+    const walletClient = await primaryWallet.getWalletClient();
+    const [account] = await walletClient.getAddresses();
+    return account;
+  }, [primaryWallet]);
+
   return {
     readFromMantle,
     readFromEthereum,
     signOnMantle,
     executeOnEthereum,
     waitForTransaction,
+    getSignerAddress,
     canSign,
   };
 }
