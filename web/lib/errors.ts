@@ -1,15 +1,21 @@
 /**
  * Formats blockchain and wallet errors into user-friendly messages.
  * Handles common cases like user rejection, insufficient funds, and network issues.
+ * In development mode, logs full error details to console for debugging.
  */
 export function formatError(error: unknown): string {
   if (!error) return 'Transaction failed';
+
+  // Dev-mode logging for debugging - full error context
+  if (process.env.NODE_ENV === 'development') {
+    console.error('[formatError] Raw error:', error);
+  }
 
   const message = error instanceof Error ? error.message : String(error);
 
   // User rejected the transaction in their wallet
   if (
-    message.includes('user rejected') || 
+    message.includes('user rejected') ||
     message.includes('User rejected') ||
     message.includes('User denied') ||
     message.includes('ACTION_REJECTED')
@@ -32,8 +38,12 @@ export function formatError(error: unknown): string {
     return 'Transaction timed out. Please try again.';
   }
 
-  // Fallback to a generic message if we don't recognize the specific error
-  // but keep it cleaner than the full viem stack trace
+  // Fallback with truncated error in dev mode for easier debugging
+  if (process.env.NODE_ENV === 'development') {
+    const truncated = message.length > 100 ? message.slice(0, 100) + '...' : message;
+    return `Transaction failed: ${truncated}`;
+  }
+
   return 'Transaction failed. Please try again.';
 }
 
