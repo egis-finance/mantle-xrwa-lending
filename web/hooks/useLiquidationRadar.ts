@@ -2,7 +2,7 @@
 
 import React from 'react';
 import useSWR from 'swr';
-import { formatUnits, type Address, type Hash } from 'viem';
+import { formatUnits, type Address } from 'viem';
 import { getPublicClient } from '@/lib/swr/chains';
 import { contracts, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
@@ -11,6 +11,52 @@ import { RefreshIntervals } from '@/lib/swr/config';
 import { useSDKReady } from './useSDKReady';
 import { useOraclePrice } from './useOraclePrice';
 import { useDynamicWallet } from './useDynamicWallet';
+
+// Cache discovered borrowers locally to avoid rescanning 2M blocks on every load
+// Cache key scoped by chain + contracts to isolate VTE vs mainnet environments
+const BORROWERS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function getBorrowersCacheKey(): string {
+  return `egis-borrowers-${MANTLE_CHAIN_ID}-${contracts.collateralLocker.address}-${contracts.morpho.address}`;
+}
+
+interface BorrowersCache {
+  borrowers: Address[];
+  timestamp: number;
+}
+
+function getCachedBorrowers(): Address[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(getBorrowersCacheKey());
+    if (!cached) return null;
+    const { borrowers, timestamp } = JSON.parse(cached) as BorrowersCache;
+    if (Date.now() - timestamp > BORROWERS_CACHE_TTL) return null;
+    return borrowers;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedBorrowers(borrowers: Address[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache: BorrowersCache = { borrowers, timestamp: Date.now() };
+    localStorage.setItem(getBorrowersCacheKey(), JSON.stringify(cache));
+  } catch {
+    // Storage quota exceeded or private browsing - ignore
+  }
+}
+
+/** Clear borrowers cache - exposed for manual rescan functionality */
+export function clearBorrowersCache(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(getBorrowersCacheKey());
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 interface MorphoMarket {
   totalSupplyAssets: bigint;
@@ -25,8 +71,12 @@ export interface BorrowerPosition {
   borrower: Address;
   healthFactor: number | null;
   debtValue: string;
-  debtRaw: bigint;
-  collateralRaw: bigint;
+  /** Raw debt shares from Morpho position() - used as repaidShares in liquidate() */
+  borrowShares: bigint;
+  /** Ceiling-rounded debt in USDC (6 decimals) - matches Morpho's toAssetsUp for display */
+  debtAssets: bigint;
+  /** Raw collateral amount (18 decimals) - informational only, not used in liquidate() */
+  collateral: bigint;
   riskLevel: 'safe' | 'warning' | 'danger' | 'liquidatable';
 }
 
@@ -46,13 +96,25 @@ export function useLiquidationRadar(lltv: number = 0.86) {
 
   const { address: userAddress } = useDynamicWallet();
 
-  // 1. Fetch unique borrowers from Mantle (scan more blocks for discovery)
-  const { data: discoveredBorrowers, isLoading: isDiscoveryLoading } = useSWR(
+  // Track rescan with local state (SWR's isValidating fires on all revalidations, not just rescan)
+  const [isRescanning, setIsRescanning] = React.useState(false);
+
+  // Gate rescan availability on whether discovery is enabled
+  const canRescan = sdkReady && isConfigured;
+
+  // 1. Fetch unique borrowers from Mantle (with localStorage caching)
+  const { data: discoveredBorrowers, isLoading: isDiscoveryLoading, mutate: mutateDiscovery } = useSWR(
     sdkReady && isConfigured ? ['liquidation-radar-borrowers'] : null,
     async () => {
+      // Check cache first - avoids rescanning 2M blocks on every page load
+      const cached = getCachedBorrowers();
+      if (cached && cached.length > 0) {
+        return cached;
+      }
+
       const publicClient = getPublicClient(MANTLE_CHAIN_ID);
       try {
-        // Scan a much larger range for discovery (2M blocks ~ 45 days on Mantle)
+        // Full historical scan only on cache miss (2M blocks ~ 45 days on Mantle)
         const currentBlock = await publicClient.getBlockNumber();
         const fromBlock = currentBlock > 2000000n ? currentBlock - 2000000n : 0n;
 
@@ -75,13 +137,17 @@ export function useLiquidationRadar(lltv: number = 0.86) {
 
         const unique = new Set<Address>();
         logs.forEach(log => { if (log.args.borrower) unique.add(log.args.borrower); });
-        return Array.from(unique);
+        const borrowers = Array.from(unique);
+
+        // Cache results for future page loads
+        setCachedBorrowers(borrowers);
+        return borrowers;
       } catch (err) {
         console.error('Radar discovery error:', err);
         return [];
       }
     },
-    { refreshInterval: RefreshIntervals.PROTOCOL_TVL }
+    { refreshInterval: 0 } // Don't auto-refresh discovery - use manual refetch or cache expiry
   );
 
   // 2. Combine discovered borrowers with current user for immediate visibility
@@ -124,18 +190,20 @@ export function useLiquidationRadar(lltv: number = 0.86) {
               // Only track active borrowers
               if (borrowShares === 0n) return null;
 
-              // Convert shares to assets: (shares * totalAssets) / totalShares
-              let debtAmount = 0n;
+              // Convert shares to assets with CEILING rounding (matches Morpho's toAssetsUp)
+              // ceil(a * b / c) = (a * b + c - 1) / c
+              let debtAssets = 0n;
               if (market.totalBorrowShares > 0n) {
-                debtAmount = (borrowShares * market.totalBorrowAssets) / market.totalBorrowShares;
+                debtAssets = (borrowShares * market.totalBorrowAssets + market.totalBorrowShares - 1n) / market.totalBorrowShares;
               } else {
-                debtAmount = borrowShares; // Fallback for 1:1 initial state
+                debtAssets = borrowShares; // Fallback for 1:1 initial state
               }
-              
+
+              // Use ceiling-rounded debtAssets for display and HF calculation
               // HF = (Collateral * OraclePrice * LLTV) / Debt
               const collateralValue = Number(formatUnits(collateral, 18)) * oraclePrice;
-              const debtValue = Number(formatUnits(debtAmount, 6)); 
-              
+              const debtValue = Number(formatUnits(debtAssets, 6));
+
               const hf = debtValue > 0 ? (collateralValue * lltv) / debtValue : null;
 
               let riskLevel: BorrowerPosition['riskLevel'] = 'safe';
@@ -149,8 +217,9 @@ export function useLiquidationRadar(lltv: number = 0.86) {
                 borrower,
                 healthFactor: hf,
                 debtValue: debtValue.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-                debtRaw: borrowShares,
-                collateralRaw: collateral,
+                borrowShares,
+                debtAssets,
+                collateral,
                 riskLevel,
               } as BorrowerPosition;
             } catch (err) {
@@ -175,6 +244,18 @@ export function useLiquidationRadar(lltv: number = 0.86) {
   return {
     positions: positions ?? [],
     isLoading: isDiscoveryLoading || isRadarLoading,
+    isDiscovering: isRescanning,
+    canRescan,
     refetch,
+    rescanBorrowers: async () => {
+      if (!canRescan) return;
+      setIsRescanning(true);
+      try {
+        clearBorrowersCache();
+        await mutateDiscovery();
+      } finally {
+        setIsRescanning(false);
+      }
+    },
   };
 }
