@@ -5,7 +5,9 @@ import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
-import { Activity, RefreshCw, Info, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Activity, RefreshCw, Info, ShieldCheck, Loader2, AlertCircle, X } from 'lucide-react';
+import { formatUnits, maxUint256 } from 'viem';
+import { getMarketId } from '@/lib/marketId';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';
@@ -28,14 +30,16 @@ export default function DashboardPage() {
     const loanHealth = useLoanHealth(userAddress, { lltv: systemParams.lltv ?? 0.86 });
     
     const { requests, isLoading: isQueueLoading, refetch: refetchQueue } = useReleaseQueue();
-    const { positions: radarPositions, isLoading: isRadarLoading, refetch: refetchRadar } = useLiquidationRadar(systemParams.lltv ?? 0.86);
-    const { signOnMantle, executeOnEthereum, waitForTransaction } = useChainAbstracted();
+    const { positions: radarPositions, isLoading: isRadarLoading, isDiscovering, canRescan, refetch: refetchRadar, rescanBorrowers } = useLiquidationRadar(systemParams.lltv ?? 0.86);
+    const { signOnMantle, executeOnEthereum, waitForTransaction, readFromEthereum, canSign, getSignerAddress } = useChainAbstracted();
+    const marketId = getMarketId();
     
     const [processingId, setProcessingId] = React.useState<string | null>(null);
     const [processError, setProcessError] = React.useState<string | null>(null);
     
     const [liquidatingId, setLiquidatingId] = React.useState<string | null>(null);
-    const [liqError, setLiquidatingError] = React.useState<string | null>(null);
+    const [liquidatingError, setLiquidatingError] = React.useState<string | null>(null);
+    const [pendingLiquidation, setPendingLiquidation] = React.useState<BorrowerPosition | null>(null);
 
     const handleProcessRelease = async (borrower: string, amount: bigint, lockId: string) => {
         try {
@@ -59,24 +63,103 @@ export default function DashboardPage() {
         }
     };
 
-    const handleLiquidate = async (position: BorrowerPosition) => {
-        if (!systemParams.marketParams) return;
-        
+    // Show confirmation modal before liquidation
+    const handleLiquidateClick = (position: BorrowerPosition) => {
+        setPendingLiquidation(position);
+    };
+
+    // Execute liquidation after user confirms
+    const handleConfirmLiquidation = async () => {
+        if (!pendingLiquidation || !systemParams.marketParams || !canSign) return;
+
+        const position = pendingLiquidation;
+        setPendingLiquidation(null);
+
         try {
             setLiquidatingId(position.borrower);
             setLiquidatingError(null);
 
-            // 1. Approve Morpho to spend USDC (liquidator pays debt)
-            // Note: In a real bot this would be atomic, but here we do it simply
-            const approveHash = await executeOnEthereum({
-                address: contracts.usdc.address,
-                abi: ERC20Abi,
-                functionName: 'approve',
-                args: [contracts.morpho.address, position.debtRaw],
-            });
-            await waitForTransaction(ETHEREUM_CHAIN_ID, approveHash);
+            // Get signer address at execution time (not stale userAddress state)
+            const signerAddress = await getSignerAddress();
 
-            // 2. Trigger liquidation on Morpho Blue
+            // Re-read fresh market AND position state to account for changes since radar load
+            // (borrower may have repaid/borrowed, interest accrued, etc.)
+            const [market, freshPosition, currentAllowance] = await Promise.all([
+                readFromEthereum<{
+                    totalSupplyAssets: bigint;
+                    totalSupplyShares: bigint;
+                    totalBorrowAssets: bigint;
+                    totalBorrowShares: bigint;
+                    lastUpdate: bigint;
+                    fee: bigint;
+                }>({
+                    address: contracts.morpho.address,
+                    abi: MorphoAbi,
+                    functionName: 'market',
+                    args: [marketId],
+                }),
+                readFromEthereum<{ supplyShares: bigint; borrowShares: bigint; collateral: bigint }>({
+                    address: contracts.morpho.address,
+                    abi: MorphoAbi,
+                    functionName: 'position',
+                    args: [marketId, position.borrower],
+                }),
+                readFromEthereum<bigint>({
+                    address: contracts.usdc.address,
+                    abi: ERC20Abi,
+                    functionName: 'allowance',
+                    args: [signerAddress, contracts.morpho.address],
+                }),
+            ]);
+
+            // Use fresh borrowShares for both approval calculation and liquidate() call
+            const freshBorrowShares = freshPosition.borrowShares;
+
+            // Guard: if borrower repaid (no debt left), abort and refresh radar
+            if (freshBorrowShares === 0n) {
+                setLiquidatingError('Position no longer exists - borrower has repaid');
+                await refetchRadar();
+                return;
+            }
+
+            // Compute fresh debt with ceiling division (matches Morpho's toAssetsUp)
+            // Edge case: if market.totalBorrowShares === 0n but freshBorrowShares > 0n,
+            // fallback to 1:1 shares-to-assets ratio which is safe for approval purposes
+            let freshDebtAssets = 0n;
+            if (market.totalBorrowShares > 0n) {
+                freshDebtAssets = (freshBorrowShares * market.totalBorrowAssets + market.totalBorrowShares - 1n) / market.totalBorrowShares;
+            } else {
+                freshDebtAssets = freshBorrowShares; // 1:1 fallback for edge state
+            }
+
+            // Only approve if insufficient; use max approval to avoid future tx
+            if (currentAllowance < freshDebtAssets) {
+                const approveHash = await executeOnEthereum({
+                    address: contracts.usdc.address,
+                    abi: ERC20Abi,
+                    functionName: 'approve',
+                    args: [contracts.morpho.address, maxUint256],
+                });
+                await waitForTransaction(ETHEREUM_CHAIN_ID, approveHash);
+            }
+
+            /**
+             * Design Decision: Using repaidShares (not seizedAssets) for liquidation
+             *
+             * For attested RWA collateral (AcUSDY), specifying repaidShares and letting
+             * Morpho calculate seizedAssets is essential because:
+             *
+             * 1. AcUSDY is non-transferable except to whitelisted addresses - the exact
+             *    seizable amount depends on Morpho's internal state
+             * 2. The NAV Oracle applies a 2% haircut, making precise collateral calculation
+             *    non-trivial from the frontend
+             * 3. Cross-chain attestation delays mean collateral state may differ from
+             *    what we read - repaidShares adapts automatically
+             * 4. If USDY de-pegs (RWA tail risk), repaidShares handles bad debt gracefully
+             *    by seizing all available collateral and recording the shortfall
+             * 5. Front-running protection: if another liquidator partially liquidates first,
+             *    our transaction still succeeds with remaining shares
+             */
             const hash = await executeOnEthereum({
                 address: contracts.morpho.address,
                 abi: MorphoAbi,
@@ -84,12 +167,12 @@ export default function DashboardPage() {
                 args: [
                     systemParams.marketParams,
                     position.borrower,
-                    position.collateralRaw, // seize all collateral
-                    position.debtRaw,       // repay all debt
-                    '0x'                    // no callback data
+                    0n,                 // seizedAssets = 0 (let Morpho calculate)
+                    freshBorrowShares,  // repaidShares = fresh debt shares
+                    '0x'
                 ],
             });
-            
+
             await waitForTransaction(ETHEREUM_CHAIN_ID, hash);
             await refetchRadar();
         } catch (err) {
@@ -143,13 +226,23 @@ export default function DashboardPage() {
                             </CardTitle>
                             <div className="flex items-center gap-2">
                                 {isRadarLoading && <Loader2 className="h-4 w-4 animate-spin text-brand-DEFAULT" />}
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     onClick={() => refetchRadar()}
                                     className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors"
                                 >
                                     <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => rescanBorrowers()}
+                                    disabled={!canRescan || isDiscovering}
+                                    title={!canRescan ? "Discovery not available" : "Rescan for new borrowers (clears cache)"}
+                                    className="text-xs text-brand-muted hover:text-brand-DEFAULT"
+                                >
+                                    {isDiscovering ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Rescan'}
                                 </Button>
                             </div>
                         </CardHeader>
@@ -195,11 +288,13 @@ export default function DashboardPage() {
                                                                 Liquidating
                                                             </Button>
                                                         ) : pos.riskLevel === 'liquidatable' ? (
-                                                            <Button 
-                                                                size="sm" 
-                                                                variant="destructive" 
-                                                                onClick={() => handleLiquidate(pos)}
-                                                                className="h-8 hover:bg-red-700 transition-all shadow-sm hover:shadow-red-200 hover:scale-105 active:scale-95"
+                                                            <Button
+                                                                size="sm"
+                                                                variant="destructive"
+                                                                onClick={() => handleLiquidateClick(pos)}
+                                                                disabled={!canSign}
+                                                                title={!canSign ? "Connect wallet to liquidate" : undefined}
+                                                                className="h-8 hover:bg-red-700 transition-all shadow-sm hover:shadow-red-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                                             >
                                                                 Trigger Liq
                                                             </Button>
@@ -212,10 +307,10 @@ export default function DashboardPage() {
                                         )}
                                     </tbody>
                                 </table>
-                                {liqError && (
+                                {liquidatingError && (
                                     <div className="p-3 m-4 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
                                         <AlertCircle className="h-3 w-3" />
-                                        {liqError}
+                                        {liquidatingError}
                                         <button onClick={() => setLiquidatingError(null)} className="ml-auto underline">Dismiss</button>
                                     </div>
                                 )}
@@ -488,6 +583,72 @@ export default function DashboardPage() {
                 </Card>
 
             </main>
+
+            {/* Liquidation Confirmation Modal */}
+            {pendingLiquidation && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl p-6 max-w-md shadow-xl m-4 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-danger-DEFAULT flex items-center gap-2">
+                                <AlertCircle className="h-5 w-5" />
+                                Confirm Liquidation
+                            </h3>
+                            <button
+                                onClick={() => setPendingLiquidation(null)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        <p className="text-sm text-gray-600 mb-4">
+                            You are about to liquidate the position for{' '}
+                            <span className="font-mono font-semibold text-gray-900">
+                                {pendingLiquidation.borrower.slice(0, 6)}...{pendingLiquidation.borrower.slice(-4)}
+                            </span>
+                        </p>
+
+                        <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-2 mb-4">
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Debt to repay:</span>
+                                <span className="font-bold text-gray-900">${pendingLiquidation.debtValue} USDC</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Collateral:</span>
+                                <span className="font-bold text-gray-900">
+                                    {parseFloat(formatUnits(pendingLiquidation.collateral, 18)).toLocaleString(undefined, { maximumFractionDigits: 2 })} AcUSDY
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-gray-500">Health Factor:</span>
+                                <span className="font-bold text-danger-DEFAULT">
+                                    {pendingLiquidation.healthFactor?.toFixed(3) ?? '--'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-500 pt-2 border-t border-gray-200">
+                                + liquidation bonus applied by Morpho protocol
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => setPendingLiquidation(null)}
+                                className="flex-1"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleConfirmLiquidation}
+                                className="flex-1"
+                            >
+                                Confirm Liquidation
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
