@@ -25,6 +25,17 @@ export const CollateralLockerAbi = [
     outputs: [{ type: 'uint256' }],
   },
   {
+    name: 'unlock',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'lockId', type: 'bytes32' },
+    ],
+    outputs: [],
+  },
+  {
     type: 'event',
     name: 'Locked',
     inputs: [

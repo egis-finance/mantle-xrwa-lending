@@ -88,4 +88,56 @@ export const MorphoAbi = [
       { name: 'sharesSupplied', type: 'uint256' },
     ],
   },
+  {
+    name: 'withdraw',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'marketParams',
+        type: 'tuple',
+        components: [
+          { name: 'loanToken', type: 'address' },
+          { name: 'collateralToken', type: 'address' },
+          { name: 'oracle', type: 'address' },
+          { name: 'irm', type: 'address' },
+          { name: 'lltv', type: 'uint256' },
+        ],
+      },
+      { name: 'assets', type: 'uint256' },
+      { name: 'shares', type: 'uint256' },
+      { name: 'onBehalf', type: 'address' },
+      { name: 'receiver', type: 'address' },
+    ],
+    outputs: [
+      { name: 'assetsWithdrawn', type: 'uint256' },
+      { name: 'sharesWithdrawn', type: 'uint256' },
+    ],
+  },
+  {
+    name: 'liquidate',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      {
+        name: 'marketParams',
+        type: 'tuple',
+        components: [
+          { name: 'loanToken', type: 'address' },
+          { name: 'collateralToken', type: 'address' },
+          { name: 'oracle', type: 'address' },
+          { name: 'irm', type: 'address' },
+          { name: 'lltv', type: 'uint256' },
+        ],
+      },
+      { name: 'borrower', type: 'address' },
+      { name: 'seizedAssets', type: 'uint256' },
+      { name: 'repaidShares', type: 'uint256' },
+      { name: 'data', type: 'bytes' },
+    ],
+    outputs: [
+      { name: 'repaidAssets', type: 'uint256' },
+      { name: 'seizedAssetsResult', type: 'uint256' },
+    ],
+  },
 ] as const

@@ -4,20 +4,20 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-    "inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-colors cursor-pointer hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+    "inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-all duration-200 cursor-pointer hover:scale-[1.02] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:scale-100",
     {
         variants: {
             variant: {
-                default: "bg-brand-gradient text-white shadow-md hover:shadow-lg hover:opacity-95 border-0",
+                default: "bg-brand-gradient text-white shadow-md hover:shadow-lg hover:brightness-110 border-0",
                 destructive:
                     "bg-destructive text-destructive-foreground hover:bg-destructive/90",
                 outline:
-                    "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                    "border border-input bg-background hover:bg-accent hover:text-accent-foreground hover:border-accent",
                 secondary:
-                    "bg-white text-brand-dark border border-input hover:bg-brand-light/50",
+                    "bg-white text-brand-dark border border-input hover:bg-brand-light/50 hover:shadow-sm",
                 ghost: "hover:bg-accent hover:text-accent-foreground",
-                link: "text-primary underline-offset-4 hover:underline",
-                mantle: "bg-mantle-gradient text-white shadow-md hover:shadow-lg hover:opacity-95 border-0",
+                link: "text-primary underline-offset-4 hover:underline hover:scale-100",
+                mantle: "bg-mantle-gradient text-white shadow-md hover:shadow-lg hover:brightness-110 border-0",
             },
             size: {
                 default: "h-11 px-6 py-2",

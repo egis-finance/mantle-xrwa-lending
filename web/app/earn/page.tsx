@@ -11,9 +11,11 @@ import { useSystemParams } from '@/hooks/useSystemParams';
 import { useSupplyAPY } from '@/hooks/useSupplyAPY';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useSupplyUSDCDirect } from '@/hooks/useSupplyUSDCDirect';
+import { useWithdrawUSDCDirect } from '@/hooks/useWithdrawUSDCDirect';
 import { useLenderPosition } from '@/hooks/useLenderPosition';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { formatTvl } from '@/lib/format';
+import { formatError } from '@/lib/errors';
 
 export default function EarnPage() {
     const { address: walletAddress, isConnected } = useDynamicWallet();
@@ -26,7 +28,8 @@ export default function EarnPage() {
     // Lender's USDC balance and current position
     const usdcBalance = useUSDCBalance(walletAddress);
     const lenderPosition = useLenderPosition(walletAddress);
-    const { supply, status: supplyStatus, statusMessage, error: supplyError, reset: resetSupply } = useSupplyUSDCDirect(systemParams.marketParams);
+    const { supply, status: supplyStatus, statusMessage: supplyStatusMessage, error: supplyError, reset: resetSupply } = useSupplyUSDCDirect(systemParams.marketParams);
+    const { withdraw, status: withdrawStatus, statusMessage: withdrawStatusMessage, error: withdrawError, reset: resetWithdraw } = useWithdrawUSDCDirect(systemParams.marketParams);
 
     const [activeTab, setActiveTab] = React.useState<'supply' | 'withdraw'>('supply');
     const [amount, setAmount] = React.useState('');
@@ -45,7 +48,7 @@ export default function EarnPage() {
     const isLoading = activeTab === 'supply'
         ? usdcBalance.isLoading
         : lenderPosition.isLoading;
-    const isProcessing = ['approving', 'supplying', 'confirming'].includes(supplyStatus);
+    const isProcessing = ['approving', 'supplying', 'confirming', 'withdrawing'].includes(supplyStatus) || ['withdrawing', 'confirming'].includes(withdrawStatus);
 
     // Calculate estimated monthly earnings from position × APY
     const estimatedMonthlyEarnings = React.useMemo(() => {
@@ -117,6 +120,14 @@ export default function EarnPage() {
 
     const isActionDisabled = !amount || !!amountError || isLoading || !hasBalance || isProcessing || !isConnected;
 
+    // Reset both transaction status and form inputs
+    const handleReset = () => {
+        resetSupply();
+        resetWithdraw();
+        setAmount('');
+        setAmountError('');
+    };
+
     // Handle supply transaction
     const handleSupply = async () => {
         if (activeTab !== 'supply' || !amount || amountError) return;
@@ -131,12 +142,30 @@ export default function EarnPage() {
         }
     };
 
-    // Status message helper - uses hook's statusMessage or fallback for errors
-    const getStatusDisplay = (): string => {
-        if (supplyStatus === 'error') {
-            return supplyError?.message ?? 'Transaction failed';
+    // Handle withdraw transaction
+    const handleWithdraw = async () => {
+        if (activeTab !== 'withdraw' || !amount || amountError) return;
+
+        try {
+            // Parse amount to USDC decimals (6)
+            const amountBigInt = parseUnits(amount, 6);
+            await withdraw(amountBigInt);
+            setAmount(''); // Clear on success
+        } catch {
+            // Error handled by hook state
         }
-        return statusMessage;
+    };
+
+    // Status message helper - uses hook's statusMessage or formatted error
+    const getStatusDisplay = (): string => {
+        const status = activeTab === 'supply' ? supplyStatus : withdrawStatus;
+        const error = activeTab === 'supply' ? supplyError : withdrawError;
+        const message = activeTab === 'supply' ? supplyStatusMessage : withdrawStatusMessage;
+
+        if (status === 'error') {
+            return formatError(error);
+        }
+        return message;
     };
 
     return (
@@ -240,13 +269,13 @@ export default function EarnPage() {
                             <div className="flex p-1 bg-brand-light/50 rounded-lg w-fit">
                                 <button 
                                     onClick={() => { setActiveTab('supply'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
                                 >
                                     Supply
                                 </button>
                                 <button 
                                     onClick={() => { setActiveTab('withdraw'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
                                 >
                                     Withdraw
                                 </button>
@@ -260,7 +289,7 @@ export default function EarnPage() {
                                             onClick={() => handlePercentageClick(25)}
                                             disabled={isLoading || !hasBalance}
                                             type="button"
-                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
+                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md hover:scale-110 active:scale-95"
                                         >
                                             25%
                                         </button>
@@ -268,7 +297,7 @@ export default function EarnPage() {
                                             onClick={() => handlePercentageClick(50)}
                                             disabled={isLoading || !hasBalance}
                                             type="button"
-                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
+                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md hover:scale-110 active:scale-95"
                                         >
                                             50%
                                         </button>
@@ -276,7 +305,7 @@ export default function EarnPage() {
                                             onClick={handleMaxClick}
                                             disabled={isLoading || !hasBalance}
                                             type="button"
-                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md active:scale-95"
+                                            className="px-2 py-1 text-xs font-medium text-white bg-brand-DEFAULT hover:bg-brand-dark rounded-md transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:shadow-md hover:scale-110 active:scale-95"
                                         >
                                             MAX
                                         </button>
@@ -319,18 +348,23 @@ export default function EarnPage() {
                             </div>
 
                             {/* Transaction status feedback */}
-                            {supplyStatus !== 'idle' && (
+                            {(activeTab === 'supply' ? supplyStatus : withdrawStatus) !== 'idle' && (
                                 <div className={`flex items-center gap-2 p-3 rounded-lg ${
-                                    supplyStatus === 'success' ? 'bg-success-light text-success-DEFAULT' :
-                                    supplyStatus === 'error' ? 'bg-red-50 text-danger-DEFAULT' :
+                                    (activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'success' ? 'bg-success-light text-success-DEFAULT' :
+                                    (activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error' ? 'bg-red-50 text-danger-DEFAULT' :
                                     'bg-blue-50 text-blue-600'
                                 }`}>
                                     {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
-                                    {supplyStatus === 'success' && <CheckCircle className="h-4 w-4" />}
-                                    {supplyStatus === 'error' && <AlertCircle className="h-4 w-4" />}
+                                    {(activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'success' && <CheckCircle className="h-4 w-4" />}
+                                    {(activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error' && <AlertCircle className="h-4 w-4" />}
                                     <span className="text-sm font-medium">{getStatusDisplay()}</span>
-                                    {supplyStatus === 'error' && (
-                                        <button onClick={resetSupply} className="ml-auto text-xs underline">Dismiss</button>
+                                    {((activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'success' || (activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error') && (
+                                        <button 
+                                            onClick={handleReset} 
+                                            className="ml-auto text-xs underline hover:opacity-80 transition-opacity"
+                                        >
+                                            {(activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error' ? 'Reset Form' : 'Dismiss'}
+                                        </button>
                                     )}
                                 </div>
                             )}
@@ -338,7 +372,7 @@ export default function EarnPage() {
                             <Button
                                 className="w-full h-12 text-lg bg-gradient-to-r from-success-DEFAULT to-emerald-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={isActionDisabled}
-                                onClick={activeTab === 'supply' ? handleSupply : undefined}
+                                onClick={activeTab === 'supply' ? handleSupply : handleWithdraw}
                             >
                                 {isProcessing ? (
                                     <span className="flex items-center justify-center gap-2">
