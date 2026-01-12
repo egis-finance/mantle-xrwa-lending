@@ -12,6 +12,23 @@ import { RefreshIntervals } from '@/lib/swr/config';
 import { useSDKReady } from './useSDKReady';
 import { useDynamicWallet } from './useDynamicWallet';
 
+// Chunked scanning to avoid RPC timeouts on large block ranges
+const LOG_LOOKBACK_BLOCKS = 2_000_000n;
+const LOG_CHUNK_SIZE = 50_000n;
+
+const LOCKED_EVENT = {
+  type: 'event',
+  name: 'Locked',
+  inputs: [
+    { name: 'borrower', type: 'address', indexed: true },
+    { name: 'lockId', type: 'bytes32', indexed: true },
+    { name: 'amount', type: 'uint256', indexed: false },
+    { name: 'sourceChainId', type: 'uint256', indexed: false },
+    { name: 'validUntil', type: 'uint64', indexed: false },
+    { name: 'vcHash', type: 'bytes32', indexed: false },
+  ],
+} as const;
+
 export interface ReleaseRequest {
   borrower: Address;
   lockedAmount: string;
@@ -37,39 +54,39 @@ export function useReleaseQueue() {
   const { address: userAddress } = useDynamicWallet();
 
   // 1. Fetch all unique borrowers and their last lockId from Locked events on Mantle
+  // Uses chunked scanning to avoid RPC timeouts on large block ranges
   const { data: borrowersMap, isLoading: isEventsLoading, error: eventsError } = useSWR(
     sdkReady && isConfigured ? ['release-queue-borrowers-map'] : null,
     async () => {
       const publicClient = getPublicClient(MANTLE_CHAIN_ID);
-      
+
       try {
-        // Limit block range for performance/stability (2M blocks for broader discovery)
         const currentBlock = await publicClient.getBlockNumber();
-        const fromBlock = currentBlock > 2000000n ? currentBlock - 2000000n : 0n;
+        const fromBlock = currentBlock > LOG_LOOKBACK_BLOCKS ? currentBlock - LOG_LOOKBACK_BLOCKS : 0n;
 
-        const logs = await publicClient.getLogs({
-          address: contracts.collateralLocker.address,
-          event: {
-            type: 'event',
-            name: 'Locked',
-            inputs: [
-              { name: 'borrower', type: 'address', indexed: true },
-              { name: 'lockId', type: 'bytes32', indexed: true },
-              { name: 'amount', type: 'uint256', indexed: false },
-              { name: 'sourceChainId', type: 'uint256', indexed: false },
-              { name: 'validUntil', type: 'uint64', indexed: false },
-              { name: 'vcHash', type: 'bytes32', indexed: false },
-            ],
-          },
-          fromBlock,
-        });
-
+        // Scan in chunks to avoid RPC timeouts
         const map = new Map<Address, Hash>();
-        logs.forEach(log => {
-          if (log.args.borrower && log.args.lockId) {
-            map.set(log.args.borrower, log.args.lockId);
-          }
-        });
+        let startBlock = fromBlock;
+
+        while (startBlock <= currentBlock) {
+          const endBlock = startBlock + LOG_CHUNK_SIZE - 1n;
+          const chunkToBlock = endBlock > currentBlock ? currentBlock : endBlock;
+
+          const logs = await publicClient.getLogs({
+            address: contracts.collateralLocker.address,
+            event: LOCKED_EVENT,
+            fromBlock: startBlock,
+            toBlock: chunkToBlock,
+          });
+
+          logs.forEach(log => {
+            if (log.args.borrower && log.args.lockId) {
+              map.set(log.args.borrower, log.args.lockId);
+            }
+          });
+
+          startBlock = chunkToBlock + 1n;
+        }
 
         return map;
       } catch (err) {

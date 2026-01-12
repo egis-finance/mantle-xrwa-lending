@@ -3,6 +3,7 @@
  */
 
 import type { BorrowerPosition } from './useLiquidationRadar'
+import { parseOptionalBigInt } from './useLiquidationRadar'
 
 // Test the risk level classification logic used in useLiquidationRadar
 // The actual hook uses these thresholds: < 1.0 = liquidatable, < 1.1 = danger, < 1.25 = warning, else = safe
@@ -196,5 +197,158 @@ describe('useLiquidationRadar risk levels', () => {
       // Should be slightly more than 5B due to interest
       expect(assets).toBeGreaterThan(5_000_000_000_000000n)
     })
+  })
+})
+
+describe('parseOptionalBigInt', () => {
+  it('should parse valid positive bigint strings', () => {
+    expect(parseOptionalBigInt('123')).toBe(123n)
+    expect(parseOptionalBigInt('0')).toBe(0n)
+    expect(parseOptionalBigInt('1000000')).toBe(1000000n)
+  })
+
+  it('should parse very large block numbers', () => {
+    // Realistic Mantle block numbers
+    expect(parseOptionalBigInt('85000000')).toBe(85000000n)
+    expect(parseOptionalBigInt('2000000')).toBe(2000000n)
+  })
+
+  it('should return null for undefined/empty values', () => {
+    expect(parseOptionalBigInt(undefined)).toBeNull()
+    expect(parseOptionalBigInt('')).toBeNull()
+  })
+
+  it('should return null for invalid strings', () => {
+    expect(parseOptionalBigInt('abc')).toBeNull()
+    expect(parseOptionalBigInt('12.34')).toBeNull()
+    expect(parseOptionalBigInt('not a number')).toBeNull()
+  })
+
+  it('should accept hex strings (BigInt supports 0x prefix)', () => {
+    // BigInt() does support hex, which is fine for block numbers
+    expect(parseOptionalBigInt('0x1234')).toBe(0x1234n)
+  })
+
+  it('should return null for negative values', () => {
+    expect(parseOptionalBigInt('-1')).toBeNull()
+    expect(parseOptionalBigInt('-100')).toBeNull()
+  })
+})
+
+describe('BorrowersCache with lastScannedBlock', () => {
+  const CACHE_KEY = 'egis-borrowers-test'
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('should serialize and deserialize cache with lastScannedBlock', () => {
+    const cache = {
+      borrowers: ['0x1234567890123456789012345678901234567890' as `0x${string}`],
+      timestamp: Date.now(),
+      lastScannedBlock: '85000000',
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache))
+
+    const retrieved = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+    expect(retrieved.lastScannedBlock).toBe('85000000')
+    expect(parseOptionalBigInt(retrieved.lastScannedBlock)).toBe(85000000n)
+  })
+
+  it('should handle cache without lastScannedBlock (legacy format)', () => {
+    const legacyCache = {
+      borrowers: ['0x1234567890123456789012345678901234567890'],
+      timestamp: Date.now(),
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(legacyCache))
+
+    const retrieved = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+    expect(retrieved.lastScannedBlock).toBeUndefined()
+    expect(parseOptionalBigInt(retrieved.lastScannedBlock)).toBeNull()
+  })
+
+  it('should accumulate borrowers across scans', () => {
+    // Simulate first scan
+    const firstScan = {
+      borrowers: ['0xAAA0000000000000000000000000000000000001'],
+      timestamp: Date.now(),
+      lastScannedBlock: '1000',
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(firstScan))
+
+    // Simulate second scan that discovers new borrower
+    const existingCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+    const allBorrowers = new Set(existingCache.borrowers)
+    allBorrowers.add('0xBBB0000000000000000000000000000000000002')
+
+    const secondScan = {
+      borrowers: Array.from(allBorrowers),
+      timestamp: Date.now(),
+      lastScannedBlock: '2000',
+    }
+    localStorage.setItem(CACHE_KEY, JSON.stringify(secondScan))
+
+    const final = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}')
+    expect(final.borrowers).toHaveLength(2)
+    expect(final.lastScannedBlock).toBe('2000')
+  })
+})
+
+describe('Chunked log scanning logic', () => {
+  // Test the chunking boundary calculations used in scanLockedBorrowers
+  const CHUNK_SIZE = 50000n
+
+  function calculateChunks(fromBlock: bigint, toBlock: bigint): Array<{ from: bigint; to: bigint }> {
+    const chunks: Array<{ from: bigint; to: bigint }> = []
+    if (fromBlock > toBlock) return chunks
+
+    let startBlock = fromBlock
+    while (startBlock <= toBlock) {
+      const endBlock = startBlock + CHUNK_SIZE - 1n
+      const chunkToBlock = endBlock > toBlock ? toBlock : endBlock
+      chunks.push({ from: startBlock, to: chunkToBlock })
+      startBlock = chunkToBlock + 1n
+    }
+    return chunks
+  }
+
+  it('should produce single chunk for range smaller than chunk size', () => {
+    const chunks = calculateChunks(1000n, 10000n)
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toEqual({ from: 1000n, to: 10000n })
+  })
+
+  it('should produce multiple chunks for large ranges', () => {
+    // 100k blocks = 2 chunks of 50k each
+    const chunks = calculateChunks(0n, 99999n)
+    expect(chunks).toHaveLength(2)
+    expect(chunks[0]).toEqual({ from: 0n, to: 49999n })
+    expect(chunks[1]).toEqual({ from: 50000n, to: 99999n })
+  })
+
+  it('should handle exact chunk boundary', () => {
+    // Exactly 50k blocks = 1 chunk
+    const chunks = calculateChunks(0n, 49999n)
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toEqual({ from: 0n, to: 49999n })
+  })
+
+  it('should return empty array when fromBlock > toBlock', () => {
+    const chunks = calculateChunks(1000n, 500n)
+    expect(chunks).toHaveLength(0)
+  })
+
+  it('should handle single block range', () => {
+    const chunks = calculateChunks(5000n, 5000n)
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toEqual({ from: 5000n, to: 5000n })
+  })
+
+  it('should correctly chunk realistic 2M block range', () => {
+    // 2M blocks at 50k chunks = 40 chunks
+    const chunks = calculateChunks(0n, 1999999n)
+    expect(chunks).toHaveLength(40)
+    expect(chunks[0].from).toBe(0n)
+    expect(chunks[39].to).toBe(1999999n)
   })
 })

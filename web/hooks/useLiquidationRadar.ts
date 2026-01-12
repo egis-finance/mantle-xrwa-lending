@@ -15,6 +15,44 @@ import { useDynamicWallet } from './useDynamicWallet';
 // Cache discovered borrowers locally to avoid rescanning 2M blocks on every load
 // Cache key scoped by chain + contracts to isolate VTE vs mainnet environments
 const BORROWERS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const DEFAULT_LOG_LOOKBACK_BLOCKS = 2_000_000n;
+const DEFAULT_LOG_CHUNK_SIZE = 50_000n;
+
+const LOCKED_EVENT = {
+  type: 'event',
+  name: 'Locked',
+  inputs: [
+    { name: 'borrower', type: 'address', indexed: true },
+    { name: 'lockId', type: 'bytes32', indexed: true },
+    { name: 'amount', type: 'uint256', indexed: false },
+    { name: 'sourceChainId', type: 'uint256', indexed: false },
+    { name: 'validUntil', type: 'uint64', indexed: false },
+    { name: 'vcHash', type: 'bytes32', indexed: false },
+  ],
+} as const;
+
+/** @internal Exported for testing */
+export function parseOptionalBigInt(value: string | undefined): bigint | null {
+  if (!value) return null;
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+const RADAR_LOG_LOOKBACK_BLOCKS = (() => {
+  const parsed = parseOptionalBigInt(process.env.NEXT_PUBLIC_LIQUIDATION_RADAR_LOOKBACK_BLOCKS);
+  return parsed && parsed > 0n ? parsed : DEFAULT_LOG_LOOKBACK_BLOCKS;
+})();
+
+const RADAR_LOG_CHUNK_SIZE = (() => {
+  const parsed = parseOptionalBigInt(process.env.NEXT_PUBLIC_LIQUIDATION_RADAR_LOG_CHUNK_SIZE);
+  return parsed && parsed > 0n ? parsed : DEFAULT_LOG_CHUNK_SIZE;
+})();
+
+const RADAR_FROM_BLOCK = parseOptionalBigInt(process.env.NEXT_PUBLIC_LIQUIDATION_RADAR_FROM_BLOCK);
 
 function getBorrowersCacheKey(): string {
   return `egis-borrowers-${MANTLE_CHAIN_ID}-${contracts.collateralLocker.address}-${contracts.morpho.address}`;
@@ -23,25 +61,28 @@ function getBorrowersCacheKey(): string {
 interface BorrowersCache {
   borrowers: Address[];
   timestamp: number;
+  lastScannedBlock?: string;
 }
 
-function getCachedBorrowers(): Address[] | null {
+function getCachedBorrowers(): BorrowersCache | null {
   if (typeof window === 'undefined') return null;
   try {
     const cached = localStorage.getItem(getBorrowersCacheKey());
     if (!cached) return null;
-    const { borrowers, timestamp } = JSON.parse(cached) as BorrowersCache;
-    if (Date.now() - timestamp > BORROWERS_CACHE_TTL) return null;
-    return borrowers;
+    return JSON.parse(cached) as BorrowersCache;
   } catch {
     return null;
   }
 }
 
-function setCachedBorrowers(borrowers: Address[]): void {
+function setCachedBorrowers(borrowers: Address[], lastScannedBlock?: bigint): void {
   if (typeof window === 'undefined') return;
   try {
-    const cache: BorrowersCache = { borrowers, timestamp: Date.now() };
+    const cache: BorrowersCache = {
+      borrowers,
+      timestamp: Date.now(),
+      lastScannedBlock: lastScannedBlock ? lastScannedBlock.toString() : undefined,
+    };
     localStorage.setItem(getBorrowersCacheKey(), JSON.stringify(cache));
   } catch {
     // Storage quota exceeded or private browsing - ignore
@@ -80,6 +121,36 @@ export interface BorrowerPosition {
   riskLevel: 'safe' | 'warning' | 'danger' | 'liquidatable';
 }
 
+async function scanLockedBorrowers(
+  publicClient: ReturnType<typeof getPublicClient>,
+  fromBlock: bigint,
+  toBlock: bigint
+): Promise<Set<Address>> {
+  const unique = new Set<Address>();
+  if (fromBlock > toBlock) return unique;
+
+  let startBlock = fromBlock;
+  while (startBlock <= toBlock) {
+    const endBlock = startBlock + RADAR_LOG_CHUNK_SIZE - 1n;
+    const chunkToBlock = endBlock > toBlock ? toBlock : endBlock;
+
+    const logs = await publicClient.getLogs({
+      address: contracts.collateralLocker.address,
+      event: LOCKED_EVENT,
+      fromBlock: startBlock,
+      toBlock: chunkToBlock,
+    });
+
+    logs.forEach(log => {
+      if (log.args.borrower) unique.add(log.args.borrower);
+    });
+
+    startBlock = chunkToBlock + 1n;
+  }
+
+  return unique;
+}
+
 /**
  * Hook to fetch and monitor all active borrower positions for potential liquidations.
  * Scans historical Mantle events to find borrowers, then checks their live Ethereum state.
@@ -108,43 +179,38 @@ export function useLiquidationRadar(lltv: number = 0.86) {
     async () => {
       // Check cache first - avoids rescanning 2M blocks on every page load
       const cached = getCachedBorrowers();
-      if (cached && cached.length > 0) {
-        return cached;
+      const isCacheFresh = cached ? Date.now() - cached.timestamp <= BORROWERS_CACHE_TTL : false;
+      if (cached?.borrowers?.length && isCacheFresh) {
+        return cached.borrowers;
       }
 
       const publicClient = getPublicClient(MANTLE_CHAIN_ID);
       try {
-        // Full historical scan only on cache miss (2M blocks ~ 45 days on Mantle)
+        // Scan Mantle logs in chunks to avoid RPC timeouts on large ranges.
         const currentBlock = await publicClient.getBlockNumber();
-        const fromBlock = currentBlock > 2000000n ? currentBlock - 2000000n : 0n;
+        const defaultFromBlock = RADAR_FROM_BLOCK ?? (
+          currentBlock > RADAR_LOG_LOOKBACK_BLOCKS ? currentBlock - RADAR_LOG_LOOKBACK_BLOCKS : 0n
+        );
+        const clampedFromBlock = defaultFromBlock > currentBlock ? currentBlock : defaultFromBlock;
+        const cachedLastScanned = parseOptionalBigInt(cached?.lastScannedBlock);
+        const fromBlock = cachedLastScanned !== null && cachedLastScanned + 1n > clampedFromBlock
+          ? cachedLastScanned + 1n
+          : clampedFromBlock;
 
-        const logs = await publicClient.getLogs({
-          address: contracts.collateralLocker.address,
-          event: {
-            type: 'event',
-            name: 'Locked',
-            inputs: [
-              { name: 'borrower', type: 'address', indexed: true },
-              { name: 'lockId', type: 'bytes32', indexed: true },
-              { name: 'amount', type: 'uint256', indexed: false },
-              { name: 'sourceChainId', type: 'uint256', indexed: false },
-              { name: 'validUntil', type: 'uint64', indexed: false },
-              { name: 'vcHash', type: 'bytes32', indexed: false },
-            ],
-          },
-          fromBlock,
-        });
+        const unique = new Set<Address>(cached?.borrowers ?? []);
+        if (fromBlock <= currentBlock) {
+          const discovered = await scanLockedBorrowers(publicClient, fromBlock, currentBlock);
+          discovered.forEach(borrower => unique.add(borrower));
+        }
 
-        const unique = new Set<Address>();
-        logs.forEach(log => { if (log.args.borrower) unique.add(log.args.borrower); });
         const borrowers = Array.from(unique);
 
         // Cache results for future page loads
-        setCachedBorrowers(borrowers);
+        setCachedBorrowers(borrowers, currentBlock);
         return borrowers;
       } catch (err) {
         console.error('Radar discovery error:', err);
-        return [];
+        return cached?.borrowers ?? [];
       }
     },
     { refreshInterval: 0 } // Don't auto-refresh discovery - use manual refetch or cache expiry
