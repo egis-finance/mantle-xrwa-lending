@@ -199,6 +199,14 @@ export default function DashboardPage() {
                     <p className="text-brand-muted">System monitoring and risk management operations.</p>
                 </div>
 
+                {/* Stale Oracle Warning */}
+                {systemParams.oracleIsStale === true && (
+                    <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-r-lg flex items-center gap-3">
+                        <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                        <span>Warning: Oracle price is stale. Displayed values may be outdated.</span>
+                    </div>
+                )}
+
                 {/* Global Health Bar */}
                 <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
                     <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl bg-gradient-to-r from-white via-white to-emerald-50/30">

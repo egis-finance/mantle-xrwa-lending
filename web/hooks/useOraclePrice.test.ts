@@ -171,6 +171,36 @@ describe('useOraclePrice', () => {
 
       expect(result.current.data?.isStale).toBe(true)
     })
+
+    it('should return price even when stale (getPriceWithHaircut never reverts)', () => {
+      // Key scenario: oracle is stale but getPriceWithHaircut() still returns a price
+      // This verifies the B1 fix - using getPriceWithHaircut instead of price()
+      mockUseMultiChainBatchRead.mockReturnValue({
+        data: [1050000000000000000000000n, true], // stale = true
+        isLoading: false,
+        isError: false, // no error despite staleness
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
+      mockUseMultiChainRead.mockReturnValue({
+        data: 200n,
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+        isRefetching: false,
+      })
+
+      const { result } = renderHook(() => useOraclePrice())
+
+      // Price should still be available
+      expect(result.current.data?.value).toBe('1.05')
+      expect(result.current.data?.raw).toBe(1050000000000000000000000n)
+      // Staleness should be flagged
+      expect(result.current.data?.isStale).toBe(true)
+      // No error state - UI can show warning instead of error
+      expect(result.current.isError).toBe(false)
+      expect(result.current.isLoading).toBe(false)
+    })
   })
 
   describe('Loading States', () => {
