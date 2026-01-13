@@ -1,0 +1,40 @@
+# Multi-stage Dockerfile for xRWA Price Updater
+# Designed for Railway cron deployment - runs once and exits
+#
+# Build: docker build -f Dockerfile.price-updater -t xrwa-price-updater:latest .
+# Run:   docker run --env-file ../.env xrwa-price-updater:latest
+
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+WORKDIR /build
+
+# Copy go mod files first for dependency caching
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
+# Copy source and build static binary
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o /price-updater \
+    ./cmd/price-updater
+
+# Runtime stage - minimal distroless image
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# CA certs required for HTTPS RPC calls
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /price-updater /price-updater
+
+USER nonroot:nonroot
+
+# Sensible defaults for Railway
+ENV LOG_LEVEL=info
+
+# Run price update and exit with appropriate code
+ENTRYPOINT ["/price-updater"]
