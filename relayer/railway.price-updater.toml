@@ -1,0 +1,6 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.price-updater"
+
+[deploy]
+cronSchedule = "0 */6 * * *"
