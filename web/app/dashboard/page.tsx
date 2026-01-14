@@ -10,8 +10,6 @@ import { formatUnits, maxUint256 } from 'viem';
 import { getMarketId } from '@/lib/marketId';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
-import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';
-import { useLoanHealth } from '@/hooks/useLoanHealth';
 import { MyPosition } from '@/components/MyPosition';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -24,10 +22,8 @@ import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
 
 export default function DashboardPage() {
-    const { address: userAddress, isConnected } = useDynamicWallet();
+    const { address: userAddress } = useDynamicWallet();
     const systemParams = useSystemParams();
-    const borrowerDebt = useBorrowerDebt(userAddress);
-    const loanHealth = useLoanHealth(userAddress, { lltv: systemParams.lltv ?? 0.86 });
     
     const { requests, isLoading: isQueueLoading, refetch: refetchQueue } = useReleaseQueue();
     const { positions: radarPositions, isLoading: isRadarLoading, isDiscovering, canRescan, refetch: refetchRadar, rescanBorrowers } = useLiquidationRadar(systemParams.lltv ?? 0.86);

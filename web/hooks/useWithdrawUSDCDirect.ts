@@ -5,7 +5,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import type { Address, Hash } from 'viem';
+import type { Hash } from 'viem';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import { getPublicClient } from '@/lib/swr/chains';

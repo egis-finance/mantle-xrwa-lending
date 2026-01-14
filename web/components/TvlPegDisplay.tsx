@@ -2,24 +2,24 @@
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 import { formatTvl } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { Layers, RefreshCw, Lock, Coins } from 'lucide-react'
+import { Layers, RefreshCw, Lock, Coins, AlertTriangle } from 'lucide-react'
 
 export function TvlPegDisplay() {
-  const { mantle, ethereum, isLoading, isRefetching, refetch } = useTvlPeg()
+  const { mantle, ethereum, isBalanced, isLoading, isRefetching, refetch } = useTvlPeg()
 
-  // Architecture: 
-  // Mantle (CollateralLocker) holds Locked USDY.
-  // Ethereum (Morpho) holds AcUSDY (collateral for borrowing).
-  // These represent the total protocol TVL split across two chains.
-  // There is no "balance" requirement - users can lock as much USDY as they want.
-  
+  // Protocol invariant: Locked USDY on Mantle must equal AcUSDY supply on Ethereum.
+  // Divergence indicates relayer lag (pending attestations) or operational issues.
+  // TVL = Locked USDY (the actual collateral). AcUSDY is a 1:1 receipt on Ethereum.
+
   const mantleVal = parseFloat(mantle.value || '0') || 0
   const ethVal = parseFloat(ethereum.value || '0') || 0
-  const totalTvl = mantleVal + ethVal
 
-  // Calculate percentages for the visual bar
-  const mantlePercent = totalTvl > 0 ? (mantleVal / totalTvl) * 100 : 0
-  const ethPercent = totalTvl > 0 ? (ethVal / totalTvl) * 100 : 0
+  // TVL is the locked collateral on Mantle (not sum of both - that would double count)
+  const totalTvl = mantleVal
+
+  // Bar shows attestation coverage: what % of locked USDY has been attested as AcUSDY
+  const attestedPercent = mantleVal > 0 ? Math.min((ethVal / mantleVal) * 100, 100) : 0
+  const unattestedPercent = 100 - attestedPercent
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -52,34 +52,51 @@ export function TvlPegDisplay() {
             <span className="text-xs font-semibold text-brand-muted uppercase tracking-wider">Total Value Locked</span>
         </div>
 
-        {/* Visual Bar Graph - shows TVL distribution across chains */}
+        {/* Visual Bar Graph - shows attestation coverage */}
         <div className="relative h-10 w-full flex rounded-lg overflow-hidden mb-6 ring-1 ring-gray-200">
-            {/* Mantle Segment (teal) */}
+            {/* Attested Segment (purple - AcUSDY minted on Ethereum) */}
             <div
-                className="h-full bg-[#65b3ad] relative transition-all duration-1000 ease-out"
-                style={{ width: `${mantlePercent}%` }}
+                className="h-full bg-[#627eea] relative transition-all duration-1000 ease-out"
+                style={{ width: `${attestedPercent}%` }}
             >
                 <div className="absolute inset-0 flex items-center justify-center gap-1.5">
-                    <span className="text-[11px] font-medium text-white/90">Mantle</span>
+                    <span className="text-[11px] font-medium text-white/90">Attested</span>
                     <span className="text-xs font-bold text-white">
-                        {mantlePercent.toFixed(0)}%
+                        {attestedPercent.toFixed(0)}%
                     </span>
                 </div>
             </div>
 
-            {/* Ethereum Segment (purple) */}
-            <div
-                className="h-full bg-[#627eea] relative transition-all duration-1000 ease-out"
-                style={{ width: `${ethPercent}%` }}
-            >
-                <div className="absolute inset-0 flex items-center justify-center gap-1.5">
-                    <span className="text-[11px] font-medium text-white/90">Ethereum</span>
-                    <span className="text-xs font-bold text-white">
-                        {ethPercent.toFixed(0)}%
-                    </span>
+            {/* Unattested Segment (gray - locked but not yet attested) */}
+            {unattestedPercent > 0 && (
+                <div
+                    className="h-full bg-gray-300 relative transition-all duration-1000 ease-out"
+                    style={{ width: `${unattestedPercent}%` }}
+                >
+                    <div className="absolute inset-0 flex items-center justify-center gap-1.5">
+                        <span className="text-[11px] font-medium text-gray-600">Pending</span>
+                        <span className="text-xs font-bold text-gray-600">
+                            {unattestedPercent.toFixed(0)}%
+                        </span>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
+
+        {/* Peg Divergence Warning */}
+        {isBalanced === false && (
+          <div className="flex items-start gap-2 p-3 mb-4 bg-warning-light/20 rounded-lg border border-warning-DEFAULT/30">
+            <AlertTriangle className="h-4 w-4 text-warning-DEFAULT flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-warning-DEFAULT">
+                Cross-chain peg divergence detected
+              </p>
+              <p className="text-xs text-warning-DEFAULT/80 mt-0.5">
+                Locked USDY exceeds AcUSDY supply. This may indicate pending attestations or relayer lag.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Detailed Breakdown */}
         <div className="grid grid-cols-2 gap-8">
