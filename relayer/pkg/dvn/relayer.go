@@ -502,6 +502,14 @@ func (r *Relayer) pollEvents(ctx context.Context) {
 
 // getInitialFromBlock returns the starting block for polling
 func (r *Relayer) getInitialFromBlock(ctx context.Context) uint64 {
+	// Override: if RELAYER_START_BLOCK is set, use it for rescanning
+	if r.cfg.Relayer.StartBlock > 0 {
+		logger.Infow("Using configured start block (rescan mode)",
+			"chain", "mantle",
+			"start_block", r.cfg.Relayer.StartBlock)
+		return r.cfg.Relayer.StartBlock
+	}
+
 	// Try to load from persistence
 	if r.store != nil {
 		cursor := r.store.GetLastProcessedBlock()

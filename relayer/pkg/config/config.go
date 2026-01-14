@@ -38,6 +38,7 @@ type RelayerConfig struct {
 	PollInterval     time.Duration // polling interval when subscription unavailable
 	BlockLookback    uint64        // blocks to scan on startup in polling mode
 	GasBufferPercent int           // percentage buffer added to gas estimates
+	StartBlock       uint64        // override start block for rescanning (0 = use persistence)
 }
 
 // PersistenceConfig holds persistence settings
@@ -152,6 +153,7 @@ func Load() (*Config, error) {
 	cfg.Relayer.PollInterval = time.Duration(getEnvIntWithDefault("RELAYER_POLL_INTERVAL", 12)) * time.Second
 	cfg.Relayer.BlockLookback = uint64(getEnvIntWithDefault("RELAYER_BLOCK_LOOKBACK", 100))
 	cfg.Relayer.GasBufferPercent = getEnvIntWithDefault("RELAYER_GAS_BUFFER_PERCENT", 20)
+	cfg.Relayer.StartBlock = uint64(getEnvIntWithDefault("RELAYER_START_BLOCK", 0))
 
 	// Persistence configuration (with defaults)
 	cfg.Persistence.Enabled = getEnvBoolWithDefault("RELAYER_PERSISTENCE_ENABLED", true)
