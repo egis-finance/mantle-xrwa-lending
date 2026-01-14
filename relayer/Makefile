@@ -2,7 +2,7 @@
 -include ../.env
 export
 
-.PHONY: help build build-price-updater test test-race test-integration lint clean run run-price-updater run-price-updater-dry docker-build docker-build-price-updater docker-up docker-down docker-logs
+.PHONY: help build build-all build-price-updater build-reconcile test test-race test-integration lint clean run run-price-updater run-price-updater-dry run-reconcile run-reconcile-dry docker-build docker-build-price-updater docker-up docker-down docker-logs
 
 # Default target
 help:
@@ -18,6 +18,11 @@ help:
 	@echo "  run-price-updater        - Run price update (submits tx)"
 	@echo "  run-price-updater-dry    - Run price update in dry run mode"
 	@echo "  docker-build-price-updater - Build price-updater Docker image"
+	@echo ""
+	@echo "Reconcile (Orphan Lock Recovery):"
+	@echo "  build-reconcile          - Build the reconcile binary"
+	@echo "  run-reconcile            - Run reconcile (unlocks expired orphans)"
+	@echo "  run-reconcile-dry        - Run reconcile in dry run mode (report only)"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test                     - Run unit tests"
@@ -45,6 +50,10 @@ build:
 build-price-updater:
 	@echo "Building price-updater..."
 	go build -o bin/price-updater ./cmd/price-updater
+
+# Build all binaries
+build-all: build build-price-updater build-reconcile
+	@echo "All binaries built!"
 
 # Run unit tests
 test:
@@ -95,6 +104,21 @@ run-price-updater: build-price-updater
 run-price-updater-dry: build-price-updater
 	@echo "Running price update (dry run)..."
 	PRICE_UPDATER_DRY_RUN=true ./bin/price-updater
+
+# Build the reconcile utility
+build-reconcile:
+	@echo "Building reconcile..."
+	go build -o bin/reconcile ./cmd/reconcile
+
+# Run reconcile (execute unlocks for expired orphans)
+run-reconcile: build-reconcile
+	@echo "Running reconcile..."
+	RECONCILE_DRY_RUN=false ./bin/reconcile
+
+# Run reconcile in dry run mode (report only, no unlocks)
+run-reconcile-dry: build-reconcile
+	@echo "Running reconcile (dry run)..."
+	RECONCILE_DRY_RUN=true ./bin/reconcile
 
 # Format code
 fmt:

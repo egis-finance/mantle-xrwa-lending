@@ -76,5 +76,16 @@ const CollateralLockerABI = `[
 		],
 		"name": "Locked",
 		"type": "event"
+	},
+	{
+		"inputs": [
+			{"internalType": "address", "name": "recipient", "type": "address"},
+			{"internalType": "uint256", "name": "amount", "type": "uint256"},
+			{"internalType": "bytes32", "name": "lockId", "type": "bytes32"}
+		],
+		"name": "unlock",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	}
 ]`
