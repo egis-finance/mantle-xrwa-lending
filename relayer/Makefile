@@ -2,29 +2,49 @@
 -include ../.env
 export
 
-.PHONY: help build test test-race lint clean run docker-build docker-up docker-down docker-logs
+.PHONY: help build build-price-updater test test-race test-integration lint clean run run-price-updater run-price-updater-dry docker-build docker-build-price-updater docker-up docker-down docker-logs
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build           - Build the relayer binary"
-	@echo "  test            - Run unit tests"
-	@echo "  test-race       - Run tests with race detector"
-	@echo "  test-coverage   - Run tests with coverage"
-	@echo "  lint            - Run golangci-lint"
-	@echo "  clean           - Remove build artifacts"
-	@echo "  run             - Run the relayer locally"
-	@echo "  docker-build    - Build Docker image"
-	@echo "  docker-up       - Start Docker Compose stack"
-	@echo "  docker-down     - Stop Docker Compose stack"
-	@echo "  docker-logs     - Follow Docker logs"
-	@echo "  fmt             - Format code with gofmt"
-	@echo "  mod-tidy        - Tidy go modules"
+	@echo ""
+	@echo "DVN Relayer:"
+	@echo "  build                    - Build the relayer binary"
+	@echo "  run                      - Run the relayer locally"
+	@echo "  docker-build             - Build relayer Docker image"
+	@echo ""
+	@echo "Price Updater:"
+	@echo "  build-price-updater      - Build the price-updater binary"
+	@echo "  run-price-updater        - Run price update (submits tx)"
+	@echo "  run-price-updater-dry    - Run price update in dry run mode"
+	@echo "  docker-build-price-updater - Build price-updater Docker image"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test                     - Run unit tests"
+	@echo "  test-race                - Run tests with race detector"
+	@echo "  test-integration         - Run integration tests (requires VTE)"
+	@echo "  test-coverage            - Run tests with coverage"
+	@echo ""
+	@echo "Development:"
+	@echo "  lint                     - Run golangci-lint"
+	@echo "  fmt                      - Format code with gofmt"
+	@echo "  mod-tidy                 - Tidy go modules"
+	@echo "  clean                    - Remove build artifacts"
+	@echo ""
+	@echo "Docker Compose:"
+	@echo "  docker-up                - Start Docker Compose stack"
+	@echo "  docker-down              - Stop Docker Compose stack"
+	@echo "  docker-logs              - Follow Docker logs"
 
 # Build the relayer
 build:
 	@echo "Building relayer..."
 	go build -o bin/relayer ./cmd/relayer
+
+# Build the price-updater
+build-price-updater:
+	@echo "Building price-updater..."
+	go build -o bin/price-updater ./cmd/price-updater
 
 # Run unit tests
 test:
@@ -42,6 +62,11 @@ test-coverage:
 	go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
+
+# Run integration tests (requires VTE RPC URLs)
+test-integration:
+	@echo "Running integration tests..."
+	go test -tags=integration -v ./pkg/priceupdater/...
 
 # Run linter
 lint:
@@ -61,6 +86,16 @@ run: build
 	@echo "Starting relayer..."
 	./bin/relayer
 
+# Run the price-updater (submits real transaction)
+run-price-updater: build-price-updater
+	@echo "Running price update..."
+	./bin/price-updater
+
+# Run the price-updater in dry run mode
+run-price-updater-dry: build-price-updater
+	@echo "Running price update (dry run)..."
+	PRICE_UPDATER_DRY_RUN=true ./bin/price-updater
+
 # Format code
 fmt:
 	@echo "Formatting code..."
@@ -75,6 +110,10 @@ mod-tidy:
 docker-build:
 	@echo "Building Docker image..."
 	docker build -t xrwa-dvn-relayer:latest .
+
+docker-build-price-updater:
+	@echo "Building price-updater Docker image..."
+	docker build -f Dockerfile.price-updater -t xrwa-price-updater:latest .
 
 docker-up:
 	@echo "Starting Docker Compose stack..."

@@ -14,20 +14,26 @@ interface OraclePriceResult {
 
 /**
  * Reads oracle price, haircut, and staleness from NAVOracle on Ethereum.
+ *
+ * Uses getPriceWithHaircut() instead of price() to avoid staleness revert:
+ * - price() reverts when oracle is stale (Morpho's safety mechanism)
+ * - getPriceWithHaircut() returns the same value but never reverts
+ * This allows UI to display the price with a "stale" warning instead of breaking.
+ *
  * Price + isStale are batched (both change over time with 10s polling).
  * HAIRCUT_BPS is fetched separately as one-time static read.
  */
 export function useOraclePrice(): ReadResult<OraclePriceResult> {
   const isConfigured = contracts.navOracle.address !== UNCONFIGURED_ADDRESS;
 
-  // Batch: price + isStale (both dynamic, poll every 10s)
+  // Batch: getPriceWithHaircut + isStale (both dynamic, poll every 10s)
   const batchResult = useMultiChainBatchRead<[bigint, boolean]>({
     chainId: contracts.navOracle.chainId,
     contracts: [
       {
         address: contracts.navOracle.address,
         abi: OracleAbi,
-        functionName: 'price',
+        functionName: 'getPriceWithHaircut',
         args: [],
       },
       {
