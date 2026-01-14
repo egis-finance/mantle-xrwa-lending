@@ -47,6 +47,7 @@ export interface SystemParams {
 
   // Oracle
   oraclePrice: string | null;
+  oraclePriceRaw: bigint | undefined;
   oracleAddress: string | null;
   oracleHaircutPercentage: number | null;
   oracleIsStale: boolean | null;
@@ -146,6 +147,7 @@ export function useSystemParams(): SystemParams {
     fee,
     feePercentage,
     oraclePrice: oraclePrice.data?.value ?? null,
+    oraclePriceRaw: oraclePrice.data?.raw,
     oracleAddress,
     oracleHaircutPercentage: oraclePrice.data?.haircutPercentage ?? null,
     oracleIsStale: oraclePrice.data?.isStale ?? null,
