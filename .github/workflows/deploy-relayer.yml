@@ -1,0 +1,42 @@
+name: Deploy Relayer to Railway
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'relayer/**'
+  workflow_dispatch: # Manual trigger for debugging
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy DVN Relayer
+        run: |
+          cd relayer
+          railway up --service relayer --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Price Updater
+        run: |
+          cd relayer
+          railway up --service price-updater --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deployment Summary
+        run: |
+          echo "## Deployment Complete"
+          echo "- DVN Relayer: Deployed"
+          echo "- Price Updater: Deployed (cron: every 6 hours)"
