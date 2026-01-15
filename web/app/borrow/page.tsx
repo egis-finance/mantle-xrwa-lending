@@ -108,6 +108,12 @@ export default function BorrowPage(): ReactElement {
       : 0n;
   }, [morphoCollateral.data?.raw, systemParams.oraclePriceRaw, systemParams.marketParams?.lltv, borrowerDebt.data?.debtAssetsRaw]);
 
+  const safeBorrowCapacity = React.useMemo(() => {
+    if (remainingCapacity == null) return null;
+    // Apply a 0.5% safety buffer to account for Morpho rounding and interest accrual.
+    return (remainingCapacity * 995n) / 1000n;
+  }, [remainingCapacity]);
+
   // Safe withdraw amount based on current debt, price, and LLTV
   const safeWithdrawRaw = React.useMemo(() => {
     const collateralRaw = morphoCollateral.data?.raw;
@@ -318,6 +324,34 @@ export default function BorrowPage(): ReactElement {
     );
   };
 
+  const borrowAmountParsed = React.useMemo(() => {
+    if (!borrowAmount) return null;
+    if (borrowAmountRaw !== null) return borrowAmountRaw;
+    try {
+      return safeParseUnits(borrowAmount, 6);
+    } catch {
+      return null;
+    }
+  }, [borrowAmount, borrowAmountRaw]);
+
+  const borrowAmountExceedsCapacity = safeBorrowCapacity !== null &&
+    borrowAmountParsed !== null &&
+    borrowAmountParsed > safeBorrowCapacity;
+
+  const repayAmountParsed = React.useMemo(() => {
+    if (!repayAmount || isFullRepay) return null;
+    try {
+      return safeParseUnits(repayAmount, 6);
+    } catch {
+      return null;
+    }
+  }, [repayAmount, isFullRepay]);
+
+  const repayAmountExceedsDebt = !isFullRepay &&
+    repayAmountParsed !== null &&
+    borrowerDebt.data?.debtAssetsRaw != null &&
+    repayAmountParsed > borrowerDebt.data.debtAssetsRaw;
+
   // Action card handlers
   // Each handler resets status before starting to clear any previous success/error state
   // Uses raw value if available (from MAX button), otherwise parses the input string
@@ -351,7 +385,12 @@ export default function BorrowPage(): ReactElement {
     resetRepay(); // Clear previous state before new action
     try {
       const amount = isFullRepay ? 0n : safeParseUnits(repayAmount, 6);
-      await repay(amount, isFullRepay, borrowerDebt.data?.debtAssetsRaw ?? null);
+      await repay(
+        amount,
+        isFullRepay,
+        borrowerDebt.data?.debtAssetsRaw ?? null,
+        borrowerDebt.data?.borrowShares ?? null
+      );
       setRepayAmount('');
       setIsFullRepay(false);
     } catch (err) {
@@ -377,8 +416,11 @@ export default function BorrowPage(): ReactElement {
   const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || (supplyStatus !== 'idle' && supplyStatus !== 'success');
   const borrowDisabled =
     !borrowAmount ||
-    remainingCapacity === null ||
-    remainingCapacity === 0n ||
+    borrowAmountParsed === null ||
+    borrowAmountParsed <= 0n ||
+    borrowAmountExceedsCapacity ||
+    safeBorrowCapacity === null ||
+    safeBorrowCapacity === 0n ||
     morphoCollateral.data?.raw === 0n ||
     systemParams.oracleIsStale === true ||
     morphoCollateral.isError ||
@@ -386,7 +428,12 @@ export default function BorrowPage(): ReactElement {
     borrowerDebt.isError ||
     (borrowStatus !== 'idle' && borrowStatus !== 'success');
   const repayDisabled =
-    (!isFullRepay && !repayAmount) ||
+    (!isFullRepay && (
+      !repayAmount ||
+      repayAmountParsed === null ||
+      repayAmountParsed <= 0n ||
+      repayAmountExceedsDebt
+    )) ||
     (isFullRepay && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
     borrowerDebt.isError ||
     (repayStatus !== 'idle' && repayStatus !== 'success');
@@ -790,6 +837,11 @@ export default function BorrowPage(): ReactElement {
                                 </span>
                               </div>
                             )}
+                            {remainingCapacity !== null && (
+                              <p className="text-xs text-brand-muted">
+                                MAX applies a 0.5% safety buffer.
+                              </p>
+                            )}
                             {!morphoCollateral.isError && !systemParams.isError && morphoCollateral.data?.raw === 0n && (
                               <p className="text-xs text-brand-muted">Supply collateral first to enable borrowing</p>
                             )}
@@ -806,17 +858,22 @@ export default function BorrowPage(): ReactElement {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => {
-                                  if (remainingCapacity) {
-                                    setBorrowAmount(formatUnits(remainingCapacity, 6));
-                                    setBorrowAmountRaw(remainingCapacity);
+                                  if (safeBorrowCapacity) {
+                                    setBorrowAmount(formatUnits(safeBorrowCapacity, 6));
+                                    setBorrowAmountRaw(safeBorrowCapacity);
                                   }
                                 }}
-                                disabled={!remainingCapacity || remainingCapacity === 0n || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
+                                disabled={!safeBorrowCapacity || safeBorrowCapacity === 0n || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
                                 className="text-xs"
                               >
                                 MAX
                               </Button>
                             </div>
+                            {borrowAmountExceedsCapacity && (
+                              <p className="text-xs text-red-600">
+                                Amount exceeds safe max borrow.
+                              </p>
+                            )}
                             {borrowError && (
                               <div className="flex items-center justify-between">
                                 <p className="text-xs text-red-600">{formatError(borrowError)}</p>
@@ -905,6 +962,11 @@ export default function BorrowPage(): ReactElement {
                                 FULL
                               </Button>
                             </div>
+                            {repayAmountExceedsDebt && (
+                              <p className="text-xs text-red-600">
+                                Amount exceeds outstanding debt. Use FULL to clear all debt.
+                              </p>
+                            )}
                             {repayError && (
                               <div className="flex items-center justify-between">
                                 <p className="text-xs text-red-600">{formatError(repayError)}</p>
