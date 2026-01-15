@@ -5,9 +5,11 @@ import { validateEnv } from './lib/env';
 validateEnv();
 
 const nextConfig: NextConfig = {
-  output: 'export', // Enable static HTML export for Firebase Hosting
+  // Note: 'output: export' removed - Vercel handles Next.js natively
+  // For Firebase Hosting static export, run: NEXT_OUTPUT=export pnpm build
+  ...(process.env.NEXT_OUTPUT === 'export' ? { output: 'export' as const } : {}),
   images: {
-    unoptimized: true, // Disable Image Optimization API for static export
+    unoptimized: true, // Required for static export compatibility
   },
   transpilePackages: ['viem', '@dynamic-labs/sdk-react-core', '@dynamic-labs/ethereum'],
   webpack: (config) => {
