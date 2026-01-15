@@ -74,8 +74,9 @@ describe('useBorrowerDebt', () => {
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      // Expected: (100 * 1000) / 200 = 500 USDC
+      // Expected: (100 * 1000) / 200 = 500 USDC = 500000000 raw (6 decimals)
       expect(result.current.data?.value).toBe('500')
+      expect(result.current.data?.debtAssetsRaw).toBe(500000000n)
     })
 
     it('should return 0 when user has no borrow shares', () => {
@@ -96,9 +97,10 @@ describe('useBorrowerDebt', () => {
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       expect(result.current.data?.value).toBe('0')
+      expect(result.current.data?.debtAssetsRaw).toBe(0n)
     })
 
-    it('should return undefined when total borrow shares is 0', () => {
+    it('should return null debtAssetsRaw when totalBorrowShares is 0 but user has shares', () => {
       const mockPosition = { borrowShares: 100000000000000000000n }
       const mockMarket = {
         totalBorrowAssets: 1000000000n,
@@ -115,8 +117,9 @@ describe('useBorrowerDebt', () => {
 
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
-      // When totalBorrowShares is 0, value should be null (division by zero)
+      // Impossible state: user has shares but market has none - can't compute debt
       expect(result.current.data?.value).toBeNull()
+      expect(result.current.data?.debtAssetsRaw).toBeNull()
     })
 
     it('should handle large numbers correctly', () => {
@@ -222,6 +225,8 @@ describe('useBorrowerDebt', () => {
       const mockBorrowShares = 100000000000000000000n
       const mockTotalBorrowAssets = 1000000000n
       const mockTotalBorrowShares = 200000000000000000000n
+      // Expected debt: (100 * 1000) / 200 = 500 USDC = 500000000 raw
+      const expectedDebtRaw = (mockBorrowShares * mockTotalBorrowAssets) / mockTotalBorrowShares
 
       const mockPosition = { borrowShares: mockBorrowShares }
       const mockMarket = {
@@ -240,6 +245,7 @@ describe('useBorrowerDebt', () => {
       const { result } = renderHook(() => useBorrowerDebt(mockBorrowerAddress))
 
       expect(result.current.data?.value).toBe('500')
+      expect(result.current.data?.debtAssetsRaw).toBe(expectedDebtRaw)
       expect(result.current.data?.borrowShares).toBe(mockBorrowShares)
       expect(result.current.data?.totalBorrowAssets).toBe(mockTotalBorrowAssets)
       expect(result.current.data?.totalBorrowShares).toBe(mockTotalBorrowShares)

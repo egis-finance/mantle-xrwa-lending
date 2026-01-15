@@ -24,6 +24,7 @@ interface MorphoMarket {
 
 interface BorrowerDebtResult {
   value: string | null;
+  debtAssetsRaw: bigint | null; // null when unknown, 0n when no debt, >0n when has debt
   borrowShares: bigint;
   totalBorrowAssets: bigint;
   totalBorrowShares: bigint;
@@ -67,18 +68,20 @@ export function useBorrowerDebt(
     const [position, market] = result.data;
     if (!position || !market) return undefined;
 
-    // Calculate debt from shares
-    let debtValue: string | null = null;
-    if (position.borrowShares === 0n) {
-      debtValue = '0';
-    } else if (market.totalBorrowShares > 0n) {
-      // (borrowShares * totalBorrowAssets) / totalBorrowShares (USDC has 6 decimals)
-      const debtAmount = (position.borrowShares * market.totalBorrowAssets) / market.totalBorrowShares;
-      debtValue = formatUnits(debtAmount, 6);
-    }
+    // Compute raw debt assets with proper state handling
+    const debtAssetsRaw: bigint | null = (() => {
+      if (position.borrowShares === 0n) return 0n; // No debt
+      if (market.totalBorrowShares === 0n) return null; // Can't compute (impossible state)
+      return (position.borrowShares * market.totalBorrowAssets) / market.totalBorrowShares;
+    })();
+
+    // Format for display (USDC has 6 decimals)
+    const debtValue: string | null =
+      debtAssetsRaw === null ? null : formatUnits(debtAssetsRaw, 6);
 
     return {
       value: debtValue,
+      debtAssetsRaw,
       borrowShares: position.borrowShares,
       totalBorrowAssets: market.totalBorrowAssets,
       totalBorrowShares: market.totalBorrowShares,
