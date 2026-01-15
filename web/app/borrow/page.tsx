@@ -5,21 +5,28 @@ import type { ReactElement } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowRightLeft, Lock, Wallet, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowRightLeft, Lock, Wallet, Loader2, CheckCircle2, AlertTriangle, PlusCircle, MinusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
+import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
+import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
 import { useSDKReady } from '@/hooks/useSDKReady';
 import { useLockedUSDY } from '@/hooks/useLockedUSDY';
 import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
 import { useBorrowerBalance } from '@/hooks/useBorrowerBalance';
 import { useAcUSDYBalance } from '@/hooks/useAcUSDYBalance';
+import { useBorrowerDebt } from '@/hooks/useBorrowerDebt';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useChainAbstracted } from '@/hooks/useChainAbstracted';
+import { useSupplyAcUSDY } from '@/hooks/useSupplyAcUSDY';
+import { useBorrowUSDC } from '@/hooks/useBorrowUSDC';
+import { useRepayUSDC } from '@/hooks/useRepayUSDC';
+import { useWithdrawAcUSDY } from '@/hooks/useWithdrawAcUSDY';
 import { LoanHealthCard } from '@/components/LoanHealthCard';
 import { contracts } from '@/lib/contracts';
 import { formatTvl } from '@/lib/format';
 import { formatError } from '@/lib/errors';
 import { cn } from '@/lib/utils';
-import { parseUnits } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
 import { invalidateUserReads, invalidateCrossChainReads } from '@/lib/swr/invalidation';
@@ -27,19 +34,32 @@ import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
 export default function BorrowPage(): ReactElement {
   const sdkReady = useSDKReady();
+  const { primaryWallet } = useDynamicContext();
   const { address: borrowerAddress, isConnected } = useDynamicWallet();
   const { signOnMantle, waitForTransaction } = useChainAbstracted();
 
+  // Wallet gating: require connected Ethereum wallet for borrower operations
+  const walletReady = primaryWallet && isEthereumWallet(primaryWallet);
+  const effectiveAddress = walletReady ? borrowerAddress : undefined;
+
   // Borrower's locked USDY on Mantle (not protocol TVL)
-  const lockedUSDY = useLockedUSDY(borrowerAddress);
+  const lockedUSDY = useLockedUSDY(effectiveAddress);
   // Borrower's AcUSDY collateral in Morpho on Ethereum
-  const morphoCollateral = useMorphoCollateral(borrowerAddress);
+  const morphoCollateral = useMorphoCollateral(effectiveAddress);
   // Borrower's AcUSDY balance in wallet on Ethereum
-  const acUsdyBalance = useAcUSDYBalance(borrowerAddress);
+  const acUsdyBalance = useAcUSDYBalance(effectiveAddress);
   // Borrower's total USDY balance on Mantle
-    const borrowerBalance = useBorrowerBalance(borrowerAddress);
-  // Morpho market parameters (LLTV from on-chain)
+  const borrowerBalance = useBorrowerBalance(effectiveAddress);
+  // Borrower's debt position in Morpho
+  const borrowerDebt = useBorrowerDebt(effectiveAddress);
+  // Morpho market parameters (LLTV, oracle price from on-chain)
   const systemParams = useSystemParams();
+
+  // Write hooks for borrower operations (require marketParams)
+  const { supplyCollateral, status: supplyStatus, statusMessage: supplyMessage, error: supplyError, reset: resetSupply } = useSupplyAcUSDY(systemParams.marketParams);
+  const { borrow, status: borrowStatus, statusMessage: borrowMessage, error: borrowError, reset: resetBorrow } = useBorrowUSDC(systemParams.marketParams);
+  const { repay, status: repayStatus, statusMessage: repayMessage, error: repayError, reset: resetRepay } = useRepayUSDC(systemParams.marketParams);
+  const { withdrawCollateral, status: withdrawStatus, statusMessage: withdrawMessage, error: withdrawError, reset: resetWithdraw } = useWithdrawAcUSDY(systemParams.marketParams);
 
   const isLoading =
     lockedUSDY.isLoading ||
@@ -63,10 +83,70 @@ export default function BorrowPage(): ReactElement {
         }
         return null;
   }, [borrowerBalance.data?.value, lockedUSDY.data?.value]);
-    
-    const [isSwapped, setIsSwapped] = React.useState(false);
-    const [lockAmount, setLockAmount] = React.useState('');
-    const [lockError, setLockError] = React.useState('');
+
+  // Remaining borrow capacity: collateral * price * lltv - existing debt
+  const remainingCapacity = React.useMemo(() => {
+    const collateralRaw = morphoCollateral.data?.raw;
+    const priceRaw = systemParams.oraclePriceRaw;
+    const lltvRaw = systemParams.marketParams?.lltv;
+    const existingDebtRaw = borrowerDebt.data?.debtAssetsRaw;
+
+    // Only compute when ALL inputs are valid bigints
+    if (
+      collateralRaw == null ||
+      priceRaw == null ||
+      lltvRaw == null ||
+      existingDebtRaw == null // null means unknown, 0n means no debt
+    ) {
+      return null;
+    }
+
+    // Decimal math: 18 (collateral) + 24 (price) + 18 (lltv) = 60, target 6 (USDC)
+    const totalBorrowLimit = (collateralRaw * priceRaw * lltvRaw) / (10n ** 54n);
+    return totalBorrowLimit > existingDebtRaw
+      ? totalBorrowLimit - existingDebtRaw
+      : 0n;
+  }, [morphoCollateral.data?.raw, systemParams.oraclePriceRaw, systemParams.marketParams?.lltv, borrowerDebt.data?.debtAssetsRaw]);
+
+  // Safe withdraw amount based on current debt, price, and LLTV
+  const safeWithdrawRaw = React.useMemo(() => {
+    const collateralRaw = morphoCollateral.data?.raw;
+    const debtAssetsRaw = borrowerDebt.data?.debtAssetsRaw;
+
+    if (morphoCollateral.isError || borrowerDebt.isError || systemParams.isError) return null;
+    if (collateralRaw == null || debtAssetsRaw == null) return null;
+    if (debtAssetsRaw === 0n) return collateralRaw;
+
+    const priceRaw = systemParams.oraclePriceRaw;
+    const lltvRaw = systemParams.marketParams?.lltv;
+    if (priceRaw == null || lltvRaw == null || priceRaw === 0n || lltvRaw === 0n) return null;
+
+    // Required collateral = ceil((debt * 10^54) / (price * lltv))
+    const numerator = debtAssetsRaw * 10n ** 54n;
+    const denominator = priceRaw * lltvRaw;
+    const requiredCollateral = (numerator + denominator - 1n) / denominator;
+
+    return collateralRaw > requiredCollateral ? collateralRaw - requiredCollateral : 0n;
+  }, [
+    morphoCollateral.data?.raw,
+    morphoCollateral.isError,
+    borrowerDebt.data?.debtAssetsRaw,
+    borrowerDebt.isError,
+    systemParams.oraclePriceRaw,
+    systemParams.marketParams?.lltv,
+    systemParams.isError,
+  ]);
+
+  // State for action card inputs
+  const [supplyAmount, setSupplyAmount] = React.useState('');
+  const [borrowAmount, setBorrowAmount] = React.useState('');
+  const [repayAmount, setRepayAmount] = React.useState('');
+  const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [isFullRepay, setIsFullRepay] = React.useState(false);
+
+  const [isSwapped, setIsSwapped] = React.useState(false);
+  const [lockAmount, setLockAmount] = React.useState('');
+  const [lockError, setLockError] = React.useState('');
   const [isLocking, setIsLocking] = React.useState(false);
   const [txStatus, setTxStatus] = React.useState<'idle' | 'approving' | 'locking' | 'success' | 'error'>('idle');
 
@@ -191,6 +271,67 @@ export default function BorrowPage(): ReactElement {
     setLockAmount('');
     setLockError('');
   };
+
+  // Action card handlers
+  const handleSupply = async () => {
+    if (!supplyAmount) return;
+    try {
+      await supplyCollateral(parseUnits(supplyAmount, 18));
+      setSupplyAmount('');
+    } catch (err) {
+      console.error('Supply failed:', err);
+    }
+  };
+
+  const handleBorrow = async () => {
+    if (!borrowAmount) return;
+    try {
+      await borrow(parseUnits(borrowAmount, 6));
+      setBorrowAmount('');
+    } catch (err) {
+      console.error('Borrow failed:', err);
+    }
+  };
+
+  const handleRepay = async () => {
+    try {
+      const amount = isFullRepay ? 0n : parseUnits(repayAmount, 6);
+      await repay(amount, isFullRepay, borrowerDebt.data?.debtAssetsRaw ?? null);
+      setRepayAmount('');
+      setIsFullRepay(false);
+    } catch (err) {
+      console.error('Repay failed:', err);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!withdrawAmount) return;
+    try {
+      await withdrawCollateral(parseUnits(withdrawAmount, 18));
+      setWithdrawAmount('');
+    } catch (err) {
+      console.error('Withdraw failed:', err);
+    }
+  };
+
+  // Disable conditions for action buttons
+  const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || supplyStatus !== 'idle';
+  const borrowDisabled =
+    !borrowAmount ||
+    remainingCapacity === null ||
+    remainingCapacity === 0n ||
+    morphoCollateral.data?.raw === 0n ||
+    systemParams.oracleIsStale === true ||
+    morphoCollateral.isError ||
+    systemParams.isError ||
+    borrowerDebt.isError ||
+    borrowStatus !== 'idle';
+  const repayDisabled =
+    (!isFullRepay && !repayAmount) ||
+    (isFullRepay && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
+    borrowerDebt.isError ||
+    repayStatus !== 'idle';
+  const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || withdrawStatus !== 'idle';
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -453,65 +594,385 @@ export default function BorrowPage(): ReactElement {
                     </div>
                 </Card>
 
-                {/* Lower Section: Transaction Builder & Health */}
+                {/* Lower Section: Action Cards & Health */}
                 <div className="grid lg:grid-cols-[3fr_2fr] gap-8">
-          {/* Transaction Builder */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Wallet className="h-5 w-5 text-brand-DEFAULT" />
-                Transaction Builder
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="space-y-4">
-                                <label className="text-sm font-medium text-brand-dark">Borrow Amount (USDC)</label>
-                                <div className="flex gap-4">
-                                    <input
-                                        type="number"
-                                        className="flex-1 h-12 px-4 rounded-lg border border-input bg-white focus:ring-2 focus:ring-brand/50 outline-none"
-                                        placeholder="0.00"
-                                    />
-                                    <Button size="lg">Add to Batch</Button>
-                                </div>
-                            </div>
-
-                            <div className="bg-brand-light/30 rounded-xl p-6 space-y-4 border border-brand-light">
-                <h4 className="text-sm font-semibold text-brand-muted uppercase tracking-wider">
-                  Proposed Batch Actions
-                </h4>
-                                <div className="space-y-3">
-                                    {[1, 2, 3].map((step) => (
-                    <div
-                      key={step}
-                      className="flex items-center gap-4 p-3 bg-white rounded-lg border border-brand-light/50 shadow-sm"
-                    >
-                                            <div className="h-6 w-6 rounded-full bg-brand-light text-brand-DEFAULT flex items-center justify-center text-xs font-bold border border-brand/20">
-                                                {step}
-                                            </div>
-                                            <span className="text-sm font-medium text-brand-dark">
-                        {step === 1
-                          ? 'Approve AcUSDY Manager'
-                          : step === 2
-                            ? 'Supply AcUSDY Collateral'
-                            : 'Borrow USDC'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="pt-4 flex gap-4">
-                  <Button variant="outline" className="flex-1">
-                    Simulate Batch
-                  </Button>
-                  <Button className="flex-[2]">Execute Transaction</Button>
-                                </div>
-                            </div>
+                  {/* Action Cards Column */}
+                  <div className="space-y-4">
+                    {!walletReady ? (
+                      // Connect wallet CTA when not connected
+                      <Card className="border-none shadow-soft-xl">
+                        <CardContent className="py-12 text-center">
+                          <Wallet className="h-12 w-12 text-brand-muted mx-auto mb-4" />
+                          <h3 className="text-xl font-semibold text-brand-dark mb-2">Connect Wallet to Borrow</h3>
+                          <p className="text-sm text-brand-muted max-w-md mx-auto">
+                            Connect your wallet to supply collateral, borrow USDC, repay debt, and withdraw assets.
+                          </p>
                         </CardContent>
-                    </Card>
+                      </Card>
+                    ) : (
+                      // 4 Action Cards when connected
+                      <>
+                        {/* Supply AcUSDY Card */}
+                        <Card className="border-none shadow-soft-xl">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <PlusCircle className="h-4 w-4 text-emerald-500" />
+                              Supply Collateral
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {acUsdyBalance.isError ? (
+                              <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
+                                <p className="text-sm text-red-700">Failed to load balance</p>
+                                <Button variant="ghost" size="sm" onClick={() => acUsdyBalance.refetch()}>
+                                  <RefreshCw className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-brand-muted">Available AcUSDY</span>
+                                  <span className="font-medium">
+                                    {acUsdyBalance.isLoading ? '...' : formatTvl(acUsdyBalance.data?.value ?? '0')}
+                                  </span>
+                                </div>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="number"
+                                    value={supplyAmount}
+                                    onChange={(e) => setSupplyAmount(e.target.value)}
+                                    placeholder="0.00"
+                                    className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none text-sm"
+                                    disabled={supplyStatus !== 'idle'}
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSupplyAmount(acUsdyBalance.data?.value ?? '0')}
+                                    disabled={!acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n}
+                                    className="text-xs"
+                                  >
+                                    MAX
+                                  </Button>
+                                </div>
+                                {supplyError && (
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs text-red-600">{formatError(supplyError)}</p>
+                                    <Button variant="ghost" size="sm" onClick={resetSupply} className="h-6 text-xs">Reset</Button>
+                                  </div>
+                                )}
+                                {supplyStatus !== 'idle' && supplyStatus !== 'error' && (
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs text-emerald-600 flex items-center gap-1">
+                                      {supplyStatus === 'success' ? (
+                                        <><CheckCircle2 className="h-3 w-3" /> {supplyMessage}</>
+                                      ) : (
+                                        <><Loader2 className="h-3 w-3 animate-spin" /> {supplyMessage}</>
+                                      )}
+                                    </p>
+                                    {supplyStatus === 'success' && (
+                                      <button onClick={resetSupply} className="text-xs underline hover:opacity-80 text-emerald-600">
+                                        Dismiss
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                                <Button
+                                  onClick={handleSupply}
+                                  disabled={supplyDisabled}
+                                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
+                                  size="sm"
+                                >
+                                  {['approving', 'supplying', 'confirming'].includes(supplyStatus) ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : (
+                                    <PlusCircle className="h-4 w-4 mr-2" />
+                                  )}
+                                  Supply AcUSDY
+                                </Button>
+                              </>
+                            )}
+                          </CardContent>
+                        </Card>
 
-          {/* Loan Health Card */}
-          <LoanHealthCard />
+                        {/* Borrow USDC Card */}
+                        <Card className="border-none shadow-soft-xl">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <ArrowDownCircle className="h-4 w-4 text-blue-500" />
+                              Borrow USDC
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {systemParams.oracleIsStale && (
+                              <div className="flex items-center gap-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
+                                <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                                <p className="text-xs text-yellow-700">Oracle price stale - borrowing disabled</p>
+                              </div>
+                            )}
+                            {morphoCollateral.isError || systemParams.isError || borrowerDebt.isError ? (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-red-500 text-xs">Failed to load position data</span>
+                                <button
+                                  onClick={() => { morphoCollateral.refetch(); systemParams.refetch(); borrowerDebt.refetch(); }}
+                                  className="text-xs underline hover:opacity-80 text-blue-600"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-brand-muted">Remaining Capacity</span>
+                                <span className="font-medium">
+                                  {remainingCapacity === null ? '--' : `$${formatUnits(remainingCapacity, 6)}`}
+                                </span>
+                              </div>
+                            )}
+                            {!morphoCollateral.isError && !systemParams.isError && morphoCollateral.data?.raw === 0n && (
+                              <p className="text-xs text-brand-muted">Supply collateral first to enable borrowing</p>
+                            )}
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={borrowAmount}
+                                onChange={(e) => setBorrowAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none text-sm"
+                                disabled={borrowStatus !== 'idle' || systemParams.oracleIsStale || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => remainingCapacity && setBorrowAmount(formatUnits(remainingCapacity, 6))}
+                                disabled={!remainingCapacity || remainingCapacity === 0n || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
+                                className="text-xs"
+                              >
+                                MAX
+                              </Button>
+                            </div>
+                            {borrowError && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-red-600">{formatError(borrowError)}</p>
+                                <Button variant="ghost" size="sm" onClick={resetBorrow} className="h-6 text-xs">Reset</Button>
+                              </div>
+                            )}
+                            {borrowStatus !== 'idle' && borrowStatus !== 'error' && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-blue-600 flex items-center gap-1">
+                                  {borrowStatus === 'success' ? (
+                                    <><CheckCircle2 className="h-3 w-3" /> {borrowMessage}</>
+                                  ) : (
+                                    <><Loader2 className="h-3 w-3 animate-spin" /> {borrowMessage}</>
+                                  )}
+                                </p>
+                                {borrowStatus === 'success' && (
+                                  <button onClick={resetBorrow} className="text-xs underline hover:opacity-80 text-blue-600">
+                                    Dismiss
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            <Button
+                              onClick={handleBorrow}
+                              disabled={borrowDisabled}
+                              className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                              size="sm"
+                            >
+                              {['borrowing', 'confirming'].includes(borrowStatus) ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <ArrowDownCircle className="h-4 w-4 mr-2" />
+                              )}
+                              Borrow USDC
+                            </Button>
+                          </CardContent>
+                        </Card>
+
+                        {/* Repay USDC Card */}
+                        <Card className="border-none shadow-soft-xl">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <ArrowUpCircle className="h-4 w-4 text-purple-500" />
+                              Repay Debt
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {borrowerDebt.isError ? (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-red-500 text-xs">Failed to load debt</span>
+                                <button
+                                  onClick={() => borrowerDebt.refetch()}
+                                  className="text-xs underline hover:opacity-80 text-purple-600"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-brand-muted">Current Debt</span>
+                                <span className="font-medium">
+                                  {borrowerDebt.isLoading ? '...' : (
+                                    borrowerDebt.data?.debtAssetsRaw == null ? '--' :
+                                    borrowerDebt.data.debtAssetsRaw === 0n ? '$0.00' :
+                                    `$${formatUnits(borrowerDebt.data.debtAssetsRaw, 6)}`
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={repayAmount}
+                                onChange={(e) => { setRepayAmount(e.target.value); setIsFullRepay(false); }}
+                                placeholder="0.00"
+                                className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none text-sm"
+                                disabled={repayStatus !== 'idle' || isFullRepay || borrowerDebt.isError}
+                              />
+                              <Button
+                                variant={isFullRepay ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => { setIsFullRepay(!isFullRepay); setRepayAmount(''); }}
+                                disabled={borrowerDebt.isError || borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n}
+                                className={cn("text-xs", isFullRepay && "bg-purple-500 hover:bg-purple-600")}
+                              >
+                                FULL
+                              </Button>
+                            </div>
+                            {repayError && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-red-600">{formatError(repayError)}</p>
+                                <Button variant="ghost" size="sm" onClick={resetRepay} className="h-6 text-xs">Reset</Button>
+                              </div>
+                            )}
+                            {repayStatus !== 'idle' && repayStatus !== 'error' && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-purple-600 flex items-center gap-1">
+                                  {repayStatus === 'success' ? (
+                                    <><CheckCircle2 className="h-3 w-3" /> {repayMessage}</>
+                                  ) : (
+                                    <><Loader2 className="h-3 w-3 animate-spin" /> {repayMessage}</>
+                                  )}
+                                </p>
+                                {repayStatus === 'success' && (
+                                  <button onClick={resetRepay} className="text-xs underline hover:opacity-80 text-purple-600">
+                                    Dismiss
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            <Button
+                              onClick={handleRepay}
+                              disabled={repayDisabled}
+                              className="w-full bg-purple-500 hover:bg-purple-600 text-white"
+                              size="sm"
+                            >
+                              {['approving', 'repaying', 'confirming'].includes(repayStatus) ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                              )}
+                              {isFullRepay ? 'Repay Full Debt' : 'Repay USDC'}
+                            </Button>
+                          </CardContent>
+                        </Card>
+
+                        {/* Withdraw AcUSDY Card */}
+                        <Card className="border-none shadow-soft-xl">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                              <MinusCircle className="h-4 w-4 text-orange-500" />
+                              Withdraw Collateral
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {morphoCollateral.isError ? (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-red-500 text-xs">Failed to load collateral</span>
+                                <button
+                                  onClick={() => morphoCollateral.refetch()}
+                                  className="text-xs underline hover:opacity-80 text-orange-600"
+                                >
+                                  Retry
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-brand-muted">Supplied to Morpho</span>
+                                <span className="font-medium">
+                                  {morphoCollateral.isLoading ? '...' : formatTvl(morphoCollateral.data?.value ?? '0')}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                value={withdrawAmount}
+                                onChange={(e) => setWithdrawAmount(e.target.value)}
+                                placeholder="0.00"
+                                className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none text-sm"
+                                disabled={withdrawStatus !== 'idle' || morphoCollateral.isError}
+                              />
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (safeWithdrawRaw == null) return;
+                                  setWithdrawAmount(formatUnits(safeWithdrawRaw, 18));
+                                }}
+                                disabled={morphoCollateral.isError || safeWithdrawRaw == null || safeWithdrawRaw === 0n}
+                                className="text-xs"
+                              >
+                                MAX
+                              </Button>
+                            </div>
+                            {borrowerDebt.data?.debtAssetsRaw && borrowerDebt.data.debtAssetsRaw > 0n && (
+                              <p className="text-xs text-orange-600">
+                                ⚠️ You have outstanding debt. Withdrawing too much may cause liquidation.
+                              </p>
+                            )}
+                            {withdrawError && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-red-600">{formatError(withdrawError)}</p>
+                                <Button variant="ghost" size="sm" onClick={resetWithdraw} className="h-6 text-xs">Reset</Button>
+                              </div>
+                            )}
+                            {withdrawStatus !== 'idle' && withdrawStatus !== 'error' && (
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs text-orange-600 flex items-center gap-1">
+                                  {withdrawStatus === 'success' ? (
+                                    <><CheckCircle2 className="h-3 w-3" /> {withdrawMessage}</>
+                                  ) : (
+                                    <><Loader2 className="h-3 w-3 animate-spin" /> {withdrawMessage}</>
+                                  )}
+                                </p>
+                                {withdrawStatus === 'success' && (
+                                  <button onClick={resetWithdraw} className="text-xs underline hover:opacity-80 text-orange-600">
+                                    Dismiss
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            <Button
+                              onClick={handleWithdraw}
+                              disabled={withdrawDisabled}
+                              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+                              size="sm"
+                            >
+                              {['withdrawing', 'confirming'].includes(withdrawStatus) ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <MinusCircle className="h-4 w-4 mr-2" />
+                              )}
+                              Withdraw AcUSDY
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Loan Health Card */}
+                  <LoanHealthCard />
                 </div>
             </main>
         </div>

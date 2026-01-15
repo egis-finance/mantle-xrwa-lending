@@ -46,10 +46,9 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    // Total TVL shows $50M (25M + 25M)
-    expect(screen.getByText('$50.00M')).toBeInTheDocument()
-    // Individual chain values each show $25M
-    expect(screen.getAllByText('$25.00M')).toHaveLength(2)
+    // Total TVL = Mantle only (AcUSDY is a 1:1 receipt, not additional TVL)
+    // All three values show $25M: total TVL + Mantle detail + Ethereum detail
+    expect(screen.getAllByText('$25.00M')).toHaveLength(3)
     // Chain-specific labels
     expect(screen.getByText('Locked USDY')).toBeInTheDocument()
     expect(screen.getByText('AcUSDY Supply')).toBeInTheDocument()
@@ -68,9 +67,10 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    // Total TVL shows $45M (25M + 20M)
-    expect(screen.getByText('$45.00M')).toBeInTheDocument()
-    expect(screen.getByText('$25.00M')).toBeInTheDocument()
+    // Total TVL = Mantle only ($25M), not sum of both chains
+    // $25M appears twice: total TVL + Mantle detail
+    expect(screen.getAllByText('$25.00M')).toHaveLength(2)
+    // Ethereum detail shows $20M
     expect(screen.getByText('$20.00M')).toBeInTheDocument()
   })
 
@@ -193,7 +193,7 @@ describe('TvlPegDisplay', () => {
 
     render(<TvlPegDisplay />)
 
-    expect(screen.getByText('Mantle')).toBeInTheDocument()
-    expect(screen.getByText('Ethereum')).toBeInTheDocument()
+    expect(screen.getByText(/on Mantle Network/i)).toBeInTheDocument()
+    expect(screen.getByText(/on Ethereum/i)).toBeInTheDocument()
   })
 })

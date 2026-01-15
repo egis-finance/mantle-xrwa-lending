@@ -54,6 +54,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
             return false;
           }),
 
+        // Transaction confirmation UI control (SDK-level).
+        // Setting required: false prevents SDK from forcing the UI on.
+        // To fully disable Blockaid simulation, ALSO disable in dashboard:
+        //   Embedded Wallets → Settings → "Show Transaction Confirmation UI" → OFF
+        // Note: The "Transaction Simulation" toggle only controls display, not API calls.
+        transactionConfirmation: {
+          required: false,
+        },
+
         // mergeNetworks: our supportedNetworks take precedence over dashboard config.
         // Then filter to allowedChainIds - prevents Dynamic showing chains we don't support.
         overrides: {
