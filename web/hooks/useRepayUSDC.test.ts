@@ -190,14 +190,15 @@ describe('useRepayUSDC', () => {
       expect(result.current.status).toBe('error');
     });
 
-    it('computes repay amount with 0.1% buffer for full repay', async () => {
+    it('approves buffered amount and repays by shares for full repay', async () => {
       const { result } = renderHook(() => useRepayUSDC(mockMarketParams));
 
       const debtAssetsRaw = 1000000000n; // 1000 USDC
-      const expectedRepayAmount = (debtAssetsRaw * 1001n) / 1000n; // 1001 USDC
+      const borrowShares = 123456789n;
+      const expectedApproveAmount = (debtAssetsRaw * 1001n) / 1000n; // 1001 USDC
 
       await act(async () => {
-        await result.current.repay(0n, true, debtAssetsRaw);
+        await result.current.repay(0n, true, debtAssetsRaw, borrowShares);
       });
 
       // Verify approve uses buffered amount
@@ -206,16 +207,16 @@ describe('useRepayUSDC', () => {
         address: '0xUSDCAddress',
         abi: expect.any(Array),
         functionName: 'approve',
-        args: ['0xMorphoAddress', expectedRepayAmount],
+        args: ['0xMorphoAddress', expectedApproveAmount],
       });
 
-      // Verify repay uses buffered amount
+      // Verify repay uses shares for full repay
       expect(mockWriteContract).toHaveBeenNthCalledWith(2, {
         account: mockUserAddress,
         address: '0xMorphoAddress',
         abi: expect.any(Array),
         functionName: 'repay',
-        args: [mockMarketParams, expectedRepayAmount, 0n, mockUserAddress, '0x'],
+        args: [mockMarketParams, 0n, borrowShares, mockUserAddress, '0x'],
       });
     });
   });

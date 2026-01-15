@@ -5,7 +5,8 @@
  * 1. approve() - grant Morpho spending rights for USDC
  * 2. repay() - call Morpho.repay() to reduce debt
  *
- * Full repay mode adds 0.1% buffer to cover accrued interest. Morpho returns excess.
+ * Full repay mode approves a 0.1% buffer to cover accrued interest, but repays by shares
+ * to avoid rounding overflow when repaying the exact debt.
  */
 
 'use client';
@@ -24,7 +25,12 @@ import type { MorphoMarketParams } from './useSystemParams';
 export type RepayStatus = 'idle' | 'approving' | 'repaying' | 'confirming' | 'success' | 'error';
 
 export interface UseRepayUSDCResult {
-  repay: (amount: bigint, isFullRepay: boolean, debtAssetsRaw: bigint | null) => Promise<Hash>;
+  repay: (
+    amount: bigint,
+    isFullRepay: boolean,
+    debtAssetsRaw: bigint | null,
+    borrowShares?: bigint | null
+  ) => Promise<Hash>;
   status: RepayStatus;
   statusMessage: string;
   error: Error | null;
@@ -67,8 +73,8 @@ function getStatusMessage(status: RepayStatus): string {
  * Hook for repaying USDC debt to Morpho Blue.
  * Accepts canonical marketParams from on-chain to ensure correct market targeting.
  *
- * For full repay: Pass isFullRepay=true and debtAssetsRaw from useBorrowerDebt.
- * The hook computes repayAmount with 0.1% buffer; Morpho returns any excess.
+ * For full repay: Pass isFullRepay=true with debtAssetsRaw + borrowShares from useBorrowerDebt.
+ * The hook approves a buffered amount and repays by shares to avoid overpaying.
  */
 export function useRepayUSDC(
   marketParams: MorphoMarketParams | undefined
@@ -85,7 +91,12 @@ export function useRepayUSDC(
   }, []);
 
   const repay = useCallback(
-    async (amount: bigint, isFullRepay: boolean, debtAssetsRaw: bigint | null): Promise<Hash> => {
+    async (
+      amount: bigint,
+      isFullRepay: boolean,
+      debtAssetsRaw: bigint | null,
+      borrowShares: bigint | null = null
+    ): Promise<Hash> => {
       // Guardrail 1: Wallet connected
       if (!primaryWallet || !isEthereumWallet(primaryWallet)) {
         const err = new Error('No Ethereum wallet connected');
@@ -132,6 +143,12 @@ export function useRepayUSDC(
           setStatus('error');
           throw err;
         }
+        if (borrowShares == null || borrowShares === 0n) {
+          const err = new Error('Cannot full repay when borrow shares are unknown');
+          setError(err);
+          setStatus('error');
+          throw err;
+        }
       }
 
       // Guardrail 4: Amount positive (skip for full repay - amount may be 0n when using isFullRepay)
@@ -145,13 +162,24 @@ export function useRepayUSDC(
       try {
         reset();
 
-        // Calculate repay amount (buffer covers interest that may accrue between read and submit)
-        const repayAmount = isFullRepay
+        // Guard: prevent repaying more than outstanding debt with asset-based repay
+        if (!isFullRepay && debtAssetsRaw != null && amount > debtAssetsRaw) {
+          const err = new Error('Amount exceeds outstanding debt');
+          setError(err);
+          setStatus('error');
+          throw err;
+        }
+
+        // Calculate approval amount (buffer covers interest that may accrue between read and submit)
+        const approveAmount = isFullRepay
           ? (debtAssetsRaw! * 1001n) / 1000n // debt + 0.1% buffer for accrued interest
           : amount;
 
-        // Guard: repayAmount must be positive
-        if (repayAmount <= 0n) {
+        const repayAssets = isFullRepay ? 0n : amount;
+        const repayShares = isFullRepay ? borrowShares! : 0n;
+
+        // Guard: approval amount must be positive
+        if (approveAmount <= 0n) {
           const err = new Error('Repay amount must be greater than zero');
           setError(err);
           setStatus('error');
@@ -185,7 +213,7 @@ export function useRepayUSDC(
           address: contracts.usdc.address,
           abi: ERC20ApproveAbi,
           functionName: 'approve',
-          args: [contracts.morpho.address as Address, repayAmount],
+          args: [contracts.morpho.address as Address, approveAmount],
         });
 
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
@@ -199,8 +227,8 @@ export function useRepayUSDC(
           functionName: 'repay',
           args: [
             marketParams,  // canonical market params from on-chain
-            repayAmount,   // assets (USDC amount, 6 decimals)
-            0n,            // shares (0 = calculate from assets)
+            repayAssets,   // assets (USDC amount, 6 decimals)
+            repayShares,   // shares (0 = calculate from assets)
             userAddress,   // onBehalf (reduce this user's debt)
             '0x',          // data (empty callback - viem requires hex for bytes)
           ],
