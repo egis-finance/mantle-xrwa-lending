@@ -1,7 +1,7 @@
 # Egis Finance
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-app.egis.finance-blue?style=for-the-badge)](https://app.egis.finance)
-[![Docs](https://img.shields.io/badge/Docs-GitBook-green?style=for-the-badge)](https://egis-finance.gitbook.io/egis-finance-docs)
+[![Docs](https://img.shields.io/badge/Docs-GitBook-green?style=for-the-badge)](https://egis-finance.gitbook.io/egis-finance-docs/mantle-hackathon)
 
 **Unlock RWA Liquidity Without Bridging**
 
