@@ -177,4 +177,4 @@ E2E verified on Tenderly Virtual TestNets with real USDY and Morpho Blue contrac
 
 ## License
 
-MIT
+[Business Source License 1.1](LICENSE) - Converts to Apache 2.0 on 2027-01-15
