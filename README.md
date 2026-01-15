@@ -1,5 +1,8 @@
 # Egis Finance
 
+[![Live Demo](https://img.shields.io/badge/Live_Demo-app.egis.finance-blue?style=for-the-badge)](https://app.egis.finance)
+[![Docs](https://img.shields.io/badge/Docs-GitBook-green?style=for-the-badge)](https://egis-finance.gitbook.io/egis-finance-docs)
+
 **Unlock RWA Liquidity Without Bridging**
 
 Egis Finance enables USDY holders on Mantle to borrow USDC on Ethereum without moving tokens cross-chain. By bridging cryptographic proofs instead of assets, we eliminate custody risk and regulatory friction while preserving the security guarantees of the underlying RWA.
