@@ -34,3 +34,5 @@ relayer/*.log
 .DS_Store
 **/.DS_Store
 .env.local
+
+.playwright-mcp/
