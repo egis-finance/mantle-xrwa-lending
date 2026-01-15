@@ -4,6 +4,8 @@ describe('validateEnv', () => {
   beforeEach(() => {
     jest.resetModules();
     process.env = { ...originalEnv, NODE_ENV: 'development' };
+    delete process.env.SKIP_ADDRESS_EQUALITY_CHECK;
+    delete process.env.NEXT_PUBLIC_SKIP_ADDRESS_EQUALITY_CHECK;
   });
 
   afterAll(() => {
