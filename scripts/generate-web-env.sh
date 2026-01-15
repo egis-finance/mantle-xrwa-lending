@@ -8,6 +8,10 @@
 # This script reads the root .env file and generates web/.env.local with proper
 # NEXT_PUBLIC_* prefixed variables. The root .env is the single source of truth
 # for all environment configuration.
+#
+# NOTE: SKIP_ADDRESS_EQUALITY_CHECK is NOT propagated by this script.
+# If AcUSDY and CollateralLocker have the same address (same nonce deployment),
+# set SKIP_ADDRESS_EQUALITY_CHECK=true directly in shell or web/.env.local.
 
 set -euo pipefail
 
