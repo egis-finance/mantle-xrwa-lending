@@ -29,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { parseUnits, formatUnits } from 'viem';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
-import { invalidateUserReads, invalidateCrossChainReads } from '@/lib/swr/invalidation';
+import { invalidateUserReads, invalidateCrossChainReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
 export default function BorrowPage(): ReactElement {
@@ -138,10 +138,15 @@ export default function BorrowPage(): ReactElement {
   ]);
 
   // State for action card inputs
+  // We track both display strings and optional raw values for MAX button scenarios
+  // to avoid locale-dependent parseUnits issues with number inputs
   const [supplyAmount, setSupplyAmount] = React.useState('');
+  const [supplyAmountRaw, setSupplyAmountRaw] = React.useState<bigint | null>(null);
   const [borrowAmount, setBorrowAmount] = React.useState('');
+  const [borrowAmountRaw, setBorrowAmountRaw] = React.useState<bigint | null>(null);
   const [repayAmount, setRepayAmount] = React.useState('');
   const [withdrawAmount, setWithdrawAmount] = React.useState('');
+  const [withdrawAmountRaw, setWithdrawAmountRaw] = React.useState<bigint | null>(null);
   const [isFullRepay, setIsFullRepay] = React.useState(false);
 
   const [isSwapped, setIsSwapped] = React.useState(false);
@@ -247,14 +252,21 @@ export default function BorrowPage(): ReactElement {
       });
       await waitForTransaction(MANTLE_CHAIN_ID, lockHash);
 
-      setTxStatus('success');
       setLockAmount('');
-      
-      // Invalidate cache to refresh UI
+
+      // Invalidate all relevant caches to refresh UI BEFORE showing success
+      // This ensures the displayed balances are fresh, not stale cached values
+      // - Batch reads: Mantle chain multicalls (locked USDY, borrower balance)
+      // - User reads: balances and positions tied to user address
+      // - Cross-chain reads: any dual-chain aggregations
       if (borrowerAddress) {
+        invalidateBatchReads(MANTLE_CHAIN_ID); // Invalidate Mantle multicalls first
         await invalidateUserReads(borrowerAddress);
         invalidateCrossChainReads();
       }
+
+      // Set success AFTER cache invalidation to ensure UI shows fresh data
+      setTxStatus('success');
     } catch (err) {
       console.error('Lock failed:', err);
       setTxStatus('error');
@@ -272,12 +284,51 @@ export default function BorrowPage(): ReactElement {
     setLockError('');
   };
 
+  // Helper to safely parse amount, handling locale decimal separators and exponent notation
+  const safeParseUnits = (value: string, decimals: number): bigint => {
+    const normalized = value.replace(',', '.').trim();
+    if (!/[eE]/.test(normalized)) {
+      return parseUnits(normalized, decimals);
+    }
+
+    const match = normalized.match(/^([+-])?(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/);
+    if (!match) {
+      return parseUnits(normalized, decimals);
+    }
+
+    const sign = match[1] ?? '';
+    const integerPart = match[2];
+    const fractionalPart = match[3] ?? '';
+    const exponent = Number.parseInt(match[4], 10);
+    const digits = integerPart + fractionalPart;
+    const decimalIndex = integerPart.length;
+    const shiftedIndex = decimalIndex + exponent;
+
+    if (shiftedIndex >= digits.length) {
+      return parseUnits(`${sign}${digits}${'0'.repeat(shiftedIndex - digits.length)}`, decimals);
+    }
+
+    if (shiftedIndex <= 0) {
+      return parseUnits(`${sign}0.${'0'.repeat(-shiftedIndex)}${digits}`, decimals);
+    }
+
+    return parseUnits(
+      `${sign}${digits.slice(0, shiftedIndex)}.${digits.slice(shiftedIndex)}`,
+      decimals
+    );
+  };
+
   // Action card handlers
+  // Each handler resets status before starting to clear any previous success/error state
+  // Uses raw value if available (from MAX button), otherwise parses the input string
   const handleSupply = async () => {
     if (!supplyAmount) return;
+    resetSupply(); // Clear previous state before new action
     try {
-      await supplyCollateral(parseUnits(supplyAmount, 18));
+      const amount = supplyAmountRaw ?? safeParseUnits(supplyAmount, 18);
+      await supplyCollateral(amount);
       setSupplyAmount('');
+      setSupplyAmountRaw(null);
     } catch (err) {
       console.error('Supply failed:', err);
     }
@@ -285,17 +336,21 @@ export default function BorrowPage(): ReactElement {
 
   const handleBorrow = async () => {
     if (!borrowAmount) return;
+    resetBorrow(); // Clear previous state before new action
     try {
-      await borrow(parseUnits(borrowAmount, 6));
+      const amount = borrowAmountRaw ?? safeParseUnits(borrowAmount, 6);
+      await borrow(amount);
       setBorrowAmount('');
+      setBorrowAmountRaw(null);
     } catch (err) {
       console.error('Borrow failed:', err);
     }
   };
 
   const handleRepay = async () => {
+    resetRepay(); // Clear previous state before new action
     try {
-      const amount = isFullRepay ? 0n : parseUnits(repayAmount, 6);
+      const amount = isFullRepay ? 0n : safeParseUnits(repayAmount, 6);
       await repay(amount, isFullRepay, borrowerDebt.data?.debtAssetsRaw ?? null);
       setRepayAmount('');
       setIsFullRepay(false);
@@ -306,16 +361,20 @@ export default function BorrowPage(): ReactElement {
 
   const handleWithdraw = async () => {
     if (!withdrawAmount) return;
+    resetWithdraw(); // Clear previous state before new action
     try {
-      await withdrawCollateral(parseUnits(withdrawAmount, 18));
+      const amount = withdrawAmountRaw ?? safeParseUnits(withdrawAmount, 18);
+      await withdrawCollateral(amount);
       setWithdrawAmount('');
+      setWithdrawAmountRaw(null);
     } catch (err) {
       console.error('Withdraw failed:', err);
     }
   };
 
   // Disable conditions for action buttons
-  const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || supplyStatus !== 'idle';
+  // Allow re-triggering when status is 'success' (user can perform another action without manually dismissing)
+  const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || (supplyStatus !== 'idle' && supplyStatus !== 'success');
   const borrowDisabled =
     !borrowAmount ||
     remainingCapacity === null ||
@@ -325,13 +384,13 @@ export default function BorrowPage(): ReactElement {
     morphoCollateral.isError ||
     systemParams.isError ||
     borrowerDebt.isError ||
-    borrowStatus !== 'idle';
+    (borrowStatus !== 'idle' && borrowStatus !== 'success');
   const repayDisabled =
     (!isFullRepay && !repayAmount) ||
     (isFullRepay && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
     borrowerDebt.isError ||
-    repayStatus !== 'idle';
-  const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || withdrawStatus !== 'idle';
+    (repayStatus !== 'idle' && repayStatus !== 'success');
+  const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || (withdrawStatus !== 'idle' && withdrawStatus !== 'success');
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -640,15 +699,18 @@ export default function BorrowPage(): ReactElement {
                                   <input
                                     type="number"
                                     value={supplyAmount}
-                                    onChange={(e) => setSupplyAmount(e.target.value)}
+                                    onChange={(e) => { setSupplyAmount(e.target.value); setSupplyAmountRaw(null); }}
                                     placeholder="0.00"
                                     className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none text-sm"
-                                    disabled={supplyStatus !== 'idle'}
+                                    disabled={supplyStatus !== 'idle' && supplyStatus !== 'success'}
                                   />
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setSupplyAmount(acUsdyBalance.data?.value ?? '0')}
+                                    onClick={() => {
+                                      setSupplyAmount(acUsdyBalance.data?.value ?? '0');
+                                      setSupplyAmountRaw(acUsdyBalance.data?.raw ?? null);
+                                    }}
                                     disabled={!acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n}
                                     className="text-xs"
                                   >
@@ -735,15 +797,20 @@ export default function BorrowPage(): ReactElement {
                               <input
                                 type="number"
                                 value={borrowAmount}
-                                onChange={(e) => setBorrowAmount(e.target.value)}
+                                onChange={(e) => { setBorrowAmount(e.target.value); setBorrowAmountRaw(null); }}
                                 placeholder="0.00"
                                 className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none text-sm"
-                                disabled={borrowStatus !== 'idle' || systemParams.oracleIsStale || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
+                                disabled={(borrowStatus !== 'idle' && borrowStatus !== 'success') || systemParams.oracleIsStale || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
                               />
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => remainingCapacity && setBorrowAmount(formatUnits(remainingCapacity, 6))}
+                                onClick={() => {
+                                  if (remainingCapacity) {
+                                    setBorrowAmount(formatUnits(remainingCapacity, 6));
+                                    setBorrowAmountRaw(remainingCapacity);
+                                  }
+                                }}
                                 disabled={!remainingCapacity || remainingCapacity === 0n || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
                                 className="text-xs"
                               >
@@ -826,7 +893,7 @@ export default function BorrowPage(): ReactElement {
                                 onChange={(e) => { setRepayAmount(e.target.value); setIsFullRepay(false); }}
                                 placeholder="0.00"
                                 className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none text-sm"
-                                disabled={repayStatus !== 'idle' || isFullRepay || borrowerDebt.isError}
+                                disabled={(repayStatus !== 'idle' && repayStatus !== 'success') || isFullRepay || borrowerDebt.isError}
                               />
                               <Button
                                 variant={isFullRepay ? 'default' : 'outline'}
@@ -907,10 +974,10 @@ export default function BorrowPage(): ReactElement {
                               <input
                                 type="number"
                                 value={withdrawAmount}
-                                onChange={(e) => setWithdrawAmount(e.target.value)}
+                                onChange={(e) => { setWithdrawAmount(e.target.value); setWithdrawAmountRaw(null); }}
                                 placeholder="0.00"
                                 className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none text-sm"
-                                disabled={withdrawStatus !== 'idle' || morphoCollateral.isError}
+                                disabled={(withdrawStatus !== 'idle' && withdrawStatus !== 'success') || morphoCollateral.isError}
                               />
                               <Button
                                 variant="ghost"
@@ -918,6 +985,7 @@ export default function BorrowPage(): ReactElement {
                                 onClick={() => {
                                   if (safeWithdrawRaw == null) return;
                                   setWithdrawAmount(formatUnits(safeWithdrawRaw, 18));
+                                  setWithdrawAmountRaw(safeWithdrawRaw);
                                 }}
                                 disabled={morphoCollateral.isError || safeWithdrawRaw == null || safeWithdrawRaw === 0n}
                                 className="text-xs"
