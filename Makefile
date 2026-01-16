@@ -1,7 +1,7 @@
 # Makefile for mantle-xrwa-lending
 # Run 'make help' for available targets
 
-.PHONY: help build test lint clean
+.PHONY: help build test lint clean vercel-status vercel-latest vercel-logs vercel-errors vercel-open
 
 # Default target
 help:
@@ -27,6 +27,13 @@ help:
 	@echo "    make relayer-build      - Build relayer binary"
 	@echo "    make relayer-test       - Run relayer tests"
 	@echo "    make relayer-lint       - Lint Go code"
+	@echo ""
+	@echo "  Vercel Deployment:"
+	@echo "    make vercel-status      - Show recent deployments"
+	@echo "    make vercel-latest      - Inspect latest ready deployment"
+	@echo "    make vercel-logs        - Stream runtime logs (latest deployment)"
+	@echo "    make vercel-errors      - List all failed deployments"
+	@echo "    make vercel-open        - Open Vercel dashboard in browser"
 	@echo ""
 	@echo "  Combined:"
 	@echo "    make all                - Build and lint everything"
@@ -89,6 +96,41 @@ relayer-test:
 
 relayer-lint:
 	cd relayer && golangci-lint run
+
+# ============================================================================
+# Vercel Deployment
+# ============================================================================
+
+# Extract scope from "Fetching deployments in <scope>" line
+VERCEL_SCOPE := $(shell cd web && vercel list 2>&1 | grep 'Fetching deployments in' | sed 's/.*in //')
+
+vercel-status: ## Show recent deployments and their status
+	@cd web && vercel list 2>&1 | head -20
+
+vercel-latest: ## Show details of the latest deployment
+	@cd web && SCOPE=$$(vercel list 2>&1 | grep 'Fetching deployments in' | sed 's/.*in //') && \
+	URL=$$(vercel list 2>&1 | grep 'Ready' | head -1 | awk '{print $$2}') && \
+	vercel inspect "$$URL" --scope "$$SCOPE"
+
+vercel-logs: ## Stream runtime logs from the latest ready deployment
+	@cd web && SCOPE=$$(vercel list 2>&1 | grep 'Fetching deployments in' | sed 's/.*in //') && \
+	URL=$$(vercel list 2>&1 | grep 'Ready' | head -1 | awk '{print $$2}') && \
+	echo "Streaming logs for $$URL (Ctrl+C to stop)..." && \
+	vercel logs "$$URL" --scope "$$SCOPE"
+
+vercel-errors: ## Show all failed deployments with details
+	@cd web && SCOPE=$$(vercel list 2>&1 | grep 'Fetching deployments in' | sed 's/.*in //') && \
+	echo "=== Failed Deployments ===" && \
+	vercel list 2>&1 | grep 'Error' | while read -r line; do \
+		URL=$$(echo "$$line" | awk '{print $$2}'); \
+		AGE=$$(echo "$$line" | awk '{print $$1}'); \
+		echo "\n--- $$AGE ago: $$URL ---"; \
+		vercel inspect "$$URL" --scope "$$SCOPE" 2>&1 | grep -E '(status|created|url|Error)' || true; \
+	done
+
+vercel-open: ## Open Vercel dashboard in browser
+	@cd web && SCOPE=$$(vercel list 2>&1 | grep 'Fetching deployments in' | sed 's/.*in //') && \
+	open "https://vercel.com/$$SCOPE/mantle-xrwa-lending/deployments"
 
 # ============================================================================
 # Combined Targets
