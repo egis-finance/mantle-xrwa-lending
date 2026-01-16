@@ -151,9 +151,9 @@ export default function BorrowPage(): ReactElement {
   const [borrowAmount, setBorrowAmount] = React.useState('');
   const [borrowAmountRaw, setBorrowAmountRaw] = React.useState<bigint | null>(null);
   const [repayAmount, setRepayAmount] = React.useState('');
+  const [repayMode, setRepayMode] = React.useState<'partial' | 'full'>('partial');
   const [withdrawAmount, setWithdrawAmount] = React.useState('');
   const [withdrawAmountRaw, setWithdrawAmountRaw] = React.useState<bigint | null>(null);
-  const [isFullRepay, setIsFullRepay] = React.useState(false);
 
   const [isSwapped, setIsSwapped] = React.useState(false);
   const [lockAmount, setLockAmount] = React.useState('');
@@ -339,18 +339,30 @@ export default function BorrowPage(): ReactElement {
     borrowAmountParsed > safeBorrowCapacity;
 
   const repayAmountParsed = React.useMemo(() => {
-    if (!repayAmount || isFullRepay) return null;
+    if (!repayAmount || repayMode === 'full') return null;
     try {
       return safeParseUnits(repayAmount, 6);
     } catch {
       return null;
     }
-  }, [repayAmount, isFullRepay]);
+  }, [repayAmount, repayMode]);
 
-  const repayAmountExceedsDebt = !isFullRepay &&
+  const repayAmountExceedsDebt = repayMode === 'partial' &&
     repayAmountParsed !== null &&
     borrowerDebt.data?.debtAssetsRaw != null &&
     repayAmountParsed > borrowerDebt.data.debtAssetsRaw;
+
+  // Full repay amount with 0.1% interest buffer to account for accrual between
+  // submission and confirmation. Matches the buffer in useRepayUSDC.ts line 175.
+  const fullRepayAmount = React.useMemo(() => {
+    const debtRaw = borrowerDebt.data?.debtAssetsRaw;
+    if (debtRaw == null || debtRaw === 0n) return null;
+    return (debtRaw * 1001n) / 1000n;
+  }, [borrowerDebt.data?.debtAssetsRaw]);
+
+  const fullRepayFormatted = fullRepayAmount
+    ? `$${formatUnits(fullRepayAmount, 6)}`
+    : '--';
 
   // Action card handlers
   // Each handler resets status before starting to clear any previous success/error state
@@ -384,6 +396,7 @@ export default function BorrowPage(): ReactElement {
   const handleRepay = async () => {
     resetRepay(); // Clear previous state before new action
     try {
+      const isFullRepay = repayMode === 'full';
       const amount = isFullRepay ? 0n : safeParseUnits(repayAmount, 6);
       await repay(
         amount,
@@ -392,7 +405,7 @@ export default function BorrowPage(): ReactElement {
         borrowerDebt.data?.borrowShares ?? null
       );
       setRepayAmount('');
-      setIsFullRepay(false);
+      setRepayMode('partial'); // Reset to partial after success
     } catch (err) {
       console.error('Repay failed:', err);
     }
@@ -428,13 +441,13 @@ export default function BorrowPage(): ReactElement {
     borrowerDebt.isError ||
     (borrowStatus !== 'idle' && borrowStatus !== 'success');
   const repayDisabled =
-    (!isFullRepay && (
+    (repayMode === 'partial' && (
       !repayAmount ||
       repayAmountParsed === null ||
       repayAmountParsed <= 0n ||
       repayAmountExceedsDebt
     )) ||
-    (isFullRepay && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
+    (repayMode === 'full' && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
     borrowerDebt.isError ||
     (repayStatus !== 'idle' && repayStatus !== 'success');
   const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || (withdrawStatus !== 'idle' && withdrawStatus !== 'success');
@@ -943,28 +956,65 @@ export default function BorrowPage(): ReactElement {
                                 </span>
                               </div>
                             )}
-                            <div className="flex gap-2">
+                            {/* Repay Mode Selector */}
+                            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => setRepayMode('partial')}
+                                className={cn(
+                                  "flex-1 py-2 px-3 text-sm font-medium transition-colors",
+                                  repayMode === 'partial'
+                                    ? "bg-purple-500 text-white"
+                                    : "bg-white text-gray-600 hover:bg-gray-50"
+                                )}
+                                disabled={repayStatus !== 'idle' && repayStatus !== 'success'}
+                              >
+                                Partial
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setRepayMode('full'); setRepayAmount(''); }}
+                                disabled={
+                                  borrowerDebt.isError ||
+                                  borrowerDebt.data?.debtAssetsRaw == null ||
+                                  borrowerDebt.data.debtAssetsRaw === 0n ||
+                                  (repayStatus !== 'idle' && repayStatus !== 'success')
+                                }
+                                className={cn(
+                                  "flex-1 py-2 px-3 text-sm font-medium transition-colors",
+                                  repayMode === 'full'
+                                    ? "bg-purple-500 text-white"
+                                    : "bg-white text-gray-600 hover:bg-gray-50",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed"
+                                )}
+                              >
+                                Full ({fullRepayFormatted})
+                              </button>
+                            </div>
+
+                            {/* Partial Amount Input (only when partial mode) */}
+                            {repayMode === 'partial' && (
                               <input
                                 type="number"
                                 value={repayAmount}
-                                onChange={(e) => { setRepayAmount(e.target.value); setIsFullRepay(false); }}
+                                onChange={(e) => setRepayAmount(e.target.value)}
                                 placeholder="0.00"
-                                className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none text-sm"
-                                disabled={(repayStatus !== 'idle' && repayStatus !== 'success') || isFullRepay || borrowerDebt.isError}
+                                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none text-sm"
+                                disabled={(repayStatus !== 'idle' && repayStatus !== 'success') || borrowerDebt.isError}
                               />
-                              <Button
-                                variant={isFullRepay ? 'default' : 'outline'}
-                                size="sm"
-                                onClick={() => { setIsFullRepay(!isFullRepay); setRepayAmount(''); }}
-                                disabled={borrowerDebt.isError || borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n}
-                                className={cn("text-xs", isFullRepay && "bg-purple-500 hover:bg-purple-600")}
-                              >
-                                FULL
-                              </Button>
-                            </div>
-                            {repayAmountExceedsDebt && (
+                            )}
+
+                            {/* Validation messages */}
+                            {repayMode === 'partial' && repayAmountExceedsDebt && (
                               <p className="text-xs text-red-600">
-                                Amount exceeds outstanding debt. Use FULL to clear all debt.
+                                Cannot exceed {fullRepayFormatted} (full debt). Select &quot;Full&quot; to clear all debt.
+                              </p>
+                            )}
+
+                            {/* Full mode explanation */}
+                            {repayMode === 'full' && (
+                              <p className="text-xs text-purple-600">
+                                Includes 0.1% buffer for interest accrual between now and transaction confirmation.
                               </p>
                             )}
                             {repayError && (
@@ -1000,7 +1050,7 @@ export default function BorrowPage(): ReactElement {
                               ) : (
                                 <ArrowUpCircle className="h-4 w-4 mr-2" />
                               )}
-                              {isFullRepay ? 'Repay Full Debt' : 'Repay USDC'}
+                              {repayMode === 'full' ? 'Repay Full Debt' : 'Repay USDC'}
                             </Button>
                           </CardContent>
                         </Card>
