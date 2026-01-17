@@ -16,6 +16,66 @@ Egis Finance enables USDY holders on Mantle to borrow USDC on Ethereum without m
 | Compliance Declaration | [GitBook](https://egis-finance.gitbook.io/egis-finance-docs/mantle-hackathon/team) |
 | Live Demo | [app.egis.finance](https://app.egis.finance) |
 
+## Try It Now
+
+Test the protocol without any setup using our Tenderly Virtual TestNet deployment.
+
+### Login & Fund Your Test Wallet
+
+**Option 1: Pre-funded Demo Accounts** (recommended for quick evaluation)
+
+| Role | Email | PIN |
+|------|-------|-----|
+| Lender | `lender+dynamic_test@egis.finance` | `107135` |
+| Borrower | `borrower+dynamic_test@egis.finance` | `107135` |
+
+> The `+dynamic_test` suffix triggers Dynamic SDK's test mode with a fixed PIN.
+
+**Option 2: Create Your Own Wallet**
+
+1. Go to [app.egis.finance](https://app.egis.finance)
+2. Sign in with Google, Apple, or email (creates an embedded wallet)
+3. Click **"Fund Wallet"** to receive test tokens
+
+| Chain | Token | Amount |
+|-------|-------|--------|
+| Mantle | MNT (gas) | 1,000 |
+| Mantle | USDY | 1,000,000 |
+| Ethereum | ETH (gas) | 10 |
+| Ethereum | USDC | 1,000,000 |
+
+<details>
+<summary><strong>How does "Fund Wallet" work?</strong></summary>
+
+The Fund Wallet button uses Tenderly VTE's special RPC methods (`tenderly_setBalance`, `tenderly_setErc20Balance`) to directly modify contract storage slots. This is only possible on Virtual TestNets—ephemeral mainnet forks that mirror real contract state but allow arbitrary balance manipulation for testing.
+</details>
+
+### Test the Borrower Flow (`/borrow`)
+
+1. **Navigate** to [app.egis.finance/borrow](https://app.egis.finance/borrow)
+2. **Lock USDY** on Mantle: Enter amount → Approve → Lock
+3. **Wait for attestation** (~30 seconds): DVN relayer signs and submits proof to Ethereum
+4. **Receive AcUSDY**: Non-transferable collateral receipt appears on Ethereum
+5. **Supply collateral**: Supply AcUSDY to Morpho Blue
+6. **Borrow USDC**: Borrow up to 86% of collateral value
+7. **Monitor**: View loan health in the dashboard
+
+### Test the Lender Flow (`/earn`)
+
+1. **Navigate** to [app.egis.finance/earn](https://app.egis.finance/earn)
+2. **Supply USDC**: Enter amount → Approve → Supply to Morpho Blue
+3. **Earn yield**: Interest accrues from borrower repayments
+4. **Withdraw**: Withdraw USDC + accrued interest anytime
+
+### Protocol Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| LLTV | 86% | Liquidation loan-to-value threshold |
+| Oracle Haircut | 2% | Safety discount on collateral valuation |
+| Collateral | AcUSDY | Non-transferable attested USDY receipt |
+| Loan Token | USDC | Ethereum mainnet USDC |
+
 ## How It Works
 
 ```
@@ -46,7 +106,7 @@ This implements the academic xRWA concept: a three-layer model for cross-chain R
 - **Invisible chain complexity**: Lock on Mantle and borrow on Ethereum through a unified interface
 - **Testnet/Mainnet parity**: Configuration-driven deployment supports Tenderly VTEs and mainnet
 
-## Quick Start for Developers
+## Developer Setup
 
 ### Prerequisites
 
