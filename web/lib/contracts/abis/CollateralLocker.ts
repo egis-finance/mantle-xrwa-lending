@@ -1,5 +1,12 @@
 export const CollateralLockerAbi = [
   {
+    name: 'admin',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'address' }],
+  },
+  {
     name: 'lock',
     type: 'function',
     stateMutability: 'nonpayable',
