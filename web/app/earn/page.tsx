@@ -60,6 +60,22 @@ export default function EarnPage() {
         return (parseFloat(position) * apy) / 12;
     }, [lenderPosition.data?.suppliedValue, supplyAPY.apy]);
 
+    // Calculate user's share of borrowed capital (proportional to their supply)
+    const borrowedAgainstYourSupply = React.useMemo(() => {
+        const userSupply = lenderPosition.data?.suppliedValue;
+        const totalSupply = systemParams.totalSupply;
+        const totalBorrow = systemParams.totalBorrow;
+
+        if (!userSupply || !totalSupply || !totalBorrow) return null;
+
+        const userSupplyNum = parseFloat(userSupply);
+        const totalSupplyNum = parseFloat(totalSupply);
+        const totalBorrowNum = parseFloat(totalBorrow);
+
+        if (totalSupplyNum === 0) return 0;
+        return (userSupplyNum / totalSupplyNum) * totalBorrowNum;
+    }, [lenderPosition.data?.suppliedValue, systemParams.totalSupply, systemParams.totalBorrow]);
+
     // Utilization bar color based on rate (default to 0 if null)
     const utilizationRate = systemParams.utilizationRate ?? 0;
     const utilizationColor = utilizationRate < 50
@@ -69,11 +85,11 @@ export default function EarnPage() {
             : 'bg-danger-DEFAULT';
 
     // Helper for user position display with proper state handling
-    const getPositionDisplay = () => {
-        if (!isConnected) return { value: '--', sublabel: 'Connect to view' };
-        if (lenderPosition.isLoading) return { value: '...', sublabel: null };
+    const getPositionDisplay = (): { value: string; sublabel: string | null; isError: boolean } => {
+        if (!isConnected) return { value: '--', sublabel: 'Connect to view', isError: false };
+        if (lenderPosition.isLoading) return { value: '...', sublabel: null, isError: false };
         if (lenderPosition.isError) return { value: '--', sublabel: 'Error', isError: true };
-        return { value: formatTvl(lenderPosition.data?.suppliedValue ?? '0'), sublabel: null };
+        return { value: formatTvl(lenderPosition.data?.suppliedValue ?? '0'), sublabel: null, isError: false };
     };
     const positionDisplay = getPositionDisplay();
 
@@ -260,6 +276,12 @@ export default function EarnPage() {
                                 <p className="text-2xl font-bold text-brand-dark">
                                     {systemParams.isLoading ? '...' : `${utilizationRate.toFixed(1)}%`}
                                 </p>
+                                {/* Breakdown: borrowed / total supply */}
+                                {!systemParams.isLoading && systemParams.totalBorrow && systemParams.totalSupply && (
+                                    <p className="text-xs text-brand-muted mt-0.5 tabular-nums">
+                                        {formatTvl(systemParams.totalBorrow)} / {formatTvl(systemParams.totalSupply)}
+                                    </p>
+                                )}
                                 {/* Utilization progress bar */}
                                 <div className="w-full h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
                                     <div
@@ -453,6 +475,27 @@ export default function EarnPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Borrowed Against Your Supply - only show when user has a position */}
+                            {isConnected && borrowedAgainstYourSupply !== null && (
+                                <>
+                                    <div className="h-px bg-border"></div>
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-brand-muted uppercase tracking-wider">Borrowed Against You</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                                <Activity className="h-5 w-5 text-amber-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xl font-bold text-brand-dark tabular-nums">
+                                                    ${borrowedAgainstYourSupply.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </p>
+                                                <p className="text-xs text-brand-muted">Your share of outstanding loans</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             <div className="h-px bg-border"></div>
 
