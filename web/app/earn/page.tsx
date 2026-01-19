@@ -68,6 +68,15 @@ export default function EarnPage() {
             ? 'bg-yellow-500'
             : 'bg-danger-DEFAULT';
 
+    // Helper for user position display with proper state handling
+    const getPositionDisplay = () => {
+        if (!isConnected) return { value: '--', sublabel: 'Connect to view' };
+        if (lenderPosition.isLoading) return { value: '...', sublabel: null };
+        if (lenderPosition.isError) return { value: '--', sublabel: 'Error', isError: true };
+        return { value: formatTvl(lenderPosition.data?.suppliedValue ?? '0'), sublabel: null };
+    };
+    const positionDisplay = getPositionDisplay();
+
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setAmount(value);
@@ -185,7 +194,7 @@ export default function EarnPage() {
 
                 {/* Market Stats Header */}
                 <div className="grid md:grid-cols-3 gap-6">
-                    {/* Total USDC Supplied */}
+                    {/* Your USDC Supplied */}
                     <Card className="border-none shadow-soft-xl bg-white relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-2">
                             <span className="flex items-center gap-1 bg-success-light text-success-DEFAULT text-xs font-bold px-2 py-1 rounded-full">
@@ -197,11 +206,16 @@ export default function EarnPage() {
                             <div className="h-12 w-12 rounded-full bg-brand-light flex items-center justify-center text-brand-DEFAULT">
                                 <Coins className="h-6 w-6" />
                             </div>
-                            <div>
-                                <p className="text-sm font-medium text-brand-muted">Total USDC Supplied</p>
-                                <p className="text-2xl font-bold text-brand-dark">
-                                    {systemParams.isLoading ? '...' : systemParams.totalSupply ? formatTvl(systemParams.totalSupply) : '$0'}
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium text-brand-muted">Your USDC Supplied</p>
+                                <p className="text-2xl font-bold text-brand-dark tabular-nums truncate">
+                                    {positionDisplay.value}
                                 </p>
+                                {positionDisplay.sublabel && (
+                                    <p className={`text-[10px] ${positionDisplay.isError ? 'text-red-500' : 'text-brand-muted'}`}>
+                                        {positionDisplay.sublabel}
+                                    </p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
