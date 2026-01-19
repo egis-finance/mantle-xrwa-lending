@@ -3,6 +3,7 @@
 import React from 'react';
 import { parseUnits, formatUnits } from 'viem';
 import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TrendingUp, Activity, Coins, Info, Loader2, CheckCircle, AlertCircle, Wallet, DollarSign } from 'lucide-react';
@@ -462,6 +463,8 @@ export default function EarnPage() {
 
                 </div>
             </main>
+
+            <Footer />
         </div>
     );
 }

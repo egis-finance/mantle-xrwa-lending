@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
@@ -466,7 +467,7 @@ export default function DashboardPage() {
                                         </svg>
                                         <div className="absolute inset-0 flex items-center justify-center">
                                             <span className={`text-xs font-bold ${systemParams.utilizationRate && systemParams.utilizationRate > 90 ? 'text-orange-600' : 'text-emerald-600'}`}>
-                                                {systemParams.utilizationRate?.toFixed(0) || 0}%
+                                                {systemParams.utilizationRate?.toFixed(3) || '0.000'}%
                                             </span>
                                         </div>
                                     </div>
@@ -587,6 +588,8 @@ export default function DashboardPage() {
                 </Card>
 
             </main>
+
+            <Footer />
 
             {/* Liquidation Confirmation Modal */}
             {pendingLiquidation && (

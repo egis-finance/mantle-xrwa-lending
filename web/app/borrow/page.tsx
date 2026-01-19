@@ -3,6 +3,7 @@
 import React from 'react';
 import type { ReactElement } from 'react';
 import { Navbar } from '@/components/Navbar';
+import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRightLeft, Lock, Wallet, Loader2, CheckCircle2, AlertTriangle, PlusCircle, MinusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
@@ -1155,6 +1156,8 @@ export default function BorrowPage(): ReactElement {
                   <LoanHealthCard />
                 </div>
             </main>
+
+            <Footer />
         </div>
     );
 }
