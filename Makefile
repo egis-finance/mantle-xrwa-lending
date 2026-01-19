@@ -18,10 +18,14 @@ help:
 	@echo "  Web Frontend:"
 	@echo "    make web-install        - Install web dependencies"
 	@echo "    make web-dev            - Start development server"
-	@echo "    make web-build          - Production build"
+	@echo "    make web-build          - Production build (for Vercel)"
+	@echo "    make web-build-static   - Static export build (creates out/)"
 	@echo "    make web-typecheck      - TypeScript type checking"
 	@echo "    make web-lint           - ESLint"
 	@echo "    make web-test           - Run web tests"
+	@echo "    make web-serve          - Serve static export (requires out/)"
+	@echo "    make web-start          - Build static + serve (fresh build)"
+	@echo "    make web-prod           - Alias for web-start"
 	@echo ""
 	@echo "  Go Relayer:"
 	@echo "    make relayer-build      - Build relayer binary"
@@ -73,7 +77,10 @@ web-dev:
 	cd web && pnpm run dev
 
 web-build:
-	cd web && pnpm run build
+	cd web && pnpm run clean && pnpm run build
+
+web-build-static:
+	cd web && pnpm run clean && NEXT_OUTPUT=export pnpm run build
 
 web-typecheck:
 	cd web && pnpm exec tsc --noEmit
@@ -83,6 +90,13 @@ web-lint:
 
 web-test:
 	cd web && pnpm test
+
+web-serve:
+	cd web && pnpm exec serve out
+
+web-start: web-build-static web-serve
+
+web-prod: web-start
 
 # ============================================================================
 # Go Relayer

@@ -2,7 +2,7 @@
 -include ../.env
 export
 
-.PHONY: install dev build start serve prod lint test clean clean-cache clean-all
+.PHONY: install dev build build-static start serve prod lint test clean clean-cache clean-all
 
 # Install dependencies
 install:
@@ -12,18 +12,22 @@ install:
 dev:
 	pnpm run dev
 
-# Build optimized production bundle (run before 'serve')
+# Build for Vercel deployment (creates .next/)
 build:
-	pnpm run build
+	pnpm run clean && pnpm run build
 
-# Serve static export from out/ directory (requires 'build' first)
-serve:
+# Build static export (creates out/) - required for 'serve'
+build-static:
+	pnpm run clean && NEXT_OUTPUT=export pnpm run build
+
+# Serve static export from out/ directory
+serve: build-static
 	pnpm exec serve out
 
-# Build and serve production bundle in one step
-prod: build serve
+# Alias for serve (build-static + serve)
+prod: serve
 
-# Alias for 'serve' (legacy compatibility)
+# Alias for 'serve' - builds static export and serves it
 start: serve
 
 # Run linting
