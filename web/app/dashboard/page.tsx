@@ -17,8 +17,9 @@ import { cn } from '@/lib/utils';
 import { useReleaseQueue } from '@/hooks/useReleaseQueue';
 import { useLiquidationRadar, type BorrowerPosition } from '@/hooks/useLiquidationRadar';
 import { useChainAbstracted } from '@/hooks/useChainAbstracted';
-import { contracts, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/contracts';
-import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
+import { useCollateralLockerAdmin } from '@/hooks/useCollateralLockerAdmin';
+import { useUnlockCollateral } from '@/hooks/useUnlockCollateral';
+import { contracts, ETHEREUM_CHAIN_ID } from '@/lib/contracts';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
 
@@ -28,9 +29,38 @@ export default function DashboardPage() {
     
     const { requests, isLoading: isQueueLoading, refetch: refetchQueue } = useReleaseQueue();
     const { positions: radarPositions, isLoading: isRadarLoading, isDiscovering, canRescan, refetch: refetchRadar, rescanBorrowers } = useLiquidationRadar(systemParams.lltv ?? 0.86);
-    const { signOnMantle, executeOnEthereum, waitForTransaction, readFromEthereum, canSign, getSignerAddress } = useChainAbstracted();
+    const { executeOnEthereum, waitForTransaction, readFromEthereum, canSign, getSignerAddress } = useChainAbstracted();
     const marketId = getMarketId();
-    
+
+    // Admin detection for release queue actions
+    const { isAdmin } = useCollateralLockerAdmin();
+
+    // Unlock hook with admin check (replaces direct signOnMantle call)
+    // Wrap refetchQueue to match expected signature - SWR mutator returns Promise<ReleaseRequest[] | undefined>
+    const onUnlockSuccess = React.useCallback(async () => { await refetchQueue(); }, [refetchQueue]);
+    const { unlock, error: unlockError, reset: resetUnlock } = useUnlockCollateral(isAdmin, onUnlockSuccess);
+
+    // Pagination for release queue
+    const DEFAULT_PAGE_SIZE = 10;
+    const [visibleCount, setVisibleCount] = React.useState(DEFAULT_PAGE_SIZE);
+
+    // Deterministic sort for stable pagination
+    const sortedRequests = React.useMemo(() => {
+        return [...requests].sort((a, b) => {
+            // Primary: ready before waiting
+            if (a.status !== b.status) {
+                return a.status === 'ready' ? -1 : 1;
+            }
+            // Secondary: stable sort by lockId
+            const aLockId = a.lastLockId ?? '';
+            const bLockId = b.lastLockId ?? '';
+            const lockIdCmp = aLockId.localeCompare(bLockId);
+            if (lockIdCmp !== 0) return lockIdCmp;
+            // Tertiary: borrower address for strict stability
+            return a.borrower.localeCompare(b.borrower);
+        });
+    }, [requests]);
+
     const [processingId, setProcessingId] = React.useState<string | null>(null);
     const [processError, setProcessError] = React.useState<string | null>(null);
     
@@ -38,20 +68,16 @@ export default function DashboardPage() {
     const [liquidatingError, setLiquidatingError] = React.useState<string | null>(null);
     const [pendingLiquidation, setPendingLiquidation] = React.useState<BorrowerPosition | null>(null);
 
-    const handleProcessRelease = async (borrower: string, amount: bigint, lockId: string) => {
+    // Handle release via the admin-gated unlock hook (replaces direct signOnMantle call)
+    const handleProcessRelease = async (borrower: `0x${string}`, amount: bigint, lockId: `0x${string}`) => {
         try {
             setProcessingId(borrower);
             setProcessError(null);
-            
-            const hash = await signOnMantle({
-                address: contracts.collateralLocker.address,
-                abi: CollateralLockerAbi,
-                functionName: 'unlock',
-                args: [borrower, amount, lockId],
-            });
-            
-            await waitForTransaction(MANTLE_CHAIN_ID, hash);
-            await refetchQueue();
+            resetUnlock();
+
+            // unlock() validates admin status, recipient, amount, and lockId
+            // On success, it calls refetchQueue via onSuccess callback
+            await unlock(borrower, amount, lockId);
         } catch (err) {
             console.error('Release failed:', err);
             setProcessError(err instanceof Error ? err.message : 'Processing failed');
@@ -343,55 +369,74 @@ export default function DashboardPage() {
                                         <p className="text-sm text-brand-muted italic">No pending releases found</p>
                                     </div>
                                 ) : (
-                                    requests.map((request) => (
-                                        <div key={request.borrower} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all hover:border-purple-100 group">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-mono text-sm text-brand-dark group-hover:text-purple-700 transition-colors">
-                                                        {request.borrower.slice(0, 6)}...{request.borrower.slice(-4)}
+                                    <>
+                                        {sortedRequests.slice(0, visibleCount).map((request) => (
+                                            <div key={request.borrower} className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:shadow-md transition-all hover:border-purple-100 group">
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-mono text-sm text-brand-dark group-hover:text-purple-700 transition-colors">
+                                                            {request.borrower.slice(0, 6)}...{request.borrower.slice(-4)}
+                                                        </p>
+                                                        {request.borrower === userAddress && (
+                                                            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500">
+                                                        Locked: <span className="font-bold text-gray-900">{request.lockedAmount} USDY</span>
                                                     </p>
-                                                    {request.borrower === userAddress && (
-                                                        <span className="inline-block px-1.5 py-0.5 rounded text-[9px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                    {request.status === 'waiting' && (
+                                                        <p className="text-[10px] text-amber-600 flex items-center gap-1">
+                                                            <AlertCircle className="h-3 w-3" />
+                                                            Repayment pending on Ethereum
+                                                        </p>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-gray-500">
-                                                    Locked: <span className="font-bold text-gray-900">{request.lockedAmount} USDY</span>
-                                                </p>
-                                                {request.status === 'waiting' && (
-                                                    <p className="text-[10px] text-amber-600 flex items-center gap-1">
-                                                        <AlertCircle className="h-3 w-3" />
-                                                        Repayment pending on Ethereum
-                                                    </p>
+
+                                                {processingId === request.borrower ? (
+                                                    <Button size="sm" disabled className="bg-purple-100 text-purple-600 border-purple-200">
+                                                        <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                                        Processing
+                                                    </Button>
+                                                ) : request.status === 'ready' && isAdmin ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleProcessRelease(request.borrower as `0x${string}`, request.lockedAmountRaw, request.lastLockId as `0x${string}`)}
+                                                        disabled={!!processingId}
+                                                        className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                                    >
+                                                        Process Release
+                                                    </Button>
+                                                ) : request.status === 'ready' ? (
+                                                    <span className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-200">
+                                                        Ready — Admin Only
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm px-4 py-2 bg-gray-100/50 rounded-full">
+                                                        Waiting...
+                                                    </span>
                                                 )}
                                             </div>
-                                            
-                                            {processingId === request.borrower ? (
-                                                <Button size="sm" disabled className="bg-purple-100 text-purple-600 border-purple-200">
-                                                    <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                                                    Processing
-                                                </Button>
-                                            ) : request.status === 'ready' ? (
-                                                <Button 
-                                                    size="sm" 
-                                                    variant="outline" 
-                                                    onClick={() => handleProcessRelease(request.borrower, request.lockedAmountRaw, request.lastLockId)}
-                                                    className="text-purple-600 border-purple-200 hover:bg-purple-50 hover:border-purple-300 transition-all hover:scale-105 active:scale-95"
+                                        ))}
+                                        {visibleCount < sortedRequests.length && (
+                                            <div className="text-center pt-4">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setVisibleCount(c => c + DEFAULT_PAGE_SIZE)}
+                                                    className="text-purple-600 hover:text-purple-700"
                                                 >
-                                                    Process Release
+                                                    Show More ({sortedRequests.length - visibleCount} remaining)
                                                 </Button>
-                                            ) : (
-                                                <Button size="sm" disabled variant="secondary" className="bg-gray-100 text-gray-400">
-                                                    Waiting...
-                                                </Button>
-                                            )}
-                                        </div>
-                                    ))
+                                            </div>
+                                        )}
+                                    </>
                                 )}
-                                {processError && (
+                                {(processError || unlockError) && (
                                     <div className="p-3 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
                                         <AlertCircle className="h-3 w-3" />
-                                        {processError}
-                                        <button onClick={() => setProcessError(null)} className="ml-auto underline">Dismiss</button>
+                                        {processError || unlockError?.message}
+                                        <button onClick={() => { setProcessError(null); resetUnlock(); }} className="ml-auto underline">Dismiss</button>
                                     </div>
                                 )}
                             </div>
