@@ -6,7 +6,7 @@ import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TvlPegDisplay } from '@/components/TvlPegDisplay';
-import { Activity, RefreshCw, Info, ShieldCheck, Loader2, AlertCircle, X } from 'lucide-react';
+import { Activity, RefreshCw, Info, ShieldCheck, Loader2, AlertCircle, X, Coins, ArrowDownCircle } from 'lucide-react';
 import { formatUnits, maxUint256 } from 'viem';
 import { getMarketId } from '@/lib/marketId';
 import { useSystemParams } from '@/hooks/useSystemParams';
@@ -22,6 +22,21 @@ import { useUnlockCollateral } from '@/hooks/useUnlockCollateral';
 import { contracts, ETHEREUM_CHAIN_ID } from '@/lib/contracts';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
+
+// Module-local helper: shows more decimals for small values
+const formatTvlPrecise = (value: string | null | undefined): string => {
+    if (!value) return '--';
+    const num = parseFloat(value);
+    if (isNaN(num)) return '--';
+    if (num === 0) return '$0.00';
+    if (num < 1) return `$${num.toFixed(4)}`;
+    if (num < 1000) return `$${num.toFixed(2)}`;
+    if (num >= 1_000_000_000_000) return `$${(num / 1_000_000_000_000).toFixed(2)}T`;
+    if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(2)}B`;
+    if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
+    if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
+    return `$${num.toFixed(2)}`;
+};
 
 export default function DashboardPage() {
     const { address: userAddress } = useDynamicWallet();
@@ -460,9 +475,9 @@ export default function DashboardPage() {
                                 <span className="ml-3 text-sm font-medium text-brand-muted">Loading parameters...</span>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {/* Max LTV */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="relative w-12 h-12 flex-shrink-0">
                                         <svg className="transform -rotate-90 w-12 h-12">
                                             <circle cx="24" cy="24" r="20" stroke="#e0e7ff" strokeWidth="4" fill="none" />
@@ -480,7 +495,7 @@ export default function DashboardPage() {
                                             <span className="text-xs font-bold text-blue-700">{systemParams.lltvPercentage ?? '--'}</span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Max LTV</p>
                                             <div className="group/info relative">
@@ -496,7 +511,7 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Utilization */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="relative w-12 h-12 flex-shrink-0">
                                         <svg className="transform -rotate-90 w-12 h-12">
                                             <circle cx="24" cy="24" r="20" stroke="#d1fae5" strokeWidth="4" fill="none" />
@@ -516,7 +531,7 @@ export default function DashboardPage() {
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Util. Rate</p>
                                             <div className="group/info relative">
@@ -527,12 +542,19 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-[10px] text-emerald-400/80">Capital Usage</p>
+                                        {/* Breakdown subtitle - only show when both values available */}
+                                        <div className="min-h-[14px] leading-[14px]">
+                                            {systemParams.totalBorrow && systemParams.totalSupply && (
+                                                <p className="text-[10px] text-emerald-400/80 truncate tabular-nums">
+                                                    {formatTvlPrecise(systemParams.totalBorrow)} / {formatTvlPrecise(systemParams.totalSupply)}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Oracle Status */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50/50 border border-purple-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50/50 border border-purple-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 flex items-center justify-center flex-shrink-0">
                                         {systemParams.oracleIsStale === false ? (
                                             <div className="relative flex items-center justify-center">
@@ -549,7 +571,7 @@ export default function DashboardPage() {
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-purple-600 uppercase font-bold tracking-wider">Oracle</p>
                                             <div className="group/info relative">
@@ -564,12 +586,56 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
+                                {/* Total Supplied */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 border border-emerald-200">
+                                        <Coins className="h-5 w-5 text-emerald-600" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Supplied</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-emerald-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Total Supplied</p>
+                                                    <p className="text-white/80 text-[10px]">Total USDC supplied by lenders to the market</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-emerald-700 leading-none mt-0.5 truncate tabular-nums">
+                                            {formatTvl(systemParams.totalSupply)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Total Borrowed */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
+                                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 border border-blue-200">
+                                        <ArrowDownCircle className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Borrowed</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-blue-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Total Borrowed</p>
+                                                    <p className="text-white/80 text-[10px]">Total USDC borrowed against AcUSDY collateral</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-blue-700 leading-none mt-0.5 truncate tabular-nums">
+                                            {formatTvl(systemParams.totalBorrow)}
+                                        </p>
+                                    </div>
+                                </div>
+
                                 {/* Available Liquidity */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-200">
                                         <span className="text-gray-500 font-serif font-bold">$</span>
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Liquidity</p>
                                             <div className="group/info relative">
@@ -580,18 +646,18 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-lg font-bold text-gray-700 leading-none mt-0.5">
-                                            {systemParams.availableLiquidity ? formatTvl(systemParams.availableLiquidity) : '$0'}
+                                        <p className="text-lg font-bold text-gray-700 leading-none mt-0.5 truncate tabular-nums">
+                                            {formatTvl(systemParams.availableLiquidity)}
                                         </p>
                                     </div>
                                 </div>
 
                                 {/* Liquidation Bonus */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-50/50 border border-amber-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-50/50 border border-amber-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 border border-amber-200">
                                         <Activity className="h-5 w-5 text-amber-600" />
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-amber-600 uppercase font-bold tracking-wider">Liq. Bonus</p>
                                             <div className="group/info relative">
@@ -602,16 +668,16 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-lg font-bold text-amber-700 leading-none mt-0.5">{systemParams.liquidationBonusPercentage ?? '0%'}</p>
+                                        <p className="text-lg font-bold text-amber-700 leading-none mt-0.5 tabular-nums">{systemParams.liquidationBonusPercentage ?? '--'}</p>
                                     </div>
                                 </div>
 
                                 {/* Oracle Haircut */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-24">
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 border border-indigo-200">
                                         <ShieldCheck className="h-5 w-5 text-indigo-600" />
                                     </div>
-                                    <div className="flex flex-col">
+                                    <div className="flex flex-col min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <p className="text-xs text-indigo-600 uppercase font-bold tracking-wider">Haircut</p>
                                             <div className="group/info relative">
@@ -622,8 +688,8 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5">
-                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '2%'}
+                                        <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5 tabular-nums">
+                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '--'}
                                         </p>
                                     </div>
                                 </div>
