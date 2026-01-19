@@ -11,7 +11,7 @@ import { formatUnits, maxUint256 } from 'viem';
 import { getMarketId } from '@/lib/marketId';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
-import { MyPosition } from '@/components/MyPosition';
+import { MarketCompositionCard } from '@/components/MarketCompositionCard';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useReleaseQueue } from '@/hooks/useReleaseQueue';
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <MyPosition title="All Positions" />
+                    <MarketCompositionCard />
                 </div>
 
                 {/* Main Ops Tables */}
