@@ -668,7 +668,7 @@ export default function DashboardPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <p className="text-lg font-bold text-amber-700 leading-none mt-0.5 tabular-nums">{systemParams.liquidationBonusPercentage ?? '--'}</p>
+                                        <p className="text-lg font-bold text-amber-700 leading-none mt-0.5 tabular-nums">{systemParams.liquidationBonusPercentage ?? '0%'}</p>
                                     </div>
                                 </div>
 
@@ -689,7 +689,7 @@ export default function DashboardPage() {
                                             </div>
                                         </div>
                                         <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5 tabular-nums">
-                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '--'}
+                                            {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '2%'}
                                         </p>
                                     </div>
                                 </div>
