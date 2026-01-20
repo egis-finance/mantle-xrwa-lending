@@ -11,7 +11,7 @@ import { formatUnits, maxUint256 } from 'viem';
 import { getMarketId } from '@/lib/marketId';
 import { useSystemParams } from '@/hooks/useSystemParams';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
-import { MarketCompositionCard } from '@/components/MarketCompositionCard';
+import { RWAMarketGrid } from '@/components/RWAMarketGrid';
 import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useReleaseQueue } from '@/hooks/useReleaseQueue';
@@ -285,126 +285,28 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Global Health Bar */}
-                <div className="grid lg:grid-cols-[2fr_1fr] gap-6">
+                {/* Protocol Overview - narrow TVL left, wide RWA grid right */}
+                <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
                     <Card className="border-l-4 border-l-success-DEFAULT shadow-soft-xl bg-gradient-to-r from-white via-white to-emerald-50/30">
                         <CardContent className="p-6 flex flex-wrap items-center gap-6 h-full">
-                            <div className="flex-1 min-w-[300px]">
+                            <div className="flex-1 min-w-[200px]">
                                 <TvlPegDisplay />
                             </div>
                         </CardContent>
                     </Card>
 
-                    <MarketCompositionCard />
+                    <RWAMarketGrid
+                        utilizationRate={systemParams.utilizationRate}
+                        totalSupply={systemParams.totalSupply}
+                        totalBorrow={systemParams.totalBorrow}
+                        isLoading={systemParams.isLoading}
+                    />
                 </div>
 
-                {/* Main Ops Tables */}
-                <div className="grid lg:grid-cols-[3fr_2fr] gap-6">
+                {/* Ops Tables - narrow Release Queue left, wide Liquidation Radar right */}
+                <div className="grid lg:grid-cols-[1fr_2fr] gap-6">
 
-                    {/* Liquidation Radar */}
-                    <Card className="overflow-hidden border-t-4 border-t-brand-DEFAULT shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-slate-50">
-                        <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-sm">
-                            <CardTitle className="text-lg flex items-center gap-2 text-brand-dark">
-                                <div className="p-1.5 rounded-lg bg-brand-light/50 text-brand-DEFAULT">
-                                    <Activity className="h-5 w-5" />
-                                </div>
-                                Liquidation Radar
-                            </CardTitle>
-                            <div className="flex items-center gap-2">
-                                {isRadarLoading && <Loader2 className="h-4 w-4 animate-spin text-brand-DEFAULT" />}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => refetchRadar()}
-                                    className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors"
-                                >
-                                    <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => rescanBorrowers()}
-                                    disabled={!canRescan || isDiscovering}
-                                    title={!canRescan ? "Discovery not available" : "Rescan for new borrowers (clears cache)"}
-                                    className="text-xs text-brand-muted hover:text-brand-DEFAULT"
-                                >
-                                    {isDiscovering ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Rescan'}
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="overflow-hidden">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-gray-50/80 text-brand-muted font-medium uppercase text-xs border-b border-gray-100">
-                                        <tr>
-                                            <th className="p-4">Borrower Address</th>
-                                            <th className="p-4">Health Factor</th>
-                                            <th className="p-4">Debt</th>
-                                            <th className="p-4 text-right">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {radarPositions.length === 0 && !isRadarLoading ? (
-                                            <tr>
-                                                <td colSpan={4} className="p-8 text-center text-brand-muted italic">No active borrowers found</td>
-                                            </tr>
-                                        ) : (
-                                            radarPositions.map((pos) => (
-                                                <tr key={pos.borrower} className="bg-white hover:bg-blue-50/30 transition-colors group">
-                                                    <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">
-                                                        {pos.borrower.slice(0, 6)}...{pos.borrower.slice(-4)}
-                                                        {pos.borrower === userAddress && (
-                                                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
-                                                        )}
-                                                    </td>
-                                                    <td className={cn(
-                                                        "p-4 font-bold bg-success-light/5 rounded-r-lg",
-                                                        pos.riskLevel === 'liquidatable' ? "text-danger-DEFAULT animate-pulse" :
-                                                        pos.riskLevel === 'danger' ? "text-danger-DEFAULT" :
-                                                        pos.riskLevel === 'warning' ? "text-warning-DEFAULT" :
-                                                        "text-success-DEFAULT"
-                                                    )}>
-                                                        {pos.healthFactor ? pos.healthFactor.toFixed(2) : '--'}
-                                                    </td>
-                                                    <td className="p-4 font-bold text-brand-dark">${pos.debtValue}</td>
-                                                    <td className="p-4 text-right">
-                                                        {liquidatingId === pos.borrower ? (
-                                                            <Button size="sm" disabled className="bg-danger-DEFAULT text-white opacity-70">
-                                                                <Loader2 className="h-3 w-3 animate-spin mr-2" />
-                                                                Liquidating
-                                                            </Button>
-                                                        ) : pos.riskLevel === 'liquidatable' ? (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="destructive"
-                                                                onClick={() => handleLiquidateClick(pos)}
-                                                                disabled={!canSign}
-                                                                title={!canSign ? "Connect wallet to liquidate" : undefined}
-                                                                className="h-8 hover:bg-red-700 transition-all shadow-sm hover:shadow-red-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            >
-                                                                Trigger Liq
-                                                            </Button>
-                                                        ) : (
-                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-brand-light/20 text-brand-DEFAULT font-medium border border-brand-light shadow-sm">Safe</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                                {liquidatingError && (
-                                    <div className="p-3 m-4 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
-                                        <AlertCircle className="h-3 w-3" />
-                                        {liquidatingError}
-                                        <button onClick={() => setLiquidatingError(null)} className="ml-auto underline">Dismiss</button>
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Release Queue */}
+                    {/* Release Queue (left, narrower - breaks down TVL) */}
                     <Card className="border-t-4 border-t-purple-500 shadow-md bg-gradient-to-br from-white to-purple-50/20">
                         <CardHeader className="border-b border-gray-100 bg-white/50 backdrop-blur-sm">
                             <div className="flex items-center justify-between">
@@ -492,6 +394,110 @@ export default function DashboardPage() {
                                         <AlertCircle className="h-3 w-3" />
                                         {processError || unlockError?.message}
                                         <button onClick={() => { setProcessError(null); resetUnlock(); }} className="ml-auto underline">Dismiss</button>
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Liquidation Radar (right, wider - breaks down borrowed amount) */}
+                    <Card className="overflow-hidden border-t-4 border-t-brand-DEFAULT shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-slate-50">
+                        <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 bg-white/50 backdrop-blur-sm">
+                            <CardTitle className="text-lg flex items-center gap-2 text-brand-dark">
+                                <div className="p-1.5 rounded-lg bg-brand-light/50 text-brand-DEFAULT">
+                                    <Activity className="h-5 w-5" />
+                                </div>
+                                Liquidation Radar
+                            </CardTitle>
+                            <div className="flex items-center gap-2">
+                                {isRadarLoading && <Loader2 className="h-4 w-4 animate-spin text-brand-DEFAULT" />}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => refetchRadar()}
+                                    aria-label="Refresh liquidation radar"
+                                    className="hover:bg-brand-light/20 border-brand-light text-brand-muted hover:text-brand-DEFAULT group transition-colors"
+                                >
+                                    <RefreshCw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => rescanBorrowers()}
+                                    disabled={!canRescan || isDiscovering}
+                                    title={!canRescan ? "Discovery not available" : "Rescan for new borrowers (clears cache)"}
+                                    className="text-xs text-brand-muted hover:text-brand-DEFAULT"
+                                >
+                                    {isDiscovering ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Rescan'}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-gray-50/80 text-brand-muted font-medium uppercase text-xs border-b border-gray-100">
+                                        <tr>
+                                            <th className="p-4">Borrower Address</th>
+                                            <th className="p-4">Health Factor</th>
+                                            <th className="p-4">Debt</th>
+                                            <th className="p-4 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {radarPositions.length === 0 && !isRadarLoading ? (
+                                            <tr>
+                                                <td colSpan={4} className="p-8 text-center text-brand-muted italic">No active borrowers found</td>
+                                            </tr>
+                                        ) : (
+                                            radarPositions.map((pos) => (
+                                                <tr key={pos.borrower} className="bg-white hover:bg-blue-50/30 transition-colors group">
+                                                    <td className="p-4 font-mono text-brand-dark group-hover:text-brand-DEFAULT transition-colors">
+                                                        {pos.borrower.slice(0, 6)}...{pos.borrower.slice(-4)}
+                                                        {pos.borrower === userAddress && (
+                                                            <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[8px] bg-brand-DEFAULT text-white uppercase tracking-tighter">You</span>
+                                                        )}
+                                                    </td>
+                                                    <td className={cn(
+                                                        "p-4 font-bold bg-success-light/5 rounded-r-lg",
+                                                        pos.riskLevel === 'liquidatable' ? "text-danger-DEFAULT animate-pulse" :
+                                                        pos.riskLevel === 'danger' ? "text-danger-DEFAULT" :
+                                                        pos.riskLevel === 'warning' ? "text-warning-DEFAULT" :
+                                                        "text-success-DEFAULT"
+                                                    )}>
+                                                        {pos.healthFactor ? pos.healthFactor.toFixed(2) : '--'}
+                                                    </td>
+                                                    <td className="p-4 font-bold text-brand-dark">${pos.debtValue}</td>
+                                                    <td className="p-4 text-right">
+                                                        {liquidatingId === pos.borrower ? (
+                                                            <Button size="sm" disabled className="bg-danger-DEFAULT text-white opacity-70">
+                                                                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                                                Liquidating
+                                                            </Button>
+                                                        ) : pos.riskLevel === 'liquidatable' ? (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="destructive"
+                                                                onClick={() => handleLiquidateClick(pos)}
+                                                                disabled={!canSign}
+                                                                title={!canSign ? "Connect wallet to liquidate" : undefined}
+                                                                className="h-8 hover:bg-red-700 transition-all shadow-sm hover:shadow-red-200 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                Trigger Liq
+                                                            </Button>
+                                                        ) : (
+                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] bg-brand-light/20 text-brand-DEFAULT font-medium border border-brand-light shadow-sm">Safe</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                                {liquidatingError && (
+                                    <div className="p-3 m-4 rounded-lg bg-red-50 border border-red-100 flex items-center gap-2 text-xs text-danger-DEFAULT">
+                                        <AlertCircle className="h-3 w-3" />
+                                        {liquidatingError}
+                                        <button onClick={() => setLiquidatingError(null)} className="ml-auto underline">Dismiss</button>
                                     </div>
                                 )}
                             </div>
