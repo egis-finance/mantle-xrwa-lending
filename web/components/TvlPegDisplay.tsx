@@ -1,10 +1,11 @@
 'use client'
+import React from 'react'
 import { useTvlPeg } from '@/hooks/useTvlPeg'
 import { formatTvl } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Layers, RefreshCw, Lock, Coins, AlertTriangle } from 'lucide-react'
 
-export function TvlPegDisplay() {
+export const TvlPegDisplay = React.memo(function TvlPegDisplay() {
   const { mantle, ethereum, isBalanced, isLoading, isRefetching, refetch } = useTvlPeg()
 
   // Protocol invariant: Locked USDY on Mantle must equal AcUSDY supply on Ethereum.
@@ -136,5 +137,5 @@ export function TvlPegDisplay() {
       </div>
     </div>
   )
-}
+});
 

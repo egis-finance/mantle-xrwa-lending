@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true, // Required for static export compatibility
   },
+  experimental: {
+    // Tree-shake barrel imports from icon libraries (~400ms cold start improvement)
+    optimizePackageImports: ['lucide-react'],
+  },
   transpilePackages: ['viem', '@dynamic-labs/sdk-react-core', '@dynamic-labs/ethereum'],
   webpack: (config) => {
     // Disable server-side imports for packages that don't support SSR

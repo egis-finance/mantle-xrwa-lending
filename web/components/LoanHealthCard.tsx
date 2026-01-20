@@ -15,7 +15,7 @@ interface LoanHealthCardProps {
   className?: string;
 }
 
-export const LoanHealthCard: React.FC<LoanHealthCardProps> = ({ className }) => {
+export const LoanHealthCard = React.memo<LoanHealthCardProps>(({ className }) => {
   const sdkReady = useSDKReady();
   const { address: borrowerAddress, isConnected } = useDynamicWallet();
   const systemParams = useSystemParams();
@@ -184,4 +184,5 @@ export const LoanHealthCard: React.FC<LoanHealthCardProps> = ({ className }) => 
       </CardContent>
     </Card>
   );
-};
+});
+LoanHealthCard.displayName = 'LoanHealthCard';
