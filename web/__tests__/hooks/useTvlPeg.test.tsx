@@ -7,11 +7,8 @@ import { useTvlPeg } from '@/hooks/useTvlPeg'
 
 const mockUseCrossChainRead = jest.fn()
 
-jest.mock('@/lib/swr', () => ({
+jest.mock('@/lib/swr/useCrossChainRead', () => ({
   useCrossChainRead: (...args: unknown[]) => mockUseCrossChainRead(...args),
-  RefreshIntervals: {
-    PROTOCOL_TVL: 30000,
-  },
 }))
 
 jest.mock('@/lib/contracts', () => ({

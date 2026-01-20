@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react';
 import { formatUnits, type Address } from 'viem';
 import { cn } from '@/lib/utils';
 import { Copy, Check, Info, Coins } from 'lucide-react';
-import { useMultiChainBatchRead, RefreshIntervals } from '@/lib/swr';
+import { useMultiChainBatchRead } from '@/lib/swr/useMultiChainBatchRead';
+import { RefreshIntervals } from '@/lib/swr/config';
 import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
 const DEFAULT_USDY_ADDRESS = '0x5bE26527e817998A7206475496fDE1E68957c5A6' as const;

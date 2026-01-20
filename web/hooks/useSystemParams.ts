@@ -1,7 +1,8 @@
 'use client';
 
 import { formatUnits } from 'viem';
-import { useMultiChainBatchRead, RefreshIntervals } from '@/lib/swr';
+import { useMultiChainBatchRead } from '@/lib/swr/useMultiChainBatchRead';
+import { RefreshIntervals } from '@/lib/swr/config';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';

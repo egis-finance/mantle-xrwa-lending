@@ -7,11 +7,8 @@ import { useBorrowerDebt } from './useBorrowerDebt'
 
 const mockUseMultiChainBatchRead = jest.fn()
 
-jest.mock('@/lib/swr', () => ({
+jest.mock('@/lib/swr/useMultiChainBatchRead', () => ({
   useMultiChainBatchRead: (...args: unknown[]) => mockUseMultiChainBatchRead(...args),
-  RefreshIntervals: {
-    USER_POSITION: 15000,
-  },
 }))
 
 jest.mock('@/lib/contracts', () => ({

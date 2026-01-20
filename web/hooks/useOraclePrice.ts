@@ -1,7 +1,10 @@
 'use client';
 
 import { formatUnits } from 'viem';
-import { useMultiChainRead, useMultiChainBatchRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
+import { useMultiChainRead } from '@/lib/swr/useMultiChainRead';
+import { useMultiChainBatchRead } from '@/lib/swr/useMultiChainBatchRead';
+import { RefreshIntervals } from '@/lib/swr/config';
+import type { ReadResult } from '@/lib/swr/utils';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { OracleAbi } from '@/lib/contracts/abis/Oracle';
 

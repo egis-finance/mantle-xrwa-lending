@@ -2,7 +2,9 @@
 
 import type { Address } from 'viem';
 import { formatUnits } from 'viem';
-import { useMultiChainBatchRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
+import { useMultiChainBatchRead } from '@/lib/swr/useMultiChainBatchRead';
+import { RefreshIntervals } from '@/lib/swr/config';
+import type { ReadResult } from '@/lib/swr/utils';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
@@ -95,4 +97,3 @@ export function useLenderPosition(
     data: transformedData,
   };
 }
-

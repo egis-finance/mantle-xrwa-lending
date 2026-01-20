@@ -8,12 +8,12 @@ import { useOraclePrice } from './useOraclePrice'
 const mockUseMultiChainBatchRead = jest.fn()
 const mockUseMultiChainRead = jest.fn()
 
-jest.mock('@/lib/swr', () => ({
+jest.mock('@/lib/swr/useMultiChainBatchRead', () => ({
   useMultiChainBatchRead: (...args: unknown[]) => mockUseMultiChainBatchRead(...args),
+}))
+
+jest.mock('@/lib/swr/useMultiChainRead', () => ({
   useMultiChainRead: (...args: unknown[]) => mockUseMultiChainRead(...args),
-  RefreshIntervals: {
-    ORACLE_PRICE: 10000,
-  },
 }))
 
 jest.mock('@/lib/contracts', () => ({

@@ -1,7 +1,8 @@
 'use client';
 
 import { formatUnits } from 'viem';
-import { useCrossChainRead, RefreshIntervals } from '@/lib/swr';
+import { useCrossChainRead } from '@/lib/swr/useCrossChainRead';
+import { RefreshIntervals } from '@/lib/swr/config';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { CollateralLockerAbi } from '@/lib/contracts/abis/CollateralLocker';
 import { AcUSDYAbi } from '@/lib/contracts/abis/AcUSDY';

@@ -19,7 +19,9 @@
 
 import type { Address } from 'viem';
 import { formatUnits } from 'viem';
-import { useMultiChainRead, type ReadResult, RefreshIntervals } from '@/lib/swr';
+import { useMultiChainRead } from '@/lib/swr/useMultiChainRead';
+import { RefreshIntervals } from '@/lib/swr/config';
+import type { ReadResult } from '@/lib/swr/utils';
 import { contracts, UNCONFIGURED_ADDRESS } from '@/lib/contracts';
 import { getMarketId } from '@/lib/marketId';
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';

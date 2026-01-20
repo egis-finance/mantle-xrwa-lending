@@ -26,7 +26,7 @@
 import * as React from 'react';
 import { DynamicContextProvider, mergeNetworks } from '@dynamic-labs/sdk-react-core';
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
-import { SWRProvider } from '@/lib/swr';
+import { SWRProvider } from '@/lib/swr/SWRProvider';
 import { getEnv } from '@/lib/env';
 import { supportedNetworks, MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID } from '@/lib/dynamic/chains';
 
