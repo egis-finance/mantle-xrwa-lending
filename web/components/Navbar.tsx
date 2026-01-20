@@ -40,22 +40,26 @@ export function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden md:flex gap-6">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  'text-sm font-medium transition-all hover:text-brand-DEFAULT hover:scale-110 active:scale-95',
-                  pathname === item.href
-                    ? 'text-brand-DEFAULT font-semibold'
-                    : 'text-brand-muted'
-                )}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
+          <nav className="hidden md:flex gap-6" aria-label="Main navigation">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    'text-sm font-medium transition-[color,transform] motion-reduce:transition-none hover:text-brand-DEFAULT hover:scale-110 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-DEFAULT rounded-sm',
+                    isActive
+                      ? 'text-brand-DEFAULT font-semibold'
+                      : 'text-brand-muted'
+                  )}
+                >
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
         <div className="flex items-center gap-4">

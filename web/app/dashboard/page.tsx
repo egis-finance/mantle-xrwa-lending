@@ -83,6 +83,45 @@ export default function DashboardPage() {
     const [liquidatingId, setLiquidatingId] = React.useState<string | null>(null);
     const [liquidatingError, setLiquidatingError] = React.useState<string | null>(null);
     const [pendingLiquidation, setPendingLiquidation] = React.useState<BorrowerPosition | null>(null);
+    const modalRef = React.useRef<HTMLDivElement>(null);
+    const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+
+    React.useEffect(() => {
+        if (!pendingLiquidation) return;
+        const modal = modalRef.current;
+        if (!modal) return;
+
+        const focusable = modal.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0] ?? modal;
+        const last = focusable[focusable.length - 1] ?? modal;
+
+        closeButtonRef.current?.focus();
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setPendingLiquidation(null);
+                return;
+            }
+            if (e.key !== 'Tab') return;
+            if (focusable.length === 0) {
+                e.preventDefault();
+                modal.focus();
+                return;
+            }
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [pendingLiquidation]);
 
     // Handle release via the admin-gated unlock hook (replaces direct signOnMantle call)
     const handleProcessRelease = async (borrower: `0x${string}`, amount: bigint, lockId: `0x${string}`) => {
@@ -705,16 +744,28 @@ export default function DashboardPage() {
 
             {/* Liquidation Confirmation Modal */}
             {pendingLiquidation && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
-                    <div className="bg-white rounded-xl p-6 max-w-md shadow-xl m-4 animate-in zoom-in-95 duration-200">
+                <div
+                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200"
+                    onClick={(e) => e.target === e.currentTarget && setPendingLiquidation(null)}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="liquidation-modal-title"
+                        className="bg-white rounded-xl p-6 max-w-md shadow-xl m-4 animate-in zoom-in-95 duration-200 outline-none"
+                        ref={modalRef}
+                        tabIndex={-1}
+                    >
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-danger-DEFAULT flex items-center gap-2">
+                            <h3 id="liquidation-modal-title" className="text-lg font-bold text-danger-DEFAULT flex items-center gap-2">
                                 <AlertCircle className="h-5 w-5" />
                                 Confirm Liquidation
                             </h3>
                             <button
+                                ref={closeButtonRef}
                                 onClick={() => setPendingLiquidation(null)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label="Close confirmation dialog"
+                                className="text-gray-400 hover:text-gray-600 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-DEFAULT rounded"
                             >
                                 <X className="h-5 w-5" />
                             </button>

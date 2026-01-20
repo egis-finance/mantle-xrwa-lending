@@ -285,8 +285,13 @@ export default function EarnPage() {
                                 {/* Utilization progress bar */}
                                 <div className="w-full h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
                                     <div
-                                        className={`h-full rounded-full transition-all duration-500 ${utilizationColor}`}
+                                        className={`h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none ${utilizationColor}`}
                                         style={{ width: `${Math.min(utilizationRate, 100)}%` }}
+                                        role="progressbar"
+                                        aria-valuenow={utilizationRate}
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-label="Pool utilization rate"
                                     />
                                 </div>
                             </div>
@@ -303,24 +308,49 @@ export default function EarnPage() {
                             <CardTitle>Manage Supply</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="flex p-1 bg-brand-light/50 rounded-lg w-fit">
-                                <button 
+                            <div
+                                role="tablist"
+                                aria-label="Supply or withdraw USDC"
+                                className="flex p-1 bg-brand-light/50 rounded-lg w-fit"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                                        e.preventDefault();
+                                        const newTab = activeTab === 'supply' ? 'withdraw' : 'supply';
+                                        setActiveTab(newTab);
+                                        setAmount('');
+                                        setAmountError('');
+                                        // Focus the newly selected tab
+                                        (e.currentTarget.querySelector(`[aria-selected="true"]`) as HTMLElement)?.focus();
+                                    }
+                                }}
+                            >
+                                <button
+                                    role="tab"
+                                    id="tab-supply"
+                                    aria-selected={activeTab === 'supply'}
+                                    aria-controls="tabpanel-supply"
+                                    tabIndex={activeTab === 'supply' ? 0 : -1}
                                     onClick={() => { setActiveTab('supply'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-300 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-DEFAULT ${activeTab === 'supply' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
                                 >
                                     Supply
                                 </button>
-                                <button 
+                                <button
+                                    role="tab"
+                                    id="tab-withdraw"
+                                    aria-selected={activeTab === 'withdraw'}
+                                    aria-controls="tabpanel-withdraw"
+                                    tabIndex={activeTab === 'withdraw' ? 0 : -1}
                                     onClick={() => { setActiveTab('withdraw'); setAmount(''); setAmountError(''); }}
-                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
+                                    className={`px-6 py-2 rounded-md text-sm font-semibold transition-[background-color,color,box-shadow,transform] duration-300 motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-DEFAULT ${activeTab === 'withdraw' ? 'bg-white shadow-sm text-brand-dark scale-100' : 'text-brand-muted hover:text-brand-dark hover:bg-white/50 hover:scale-[1.02] active:scale-[0.98]'}`}
                                 >
                                     Withdraw
                                 </button>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-4" role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
                                 <div className="flex justify-between text-sm items-center">
-                                    <span className="text-brand-muted">Amount (USDC)</span>
+                                    <label htmlFor="amount-input" className="text-brand-muted">Amount (USDC)</label>
                                     <div className="flex items-center gap-2">
                                          <button
                                             onClick={() => handlePercentageClick(25)}
@@ -354,8 +384,11 @@ export default function EarnPage() {
                                 </div>
                                 <div className="relative">
                                     <input
+                                        id="amount-input"
                                         type="number"
-                                        className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${amountError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-mantle/50`}
+                                        inputMode="decimal"
+                                        autoComplete="off"
+                                        className={`w-full h-12 px-4 rounded-xl text-base font-medium border-2 ${amountError ? 'border-danger-DEFAULT focus:ring-danger-DEFAULT/50 focus:border-danger-DEFAULT bg-red-50/30' : 'border-gray-300 focus:ring-mantle/30 focus:border-mantle bg-gray-50/50'} focus:ring-4 outline-none transition-[border-color,box-shadow,background-color] motion-reduce:transition-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100 hover:border-mantle/50`}
                                         placeholder="0.00"
                                         value={amount}
                                         onChange={handleAmountChange}
@@ -396,9 +429,9 @@ export default function EarnPage() {
                                     {(activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error' && <AlertCircle className="h-4 w-4" />}
                                     <span className="text-sm font-medium">{getStatusDisplay()}</span>
                                     {((activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'success' || (activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error') && (
-                                        <button 
-                                            onClick={handleReset} 
-                                            className="ml-auto text-xs underline hover:opacity-80 transition-opacity"
+                                        <button
+                                            onClick={handleReset}
+                                            className="ml-auto text-xs underline hover:opacity-80 transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current rounded-sm"
                                         >
                                             {(activeTab === 'supply' ? supplyStatus : withdrawStatus) === 'error' ? 'Reset Form' : 'Dismiss'}
                                         </button>

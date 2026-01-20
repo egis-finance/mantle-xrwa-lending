@@ -16,10 +16,10 @@ interface MarketCompositionCardProps {
  * SVG-based donut chart visualizing market supply allocation.
  * Shows two segments: available liquidity (green) vs borrowed (blue).
  */
-const MarketDonutChart: React.FC<{
+const MarketDonutChart = React.memo<{
     utilizationRate: number;
     isLoading: boolean;
-}> = ({ utilizationRate, isLoading }) => {
+}>(({ utilizationRate, isLoading }) => {
     // SVG circle math: circumference = 2 * PI * radius
     const radius = 40;
     const circumference = 2 * Math.PI * radius;
@@ -31,12 +31,19 @@ const MarketDonutChart: React.FC<{
     const borrowedStroke = (borrowedPercent / 100) * circumference;
     const availableStroke = (availablePercent / 100) * circumference;
 
+    const ariaLabel = isLoading
+        ? 'Market composition chart loading'
+        : `Market utilization: ${borrowedPercent.toFixed(2)}% borrowed, ${availablePercent.toFixed(2)}% available`;
+
     return (
         <div className="relative w-28 h-28 flex-shrink-0">
             <svg
+                role="img"
+                aria-label={ariaLabel}
                 className="transform -rotate-90 w-full h-full"
                 viewBox="0 0 100 100"
             >
+                <title>{ariaLabel}</title>
                 {/* Background circle */}
                 <circle
                     cx="50"
@@ -58,7 +65,7 @@ const MarketDonutChart: React.FC<{
                     strokeDasharray={`${availableStroke} ${circumference}`}
                     strokeDashoffset="0"
                     strokeLinecap="round"
-                    className="transition-all duration-700"
+                    className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 motion-reduce:transition-none"
                 />
 
                 {/* Borrowed segment (blue) - overlaid */}
@@ -72,12 +79,12 @@ const MarketDonutChart: React.FC<{
                     strokeDasharray={`${borrowedStroke} ${circumference}`}
                     strokeDashoffset={`-${availableStroke}`}
                     strokeLinecap="round"
-                    className="transition-all duration-700"
+                    className="transition-[stroke-dasharray,stroke-dashoffset] duration-700 motion-reduce:transition-none"
                 />
             </svg>
 
-            {/* Center text */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {/* Center text - aria-hidden since SVG already provides accessible label */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
                 {isLoading ? (
                     <span className="text-sm text-brand-muted">...</span>
                 ) : (
@@ -93,13 +100,14 @@ const MarketDonutChart: React.FC<{
             </div>
         </div>
     );
-};
+});
+MarketDonutChart.displayName = 'MarketDonutChart';
 
 /**
  * Market Composition Card - displays USDC supply breakdown with donut chart.
  * Replaces redundant TVL metrics with distinct supply/borrow visualization.
  */
-export const MarketCompositionCard: React.FC<MarketCompositionCardProps> = ({ className }) => {
+export const MarketCompositionCard = React.memo<MarketCompositionCardProps>(({ className }) => {
     const { isConnected } = useDynamicWallet();
     const systemParams = useSystemParams();
 
@@ -184,4 +192,5 @@ export const MarketCompositionCard: React.FC<MarketCompositionCardProps> = ({ cl
             </CardContent>
         </Card>
     );
-};
+});
+MarketCompositionCard.displayName = 'MarketCompositionCard';
