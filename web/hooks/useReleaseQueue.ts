@@ -18,6 +18,7 @@ const LOG_CHUNK_SIZE = 50_000n;
 
 // Hard cap on results to prevent unbounded memory growth
 const MAX_RELEASE_QUEUE_RESULTS = 50;
+const BORROWERS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 const LOCKED_EVENT = {
   type: 'event',
@@ -31,6 +32,51 @@ const LOCKED_EVENT = {
     { name: 'vcHash', type: 'bytes32', indexed: false },
   ],
 } as const;
+
+interface BorrowersCache {
+  entries: [Address, Hash][];
+  timestamp: number;
+  lastScannedBlock?: string;
+}
+
+function getBorrowersCacheKey(): string {
+  return `egis-release-queue-${MANTLE_CHAIN_ID}-${contracts.collateralLocker.address}`;
+}
+
+function getCachedBorrowers(): BorrowersCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(getBorrowersCacheKey());
+    if (!cached) return null;
+    return JSON.parse(cached) as BorrowersCache;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedBorrowers(map: Map<Address, Hash>, lastScannedBlock?: bigint): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache: BorrowersCache = {
+      entries: Array.from(map.entries()),
+      timestamp: Date.now(),
+      lastScannedBlock: lastScannedBlock ? lastScannedBlock.toString() : undefined,
+    };
+    localStorage.setItem(getBorrowersCacheKey(), JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function parseOptionalBigInt(value: string | undefined): bigint | null {
+  if (!value) return null;
+  try {
+    const parsed = BigInt(value);
+    return parsed >= 0n ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ReleaseRequest {
   borrower: Address;
@@ -62,15 +108,24 @@ export function useReleaseQueue() {
     sdkReady && isConfigured ? ['release-queue-borrowers-map'] : null,
     async () => {
       const publicClient = getPublicClient(MANTLE_CHAIN_ID);
+      const cached = getCachedBorrowers();
+      const isCacheFresh = cached ? Date.now() - cached.timestamp <= BORROWERS_CACHE_TTL : false;
+      const map = new Map<Address, Hash>(cached?.entries ?? []);
 
       try {
         const currentBlock = await publicClient.getBlockNumber();
-        const fromBlock = currentBlock > LOG_LOOKBACK_BLOCKS ? currentBlock - LOG_LOOKBACK_BLOCKS : 0n;
+        const defaultFromBlock = currentBlock > LOG_LOOKBACK_BLOCKS ? currentBlock - LOG_LOOKBACK_BLOCKS : 0n;
+        const cachedLastScanned = isCacheFresh ? parseOptionalBigInt(cached?.lastScannedBlock) : null;
+
+        if (cachedLastScanned !== null && cachedLastScanned >= currentBlock) {
+          setCachedBorrowers(map, cachedLastScanned);
+          return map;
+        }
+
+        const fromBlock = cachedLastScanned !== null ? cachedLastScanned + 1n : defaultFromBlock;
+        let startBlock = fromBlock > currentBlock ? currentBlock : fromBlock;
 
         // Scan in chunks to avoid RPC timeouts
-        const map = new Map<Address, Hash>();
-        let startBlock = fromBlock;
-
         while (startBlock <= currentBlock) {
           const endBlock = startBlock + LOG_CHUNK_SIZE - 1n;
           const chunkToBlock = endBlock > currentBlock ? currentBlock : endBlock;
@@ -91,10 +146,11 @@ export function useReleaseQueue() {
           startBlock = chunkToBlock + 1n;
         }
 
+        setCachedBorrowers(map, currentBlock);
         return map;
       } catch (err) {
         console.error('Error fetching Locked events:', err);
-        return new Map<Address, Hash>();
+        return map;
       }
     },
     { refreshInterval: RefreshIntervals.PROTOCOL_TVL }
@@ -173,4 +229,3 @@ export function useReleaseQueue() {
     refetch,
   };
 }
-
