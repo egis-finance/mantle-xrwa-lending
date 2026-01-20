@@ -33,6 +33,13 @@ import { ERC20Abi } from '@/lib/contracts/abis/ERC20';
 import { invalidateUserReads, invalidateCrossChainReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { MANTLE_CHAIN_ID } from '@/lib/dynamic/chains';
 
+const USD_FORMATTER = new Intl.NumberFormat(undefined, {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export default function BorrowPage(): ReactElement {
   const sdkReady = useSDKReady();
   const { primaryWallet } = useDynamicContext();
@@ -68,6 +75,16 @@ export default function BorrowPage(): ReactElement {
     acUsdyBalance.isLoading ||
     borrowerBalance.isLoading ||
     systemParams.isLoading;
+
+  const oraclePriceValue = systemParams.oraclePrice !== null
+    ? Number(systemParams.oraclePrice)
+    : null;
+  const oraclePriceLabel = oraclePriceValue !== null && !Number.isNaN(oraclePriceValue)
+    ? USD_FORMATTER.format(oraclePriceValue)
+    : '$--';
+  const oracleHaircutLabel = systemParams.oracleHaircutPercentage !== null
+    ? `${systemParams.oracleHaircutPercentage}%`
+    : '--';
 
   // Calculate available balance = total balance - locked amount
     const availableBalance = React.useMemo(() => {
@@ -744,7 +761,12 @@ export default function BorrowPage(): ReactElement {
                             {acUsdyBalance.isError ? (
                               <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-200">
                                 <p className="text-sm text-red-700">Failed to load balance</p>
-                                <Button variant="ghost" size="sm" onClick={() => acUsdyBalance.refetch()}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => acUsdyBalance.refetch()}
+                                  aria-label="Refresh AcUSDY balance"
+                                >
                                   <RefreshCw className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -1152,8 +1174,38 @@ export default function BorrowPage(): ReactElement {
                     )}
                   </div>
 
-                  {/* Loan Health Card */}
-                  <LoanHealthCard />
+                  {/* Right Column: Market Info + Loan Health */}
+                  <div className="space-y-4">
+                    {/* Market Info Card */}
+                    <Card className="border-brand-border/50 shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-semibold text-brand-dark">Market Info</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Oracle Price */}
+                        <div className="space-y-2">
+                          <p className="text-xs text-brand-muted uppercase tracking-wider">Oracle Price</p>
+                          <div className="flex justify-between items-baseline">
+                            <span className="text-2xl font-bold text-brand-dark">
+                              {oraclePriceLabel}
+                            </span>
+                            <span className="text-sm text-brand-muted">USDC / AcUSDY</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-brand-muted">
+                              NAV Oracle with {oracleHaircutLabel} haircut
+                            </p>
+                            {systemParams.oracleIsStale && (
+                              <span className="text-xs text-danger-DEFAULT font-medium">(Stale)</span>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Loan Health Card */}
+                    <LoanHealthCard />
+                  </div>
                 </div>
             </main>
 
