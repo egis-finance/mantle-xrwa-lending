@@ -16,6 +16,9 @@ import { useDynamicWallet } from './useDynamicWallet';
 const LOG_LOOKBACK_BLOCKS = 2_000_000n;
 const LOG_CHUNK_SIZE = 50_000n;
 
+// Hard cap on results to prevent unbounded memory growth
+const MAX_RELEASE_QUEUE_RESULTS = 50;
+
 const LOCKED_EVENT = {
   type: 'event',
   name: 'Locked',
@@ -148,7 +151,15 @@ export function useReleaseQueue() {
         })
       );
 
-      return results.filter((r): r is ReleaseRequest => r !== null);
+      // Sort by status (ready first), then by lockId descending (most recent first)
+      // Slice to prevent unbounded growth over time
+      return results
+        .filter((r): r is ReleaseRequest => r !== null)
+        .sort((a, b) => {
+          if (a.status !== b.status) return a.status === 'ready' ? -1 : 1;
+          return b.lastLockId.localeCompare(a.lastLockId);
+        })
+        .slice(0, MAX_RELEASE_QUEUE_RESULTS);
     },
     { refreshInterval: RefreshIntervals.USER_POSITION }
   );

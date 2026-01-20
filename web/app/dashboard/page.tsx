@@ -56,7 +56,8 @@ export default function DashboardPage() {
     const { unlock, error: unlockError, reset: resetUnlock } = useUnlockCollateral(isAdmin, onUnlockSuccess);
 
     // Pagination for release queue
-    const DEFAULT_PAGE_SIZE = 10;
+    const DEFAULT_PAGE_SIZE = 3;
+    const MAX_VISIBLE = 50; // Cap expansion to prevent UI overload
     const [visibleCount, setVisibleCount] = React.useState(DEFAULT_PAGE_SIZE);
 
     // Deterministic sort for stable pagination
@@ -433,15 +434,15 @@ export default function DashboardPage() {
                                                 )}
                                             </div>
                                         ))}
-                                        {visibleCount < sortedRequests.length && (
+                                        {visibleCount < Math.min(sortedRequests.length, MAX_VISIBLE) && (
                                             <div className="text-center pt-4">
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => setVisibleCount(c => c + DEFAULT_PAGE_SIZE)}
+                                                    onClick={() => setVisibleCount(c => Math.min(c + DEFAULT_PAGE_SIZE, MAX_VISIBLE))}
                                                     className="text-purple-600 hover:text-purple-700"
                                                 >
-                                                    Show More ({sortedRequests.length - visibleCount} remaining)
+                                                    Show More ({Math.min(sortedRequests.length, MAX_VISIBLE) - visibleCount} remaining)
                                                 </Button>
                                             </div>
                                         )}
