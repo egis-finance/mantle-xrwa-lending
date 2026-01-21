@@ -307,8 +307,16 @@ export function useLiquidationRadar(lltv: number = 0.86) {
     { refreshInterval: RefreshIntervals.USER_POSITION }
   );
 
+  // Aggregate collateral from all active borrowers (positions already filtered to borrowShares > 0)
+  // Return 0n for empty positions (not null) so the grid shows "$0" not "--"
+  const totalActiveCollateral = React.useMemo(() => {
+    if (positions === undefined) return null; // Still loading
+    return positions.reduce((sum, p) => sum + p.collateral, 0n); // 0n if empty
+  }, [positions]);
+
   return {
     positions: positions ?? [],
+    totalActiveCollateral, // bigint (18 decimals), 0n if empty, null only while loading
     isLoading: isDiscoveryLoading || isRadarLoading,
     isDiscovering: isRescanning,
     canRescan,

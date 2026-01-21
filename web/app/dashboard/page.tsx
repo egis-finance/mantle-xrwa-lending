@@ -43,7 +43,34 @@ export default function DashboardPage() {
     const systemParams = useSystemParams();
     
     const { requests, isLoading: isQueueLoading, refetch: refetchQueue } = useReleaseQueue();
-    const { positions: radarPositions, isLoading: isRadarLoading, isDiscovering, canRescan, refetch: refetchRadar, rescanBorrowers } = useLiquidationRadar(systemParams.lltv ?? 0.86);
+    const { positions: radarPositions, totalActiveCollateral, isLoading: isRadarLoading, isDiscovering, canRescan, refetch: refetchRadar, rescanBorrowers } = useLiquidationRadar(systemParams.lltv ?? 0.86);
+
+    // Convert AcUSDY collateral (18 dec) to USD using haircuted oracle price (24 dec)
+    // Use explicit null checks so 0n displays as $0, not as loading
+    const activeCollateralUsd = React.useMemo(() => {
+        if (totalActiveCollateral === null || systemParams.oraclePriceRaw == null) return null;
+        // (collateral * price) / 10^36 gives USDC-scale (6 decimals)
+        const usdValue = (totalActiveCollateral * systemParams.oraclePriceRaw) / (10n ** 36n);
+        return formatUnits(usdValue, 6);
+    }, [totalActiveCollateral, systemParams.oraclePriceRaw]);
+
+    // Calculate raw LTV: debt / collateral value
+    // Returns null when data missing, Infinity when over-leveraged (collateral=0, debt>0)
+    const currentLtv = React.useMemo(() => {
+        if (activeCollateralUsd === null || !systemParams.totalBorrow) return null;
+        const collateral = parseFloat(activeCollateralUsd);
+        const debt = parseFloat(systemParams.totalBorrow);
+        if (collateral === 0) return debt > 0 ? Infinity : 0; // Infinity signals over-leverage
+        return (debt / collateral) * 100;
+    }, [activeCollateralUsd, systemParams.totalBorrow]);
+
+    // Calculate % of max capacity: LTV / LLTV (0-100% scale for progress bar)
+    // Return null when dependencies missing so grid shows '--' during partial load
+    const capacityUsed = React.useMemo(() => {
+        if (systemParams.lltv == null || currentLtv === null) return null;
+        const lltvPercent = systemParams.lltv * 100; // LLTV is 0-1, convert to %
+        return lltvPercent > 0 ? Math.min((currentLtv / lltvPercent) * 100, 100) : 0;
+    }, [currentLtv, systemParams.lltv]);
     const { executeOnEthereum, waitForTransaction, readFromEthereum, canSign, getSignerAddress } = useChainAbstracted();
     const marketId = getMarketId();
 
@@ -296,10 +323,11 @@ export default function DashboardPage() {
                     </Card>
 
                     <RWAMarketGrid
-                        utilizationRate={systemParams.utilizationRate}
-                        totalSupply={systemParams.totalSupply}
+                        activeCollateralUsd={activeCollateralUsd}
                         totalBorrow={systemParams.totalBorrow}
-                        isLoading={systemParams.isLoading}
+                        capacityUsed={capacityUsed}
+                        currentLtv={currentLtv}
+                        isLoading={isRadarLoading || systemParams.isLoading}
                     />
                 </div>
 

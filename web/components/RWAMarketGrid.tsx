@@ -6,6 +6,20 @@ import { formatTvl } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Building, FileText, Receipt } from 'lucide-react';
 
+// Locale-safe LTV formatter with adaptive precision for small values
+// null = loading, Infinity = over-leveraged (collateral=0, debt>0)
+const formatLtv = (ltv: number | null): string => {
+    if (ltv === null) return '...'; // Still loading
+    if (!Number.isFinite(ltv)) return 'Over-leveraged'; // Infinity = collateral=0 but debt>0
+    if (ltv === 0) return 'Est. 0% LTV';
+    // Use 2 decimal places for small values (<1%), 1 decimal for larger
+    const formatter = new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: ltv < 1 ? 2 : 1,
+        maximumFractionDigits: ltv < 1 ? 2 : 1,
+    });
+    return `Est. ${formatter.format(ltv)}% LTV`;
+};
+
 // Asset class configuration - extend this when adding new RWA types
 interface RWAAssetClass {
     id: string;
@@ -25,9 +39,9 @@ interface RWAAssetClass {
 
 const ASSET_CLASSES: RWAAssetClass[] = [
     {
-        id: 'cash-flow',
-        name: 'Cash-Flow',
-        subtitle: 'USDY',
+        id: 'short-term-yield',
+        name: 'Short-Term Yield',
+        subtitle: 'AcUSDY',
         icon: TrendingUp,
         colorScheme: {
             border: 'border-emerald-500',
@@ -99,14 +113,15 @@ const UtilizationBar = React.memo<{ value: number; colorClass: string }>(
 );
 UtilizationBar.displayName = 'UtilizationBar';
 
-// Active RWA card - displays live metrics from parent data
+// Active RWA card - displays live collateral metrics from radar positions
 const ActiveRWACard = React.memo<{
     asset: RWAAssetClass;
-    tvl: string | null;
-    borrowed: string | null;
-    utilization: number;
+    collateralUsd: string | null;
+    debtBacked: string | null;
+    capacityUsed: number | null; // % of LLTV (0-100), null = loading
+    currentLtv: number | null; // raw LTV %, null = loading
     isLoading: boolean;
-}>(({ asset, tvl, borrowed, utilization, isLoading }) => {
+}>(({ asset, collateralUsd, debtBacked, capacityUsed, currentLtv, isLoading }) => {
     const Icon = asset.icon;
 
     return (
@@ -142,23 +157,23 @@ const ActiveRWACard = React.memo<{
                     <p className="text-[10px] text-gray-400">{asset.subtitle}</p>
                 </div>
 
-                {/* TVL */}
+                {/* Active Collateral Value */}
                 <div>
                     <p className={cn('text-xl font-bold tabular-nums', asset.colorScheme.text)}>
-                        {isLoading ? '...' : formatTvl(tvl)}
+                        {isLoading ? '...' : formatTvl(collateralUsd)}
                     </p>
-                    <p className="text-[9px] text-gray-400 uppercase">Total Supplied</p>
+                    <p className="text-[9px] text-gray-400 uppercase">Active Collateral</p>
                 </div>
 
-                {/* Utilization Bar */}
+                {/* Capacity Bar (LTV/LLTV) */}
                 <div className="space-y-1">
-                    <UtilizationBar value={utilization} colorClass={asset.colorScheme.progress} />
+                    <UtilizationBar value={capacityUsed ?? 0} colorClass={asset.colorScheme.progress} />
                     <div className="flex justify-between text-[9px]">
                         <span className="text-gray-400">
-                            {isLoading ? '...' : `${utilization.toFixed(2)}% utilized`}
+                            {isLoading ? '...' : formatLtv(currentLtv)}
                         </span>
                         <span className="text-gray-400">
-                            {isLoading ? '' : `${formatTvl(borrowed)} borrowed`}
+                            {isLoading ? '' : `${formatTvl(debtBacked)} debt backed`}
                         </span>
                     </div>
                 </div>
@@ -218,43 +233,44 @@ PlaceholderRWACard.displayName = 'PlaceholderRWACard';
 
 interface RWAMarketGridProps {
     className?: string;
-    utilizationRate: number | null;
-    totalSupply: string | null;
-    totalBorrow: string | null;
+    activeCollateralUsd: string | null; // USD value of AcUSDY collateral
+    totalBorrow: string | null; // USDC borrowed against collateral
+    capacityUsed: number | null; // LTV/LLTV as % (0-100, for progress bar); null = loading
+    currentLtv: number | null; // raw LTV % (for Est. label); null = loading
     isLoading: boolean;
 }
 
 /**
- * RWAMarketGrid - displays 4 RWA asset class cards showing market composition.
- * Cash-Flow (USDY) shows live metrics; others are placeholders for future expansion.
- * Responsive: 2x2 on mobile, 4-across on desktop.
+ * RWAMarketGrid - displays 4 RWA asset class cards showing collateral composition.
+ * Short-Term Yield (AcUSDY) shows live collateral metrics from radar positions;
+ * others are placeholders for future expansion. Responsive: 2x2 on mobile, 4-across on desktop.
  */
 export const RWAMarketGrid = React.memo<RWAMarketGridProps>(({
     className,
-    utilizationRate,
-    totalSupply,
+    activeCollateralUsd,
     totalBorrow,
+    capacityUsed,
+    currentLtv,
     isLoading,
 }) => {
-    const utilization = utilizationRate ?? 0;
-
     return (
         <Card className={cn('shadow-soft-xl bg-white', className)}>
             <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-bold text-brand-muted uppercase tracking-wider">
-                    Market Composition
+                    Collateral Composition
                 </CardTitle>
             </CardHeader>
             <CardContent className="pt-2">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {ASSET_CLASSES.map((asset) =>
-                        asset.id === 'cash-flow' ? (
+                        asset.id === 'short-term-yield' ? (
                             <ActiveRWACard
                                 key={asset.id}
                                 asset={asset}
-                                tvl={totalSupply}
-                                borrowed={totalBorrow}
-                                utilization={utilization}
+                                collateralUsd={activeCollateralUsd}
+                                debtBacked={totalBorrow}
+                                capacityUsed={capacityUsed}
+                                currentLtv={currentLtv}
                                 isLoading={isLoading}
                             />
                         ) : (
