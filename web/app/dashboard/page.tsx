@@ -522,7 +522,9 @@ export default function DashboardPage() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {/* Max LTV */}
+                                {/* Row 1: MAX LTV | UTIL. RATE | ORACLE | LIQUIDITY */}
+
+                                {/* Max LTV - Risk boundary: maximum borrowing power */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="relative w-12 h-12 flex-shrink-0">
                                         <svg className="transform -rotate-90 w-12 h-12">
@@ -556,7 +558,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Utilization */}
+                                {/* Utilization - Market activity: borrowed/supplied ratio */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="relative w-12 h-12 flex-shrink-0">
                                         <svg className="transform -rotate-90 w-12 h-12">
@@ -599,7 +601,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Oracle Status */}
+                                {/* Oracle Status - Price feed health indicator */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50/50 border border-purple-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 flex items-center justify-center flex-shrink-0">
                                         {systemParams.oracleIsStale === false ? (
@@ -632,51 +634,7 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Total Supplied */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
-                                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 border border-emerald-200">
-                                        <Coins className="h-5 w-5 text-emerald-600" />
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Supplied</p>
-                                            <div className="group/info relative">
-                                                <Info className="h-3 w-3 text-emerald-400 cursor-help" />
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
-                                                    <p className="font-semibold mb-1">Total Supplied</p>
-                                                    <p className="text-white/80 text-[10px]">Total USDC supplied by lenders to the market</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <p className="text-lg font-bold text-emerald-700 leading-none mt-0.5 truncate tabular-nums">
-                                            {formatTvl(systemParams.totalSupply)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Total Borrowed */}
-                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
-                                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 border border-blue-200">
-                                        <ArrowDownCircle className="h-5 w-5 text-blue-600" />
-                                    </div>
-                                    <div className="flex flex-col min-w-0">
-                                        <div className="flex items-center gap-1.5">
-                                            <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Borrowed</p>
-                                            <div className="group/info relative">
-                                                <Info className="h-3 w-3 text-blue-400 cursor-help" />
-                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
-                                                    <p className="font-semibold mb-1">Total Borrowed</p>
-                                                    <p className="text-white/80 text-[10px]">Total USDC borrowed against AcUSDY collateral</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <p className="text-lg font-bold text-blue-700 leading-none mt-0.5 truncate tabular-nums">
-                                            {formatTvl(systemParams.totalBorrow)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                {/* Available Liquidity */}
+                                {/* Available Liquidity - Pool: available to borrow */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 border border-gray-200">
                                         <span className="text-gray-500 font-serif font-bold">$</span>
@@ -698,7 +656,9 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Liquidation Bonus */}
+                                {/* Row 2: LIQ. BONUS | BORROWED | HAIRCUT | SUPPLIED */}
+
+                                {/* Liquidation Bonus - Risk boundary: penalty when liquidated */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-amber-50/50 border border-amber-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 border border-amber-200">
                                         <Activity className="h-5 w-5 text-amber-600" />
@@ -718,7 +678,29 @@ export default function DashboardPage() {
                                     </div>
                                 </div>
 
-                                {/* Oracle Haircut */}
+                                {/* Total Borrowed - Market activity: total USDC borrowed */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-blue-50/50 border border-blue-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
+                                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 border border-blue-200">
+                                        <ArrowDownCircle className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-blue-600 uppercase font-bold tracking-wider">Borrowed</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-blue-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Total Borrowed</p>
+                                                    <p className="text-white/80 text-[10px]">Total USDC borrowed against AcUSDY collateral</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-blue-700 leading-none mt-0.5 truncate tabular-nums">
+                                            {formatTvl(systemParams.totalBorrow)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Oracle Haircut - Price safety: margin applied to collateral */}
                                 <div className="flex items-center gap-4 p-4 rounded-xl bg-indigo-50/50 border border-indigo-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
                                     <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 border border-indigo-200">
                                         <ShieldCheck className="h-5 w-5 text-indigo-600" />
@@ -736,6 +718,28 @@ export default function DashboardPage() {
                                         </div>
                                         <p className="text-lg font-bold text-indigo-700 leading-none mt-0.5 tabular-nums">
                                             {systemParams.oracleHaircutPercentage !== null ? `${systemParams.oracleHaircutPercentage}%` : '2%'}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Total Supplied - Pool: total lender deposits */}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-emerald-50/50 border border-emerald-100 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 group h-28">
+                                    <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 border border-emerald-200">
+                                        <Coins className="h-5 w-5 text-emerald-600" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Supplied</p>
+                                            <div className="group/info relative">
+                                                <Info className="h-3 w-3 text-emerald-400 cursor-help" />
+                                                <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all z-50">
+                                                    <p className="font-semibold mb-1">Total Supplied</p>
+                                                    <p className="text-white/80 text-[10px]">Total USDC supplied by lenders to the market</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-bold text-emerald-700 leading-none mt-0.5 truncate tabular-nums">
+                                            {formatTvl(systemParams.totalSupply)}
                                         </p>
                                     </div>
                                 </div>
