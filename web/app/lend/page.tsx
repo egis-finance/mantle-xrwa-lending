@@ -15,11 +15,16 @@ import { useSupplyUSDCDirect } from '@/hooks/useSupplyUSDCDirect';
 import { useWithdrawUSDCDirect } from '@/hooks/useWithdrawUSDCDirect';
 import { useLenderPosition } from '@/hooks/useLenderPosition';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
+import { useWalletWarmup } from '@/hooks/useWalletWarmup';
 import { formatTvl } from '@/lib/format';
 import { formatError } from '@/lib/errors';
 
 export default function EarnPage() {
     const { address: walletAddress, isConnected } = useDynamicWallet();
+
+    // Keep WAAS session warm to prevent first-transaction timeouts after idle
+    const { warmSession } = useWalletWarmup();
+
     const { data: oracleData } = useOraclePrice();
 
     // Market state for live metrics
@@ -175,6 +180,7 @@ export default function EarnPage() {
         if (activeTab !== 'supply' || !amount || amountError) return;
 
         try {
+            await warmSession(); // Pre-warm WAAS before signing
             // Parse amount to USDC decimals (6)
             const amountBigInt = parseUnits(amount, 6);
             await supply(amountBigInt);
@@ -189,6 +195,7 @@ export default function EarnPage() {
         if (activeTab !== 'withdraw' || !amount || amountError) return;
 
         try {
+            await warmSession(); // Pre-warm WAAS before signing
             // Parse amount to USDC decimals (6)
             const amountBigInt = parseUnits(amount, 6);
             await withdraw(amountBigInt);

@@ -10,6 +10,7 @@ import { ArrowRightLeft, Lock, Wallet, Loader2, CheckCircle2, AlertTriangle, Plu
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import { useDynamicWallet } from '@/hooks/useDynamicWallet';
+import { useWalletWarmup } from '@/hooks/useWalletWarmup';
 import { useSDKReady } from '@/hooks/useSDKReady';
 import { useLockedUSDY } from '@/hooks/useLockedUSDY';
 import { useMorphoCollateral } from '@/hooks/useMorphoCollateral';
@@ -45,6 +46,9 @@ export default function BorrowPage(): ReactElement {
   const { primaryWallet } = useDynamicContext();
   const { address: borrowerAddress, isConnected } = useDynamicWallet();
   const { signOnMantle, waitForTransaction } = useChainAbstracted();
+
+  // Keep WAAS session warm to prevent first-transaction timeouts after idle
+  const { warmSession } = useWalletWarmup();
 
   // Wallet gating: require connected Ethereum wallet for borrower operations
   const walletReady = primaryWallet && isEthereumWallet(primaryWallet);
@@ -287,6 +291,7 @@ export default function BorrowPage(): ReactElement {
     try {
       setIsLocking(true);
       setLockError('');
+      await warmSession(); // Pre-warm WAAS before signing
       
       const amountWei = parseUnits(lockAmount, 18);
 
@@ -426,6 +431,7 @@ export default function BorrowPage(): ReactElement {
     if (!supplyAmount) return;
     resetSupply(); // Clear previous state before new action
     try {
+      await warmSession(); // Pre-warm WAAS before signing
       const amount = supplyAmountRaw ?? safeParseUnits(supplyAmount, 18);
       await supplyCollateral(amount);
       setSupplyAmount('');
@@ -439,6 +445,7 @@ export default function BorrowPage(): ReactElement {
     if (!borrowAmount) return;
     resetBorrow(); // Clear previous state before new action
     try {
+      await warmSession(); // Pre-warm WAAS before signing
       const amount = borrowAmountRaw ?? safeParseUnits(borrowAmount, 6);
       await borrow(amount);
       setBorrowAmount('');
@@ -451,6 +458,7 @@ export default function BorrowPage(): ReactElement {
   const handleRepay = async () => {
     resetRepay(); // Clear previous state before new action
     try {
+      await warmSession(); // Pre-warm WAAS before signing
       const isFullRepay = repayMode === 'full';
       const amount = isFullRepay ? 0n : safeParseUnits(repayAmount, 6);
       await repay(
@@ -470,6 +478,7 @@ export default function BorrowPage(): ReactElement {
     if (!withdrawAmount) return;
     resetWithdraw(); // Clear previous state before new action
     try {
+      await warmSession(); // Pre-warm WAAS before signing
       const amount = withdrawAmountRaw ?? safeParseUnits(withdrawAmount, 18);
       await withdrawCollateral(amount);
       setWithdrawAmount('');
@@ -479,9 +488,16 @@ export default function BorrowPage(): ReactElement {
     }
   };
 
+  // Pending states for each action (used for both input and button disable)
+  // Error states no longer block - user can immediately retry without Reset button
+  const supplyPending = supplyStatus === 'approving' || supplyStatus === 'supplying' || supplyStatus === 'confirming';
+  const borrowPending = borrowStatus === 'borrowing' || borrowStatus === 'confirming';
+  const repayPending = repayStatus === 'approving' || repayStatus === 'repaying' || repayStatus === 'confirming';
+  const withdrawPending = withdrawStatus === 'withdrawing' || withdrawStatus === 'confirming';
+
   // Disable conditions for action buttons
-  // Allow re-triggering when status is 'success' (user can perform another action without manually dismissing)
-  const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || (supplyStatus !== 'idle' && supplyStatus !== 'success');
+  // Only block on pending states, not error states - allows immediate retry
+  const supplyDisabled = !supplyAmount || !acUsdyBalance.data?.raw || acUsdyBalance.data.raw === 0n || supplyPending;
   const borrowDisabled =
     !borrowAmount ||
     borrowAmountParsed === null ||
@@ -494,7 +510,7 @@ export default function BorrowPage(): ReactElement {
     morphoCollateral.isError ||
     systemParams.isError ||
     borrowerDebt.isError ||
-    (borrowStatus !== 'idle' && borrowStatus !== 'success');
+    borrowPending;
   const repayDisabled =
     (repayMode === 'partial' && (
       !repayAmount ||
@@ -504,8 +520,8 @@ export default function BorrowPage(): ReactElement {
     )) ||
     (repayMode === 'full' && (borrowerDebt.data?.debtAssetsRaw == null || borrowerDebt.data.debtAssetsRaw === 0n)) ||
     borrowerDebt.isError ||
-    (repayStatus !== 'idle' && repayStatus !== 'success');
-  const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || (withdrawStatus !== 'idle' && withdrawStatus !== 'success');
+    repayPending;
+  const withdrawDisabled = !withdrawAmount || morphoCollateral.isError || withdrawPending;
 
     return (
         <div className="min-h-screen bg-body-gradient flex flex-col">
@@ -846,7 +862,7 @@ export default function BorrowPage(): ReactElement {
                                     onChange={(e) => { setSupplyAmount(e.target.value); setSupplyAmountRaw(null); }}
                                     placeholder="0.00"
                                     className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 outline-none text-sm"
-                                    disabled={supplyStatus !== 'idle' && supplyStatus !== 'success'}
+                                    disabled={supplyPending}
                                   />
                                   <Button
                                     variant="ghost"
@@ -949,7 +965,7 @@ export default function BorrowPage(): ReactElement {
                                 onChange={(e) => { setBorrowAmount(e.target.value); setBorrowAmountRaw(null); }}
                                 placeholder="0.00"
                                 className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none text-sm"
-                                disabled={(borrowStatus !== 'idle' && borrowStatus !== 'success') || systemParams.oracleIsStale || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
+                                disabled={borrowPending || systemParams.oracleIsStale || morphoCollateral.isError || systemParams.isError || borrowerDebt.isError}
                               />
                               <Button
                                 variant="ghost"
@@ -1051,7 +1067,7 @@ export default function BorrowPage(): ReactElement {
                                     ? "bg-purple-500 text-white"
                                     : "bg-white text-gray-600 hover:bg-gray-50"
                                 )}
-                                disabled={repayStatus !== 'idle' && repayStatus !== 'success'}
+                                disabled={repayPending}
                               >
                                 Partial
                               </button>
@@ -1062,7 +1078,7 @@ export default function BorrowPage(): ReactElement {
                                   borrowerDebt.isError ||
                                   borrowerDebt.data?.debtAssetsRaw == null ||
                                   borrowerDebt.data.debtAssetsRaw === 0n ||
-                                  (repayStatus !== 'idle' && repayStatus !== 'success')
+                                  repayPending
                                 }
                                 className={cn(
                                   "flex-1 py-2 px-3 text-sm font-medium transition-colors",
@@ -1084,7 +1100,7 @@ export default function BorrowPage(): ReactElement {
                                 onChange={(e) => setRepayAmount(e.target.value)}
                                 placeholder="0.00"
                                 className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 outline-none text-sm"
-                                disabled={(repayStatus !== 'idle' && repayStatus !== 'success') || borrowerDebt.isError}
+                                disabled={repayPending || borrowerDebt.isError}
                               />
                             )}
 
@@ -1173,7 +1189,7 @@ export default function BorrowPage(): ReactElement {
                                 onChange={(e) => { setWithdrawAmount(e.target.value); setWithdrawAmountRaw(null); }}
                                 placeholder="0.00"
                                 className="flex-1 h-10 px-3 rounded-lg border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none text-sm"
-                                disabled={(withdrawStatus !== 'idle' && withdrawStatus !== 'success') || morphoCollateral.isError}
+                                disabled={withdrawPending || morphoCollateral.isError}
                               />
                               <Button
                                 variant="ghost"
