@@ -64,8 +64,8 @@ export function formatError(error: unknown): string {
     return 'Network error. Please check your connection and try again.';
   }
 
-  // Timeout
-  if (message.includes('timeout') || message.includes('exceeded')) {
+  // Timeout - handles both "timeout" and "timed out" (Dynamic SDK uses latter)
+  if (message.includes('timeout') || message.includes('timed out') || message.includes('exceeded')) {
     return 'Transaction timed out. Please try again.';
   }
 
