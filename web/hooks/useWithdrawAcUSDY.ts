@@ -16,6 +16,7 @@ import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contra
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import { writeContractWithTimeout } from '@/lib/errors';
 import type { MorphoMarketParams } from './useSystemParams';
 
 export type WithdrawCollateralStatus = 'idle' | 'withdrawing' | 'confirming' | 'success' | 'error';
@@ -124,18 +125,22 @@ export function useWithdrawAcUSDY(
 
         // Withdraw collateral from Morpho (no approval needed - user receives tokens)
         setStatus('withdrawing');
-        const withdrawHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.morpho.address,
-          abi: MorphoAbi,
-          functionName: 'withdrawCollateral',
-          args: [
-            marketParams,  // canonical market params from on-chain
-            amount,        // assets (AcUSDY amount, 18 decimals)
-            userAddress,   // onBehalf (withdraw from this user's position)
-            userAddress,   // receiver (AcUSDY sent to user)
-          ],
-        });
+        const withdrawHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.morpho.address,
+              abi: MorphoAbi,
+              functionName: 'withdrawCollateral',
+              args: [
+                marketParams, // canonical market params from on-chain
+                amount, // assets (AcUSDY amount, 18 decimals)
+                userAddress, // onBehalf (withdraw from this user's position)
+                userAddress, // receiver (AcUSDY sent to user)
+              ],
+            }),
+          'Withdraw signing'
+        );
 
         setTxHash(withdrawHash);
         setStatus('confirming');

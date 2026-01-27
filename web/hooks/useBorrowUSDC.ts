@@ -16,6 +16,7 @@ import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contra
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import { writeContractWithTimeout } from '@/lib/errors';
 import type { MorphoMarketParams } from './useSystemParams';
 
 export type BorrowStatus = 'idle' | 'borrowing' | 'confirming' | 'success' | 'error';
@@ -121,19 +122,23 @@ export function useBorrowUSDC(
 
         // Borrow USDC from Morpho (no approval needed - user receives tokens)
         setStatus('borrowing');
-        const borrowHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.morpho.address,
-          abi: MorphoAbi,
-          functionName: 'borrow',
-          args: [
-            marketParams,  // canonical market params from on-chain
-            amount,        // assets (USDC amount, 6 decimals)
-            0n,            // shares (0 = calculate from assets)
-            userAddress,   // onBehalf (debt attributed to user)
-            userAddress,   // receiver (USDC sent to user)
-          ],
-        });
+        const borrowHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.morpho.address,
+              abi: MorphoAbi,
+              functionName: 'borrow',
+              args: [
+                marketParams, // canonical market params from on-chain
+                amount, // assets (USDC amount, 6 decimals)
+                0n, // shares (0 = calculate from assets)
+                userAddress, // onBehalf (debt attributed to user)
+                userAddress, // receiver (USDC sent to user)
+              ],
+            }),
+          'Borrow signing'
+        );
 
         setTxHash(borrowHash);
         setStatus('confirming');

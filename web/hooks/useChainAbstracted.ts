@@ -28,6 +28,7 @@ import { isEthereumWallet } from '@dynamic-labs/ethereum';
 import type { Address, Abi, Hash, TransactionReceipt } from 'viem';
 import { getPublicClient } from '@/lib/swr/chains';
 import { MANTLE_CHAIN_ID, ETHEREUM_CHAIN_ID, normalizeChainId } from '@/lib/dynamic/chains';
+import { writeContractWithTimeout } from '@/lib/errors';
 
 interface ReadContractParams {
   address: Address;
@@ -104,14 +105,18 @@ export function useChainAbstracted(): ChainAbstractedOperations {
       const walletClient = await primaryWallet.getWalletClient();
       const [account] = await walletClient.getAddresses();
 
-      return walletClient.writeContract({
-        account,
-        address: params.address,
-        abi: params.abi,
-        functionName: params.functionName,
-        args: params.args ?? [],
-        value: params.value,
-      });
+      return writeContractWithTimeout(
+        () =>
+          walletClient.writeContract({
+            account,
+            address: params.address,
+            abi: params.abi,
+            functionName: params.functionName,
+            args: params.args ?? [],
+            value: params.value,
+          }),
+        `Mantle ${params.functionName}`
+      );
     },
     [primaryWallet]
   );
@@ -131,14 +136,18 @@ export function useChainAbstracted(): ChainAbstractedOperations {
       const walletClient = await primaryWallet.getWalletClient();
       const [account] = await walletClient.getAddresses();
 
-      return walletClient.writeContract({
-        account,
-        address: params.address,
-        abi: params.abi,
-        functionName: params.functionName,
-        args: params.args ?? [],
-        value: params.value,
-      });
+      return writeContractWithTimeout(
+        () =>
+          walletClient.writeContract({
+            account,
+            address: params.address,
+            abi: params.abi,
+            functionName: params.functionName,
+            args: params.args ?? [],
+            value: params.value,
+          }),
+        `Ethereum ${params.functionName}`
+      );
     },
     [primaryWallet]
   );

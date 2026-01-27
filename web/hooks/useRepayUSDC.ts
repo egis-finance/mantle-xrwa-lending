@@ -20,6 +20,7 @@ import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contra
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import { writeContractWithTimeout } from '@/lib/errors';
 import type { MorphoMarketParams } from './useSystemParams';
 
 export type RepayStatus = 'idle' | 'approving' | 'repaying' | 'confirming' | 'success' | 'error';
@@ -208,31 +209,39 @@ export function useRepayUSDC(
 
         // Step 1: Approve USDC to Morpho (use repayAmount, not amount)
         setStatus('approving');
-        const approveHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.usdc.address,
-          abi: ERC20ApproveAbi,
-          functionName: 'approve',
-          args: [contracts.morpho.address as Address, approveAmount],
-        });
+        const approveHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.usdc.address,
+              abi: ERC20ApproveAbi,
+              functionName: 'approve',
+              args: [contracts.morpho.address as Address, approveAmount],
+            }),
+          'USDC approval'
+        );
 
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
         // Step 2: Repay debt to Morpho
         setStatus('repaying');
-        const repayHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.morpho.address,
-          abi: MorphoAbi,
-          functionName: 'repay',
-          args: [
-            marketParams,  // canonical market params from on-chain
-            repayAssets,   // assets (USDC amount, 6 decimals)
-            repayShares,   // shares (0 = calculate from assets)
-            userAddress,   // onBehalf (reduce this user's debt)
-            '0x',          // data (empty callback - viem requires hex for bytes)
-          ],
-        });
+        const repayHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.morpho.address,
+              abi: MorphoAbi,
+              functionName: 'repay',
+              args: [
+                marketParams, // canonical market params from on-chain
+                repayAssets, // assets (USDC amount, 6 decimals)
+                repayShares, // shares (0 = calculate from assets)
+                userAddress, // onBehalf (reduce this user's debt)
+                '0x', // data (empty callback - viem requires hex for bytes)
+              ],
+            }),
+          'Repay signing'
+        );
 
         setTxHash(repayHash);
         setStatus('confirming');

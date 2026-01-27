@@ -19,6 +19,7 @@ import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contra
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import { writeContractWithTimeout } from '@/lib/errors';
 import type { MorphoMarketParams } from './useSystemParams';
 
 export type SupplyStatus = 'idle' | 'approving' | 'supplying' | 'confirming' | 'success' | 'error';
@@ -137,32 +138,40 @@ export function useSupplyUSDCDirect(
 
         // Step 1: Approve USDC to Morpho directly
         setStatus('approving');
-        const approveHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.usdc.address,
-          abi: ERC20ApproveAbi,
-          functionName: 'approve',
-          args: [contracts.morpho.address as Address, amount],
-        });
+        const approveHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.usdc.address,
+              abi: ERC20ApproveAbi,
+              functionName: 'approve',
+              args: [contracts.morpho.address as Address, amount],
+            }),
+          'USDC approval'
+        );
 
         // Wait for approve confirmation
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
         // Step 2: Call Morpho.supply() directly
         setStatus('supplying');
-        const supplyHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.morpho.address,
-          abi: MorphoAbi,
-          functionName: 'supply',
-          args: [
-            marketParams,   // canonical market params from on-chain
-            amount,         // assets (exact USDC amount)
-            0n,             // shares (0 = use assets)
-            userAddress,    // onBehalf (credit position to user)
-            '0x',           // data (empty callback)
-          ],
-        });
+        const supplyHash = await writeContractWithTimeout(
+          () =>
+            walletClient.writeContract({
+              account: userAddress,
+              address: contracts.morpho.address,
+              abi: MorphoAbi,
+              functionName: 'supply',
+              args: [
+                marketParams, // canonical market params from on-chain
+                amount, // assets (exact USDC amount)
+                0n, // shares (0 = use assets)
+                userAddress, // onBehalf (credit position to user)
+                '0x', // data (empty callback)
+              ],
+            }),
+          'Supply signing'
+        );
 
         setTxHash(supplyHash);
         setStatus('confirming');
