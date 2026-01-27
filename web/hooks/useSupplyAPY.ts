@@ -10,8 +10,6 @@
  * Future enhancement: Read actual rate from IRM.borrowRateView()
  */
 
-import { useSystemParams } from './useSystemParams';
-
 export interface SupplyAPYResult {
   /** Annual percentage yield (0.05 = 5%) */
   apy: number | null;
@@ -20,6 +18,12 @@ export interface SupplyAPYResult {
   /** Annualized borrow rate (0.06 = 6%) */
   borrowRate: number | null;
   /** Whether data is loading */
+  isLoading: boolean;
+}
+
+export interface SupplyAPYParams {
+  utilizationRate: number | null;
+  fee: number | null;
   isLoading: boolean;
 }
 
@@ -33,7 +37,7 @@ const MAX_RATE = 1.0; // 100% at 100% utilization
  * Approximates borrow rate from AdaptiveCurveIRM curve.
  * @param utilization - Utilization rate as decimal (0.45 = 45%)
  */
-function approximateBorrowRate(utilization: number): number {
+export function approximateBorrowRate(utilization: number): number {
   if (utilization < 0) return BASE_RATE;
   if (utilization >= 1) return MAX_RATE;
 
@@ -60,12 +64,18 @@ export function calculateSupplyAPY(utilizationRate: number, fee: number): number
   return borrowRate * utilization * (1 - fee);
 }
 
+export function formatApy(apy: number | null): string | null {
+  if (apy === null) return null;
+  const percent = apy * 100;
+  if (percent <= 0) return '0.00%';
+  if (percent < 0.01) return '<0.01%';
+  return `${percent.toFixed(2)}%`;
+}
+
 /**
  * Hook returning live supply APY from market state.
  */
-export function useSupplyAPY(): SupplyAPYResult {
-  const { utilizationRate, fee, isLoading } = useSystemParams();
-
+export function useSupplyAPY({ utilizationRate, fee, isLoading }: SupplyAPYParams): SupplyAPYResult {
   // Return null state when loading or data unavailable
   if (isLoading || utilizationRate === null || fee == null) {
     return {
@@ -82,7 +92,7 @@ export function useSupplyAPY(): SupplyAPYResult {
 
   return {
     apy,
-    apyFormatted: `${(apy * 100).toFixed(2)}%`,
+    apyFormatted: formatApy(apy),
     borrowRate,
     isLoading: false,
   };

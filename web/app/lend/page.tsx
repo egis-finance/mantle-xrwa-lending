@@ -24,7 +24,11 @@ export default function EarnPage() {
 
     // Market state for live metrics
     const systemParams = useSystemParams();
-    const supplyAPY = useSupplyAPY();
+    const supplyAPY = useSupplyAPY({
+        utilizationRate: systemParams.utilizationRate,
+        fee: systemParams.fee,
+        isLoading: systemParams.isLoading,
+    });
 
     // Lender's USDC balance and current position
     const usdcBalance = useUSDCBalance(walletAddress);
@@ -60,8 +64,7 @@ export default function EarnPage() {
         return (parseFloat(position) * apy) / 12;
     }, [lenderPosition.data?.suppliedValue, supplyAPY.apy]);
 
-    // Calculate user's share of borrowed capital (proportional to their supply)
-    const borrowedAgainstYourSupply = React.useMemo(() => {
+    const exposureToBorrowers = React.useMemo(() => {
         const userSupply = lenderPosition.data?.suppliedValue;
         const totalSupply = systemParams.totalSupply;
         const totalBorrow = systemParams.totalBorrow;
@@ -72,8 +75,8 @@ export default function EarnPage() {
         const totalSupplyNum = parseFloat(totalSupply);
         const totalBorrowNum = parseFloat(totalBorrow);
 
-        if (totalSupplyNum === 0) return 0;
-        return (userSupplyNum / totalSupplyNum) * totalBorrowNum;
+        if (totalSupplyNum === 0 || totalBorrowNum === 0) return 0;
+        return (userSupplyNum / totalSupplyNum) * 100;
     }, [lenderPosition.data?.suppliedValue, systemParams.totalSupply, systemParams.totalBorrow]);
 
     // Utilization bar color based on rate (default to 0 if null)
@@ -83,6 +86,19 @@ export default function EarnPage() {
         : utilizationRate < 80
             ? 'bg-yellow-500'
             : 'bg-danger-DEFAULT';
+
+    const formatPercentage = (value: number): string => {
+        if (value <= 0) return '0.00%';
+        if (value < 0.01) return '<0.01%';
+        return `${value.toFixed(2)}%`;
+    };
+
+    const formatUtilization = (value: number): string => {
+        if (value <= 0) return '0.00%';
+        if (value < 0.1) return '<0.1%';
+        if (value < 1) return `${value.toFixed(2)}%`;
+        return `${value.toFixed(1)}%`;
+    };
 
     // Helper for user position display with proper state handling
     const getPositionDisplay = (): { value: string; sublabel: string | null; isError: boolean } => {
@@ -274,7 +290,7 @@ export default function EarnPage() {
                             <div className="flex-1">
                                 <p className="text-sm font-medium text-brand-muted">Utilization Rate</p>
                                 <p className="text-2xl font-bold text-brand-dark">
-                                    {systemParams.isLoading ? '...' : `${utilizationRate.toFixed(1)}%`}
+                                    {systemParams.isLoading ? '...' : formatUtilization(utilizationRate)}
                                 </p>
                                 {/* Breakdown: borrowed / total supply */}
                                 {!systemParams.isLoading && systemParams.totalBorrow && systemParams.totalSupply && (
@@ -509,21 +525,21 @@ export default function EarnPage() {
                                 </div>
                             </div>
 
-                            {/* Borrowed Against Your Supply - only show when user has a position */}
-                            {isConnected && borrowedAgainstYourSupply !== null && (
+                            {/* Exposure to Borrowers - only show when user has a position */}
+                            {isConnected && exposureToBorrowers !== null && (
                                 <>
                                     <div className="h-px bg-border"></div>
                                     <div className="space-y-2">
-                                        <p className="text-xs text-brand-muted uppercase tracking-wider">Borrowed Against You</p>
+                                        <p className="text-xs text-brand-muted uppercase tracking-wider">Exposure to Borrowers</p>
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
                                                 <Activity className="h-5 w-5 text-amber-600" />
                                             </div>
                                             <div>
                                                 <p className="text-xl font-bold text-brand-dark tabular-nums">
-                                                    ${borrowedAgainstYourSupply.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    {formatPercentage(exposureToBorrowers)}
                                                 </p>
-                                                <p className="text-xs text-brand-muted">Your share of outstanding loans</p>
+                                                <p className="text-xs text-brand-muted">Share of outstanding loans</p>
                                             </div>
                                         </div>
                                     </div>
