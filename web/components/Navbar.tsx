@@ -12,8 +12,8 @@ import { Button } from './ui/button';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard' },
+  { name: 'Lend', href: '/earn' },
   { name: 'Borrow', href: '/borrow' },
-  { name: 'Earn', href: '/earn' },
 ];
 
 export function Navbar() {

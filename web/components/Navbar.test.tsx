@@ -12,7 +12,7 @@ describe('Navbar', () => {
     render(<Navbar />);
 
     expect(screen.getByText('Borrow')).toBeInTheDocument();
-    expect(screen.getByText('Earn')).toBeInTheDocument();
+    expect(screen.getByText('Lend')).toBeInTheDocument();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
 
