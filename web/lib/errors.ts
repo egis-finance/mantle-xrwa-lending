@@ -50,6 +50,21 @@ function getErrorKey(error: unknown, message: string): string {
   }
 }
 
+/**
+ * Wraps a writeContract call with timeout protection.
+ * Prevents indefinite hangs from Dynamic SDK WAAS that leave the UI frozen.
+ *
+ * @param writeContractFn - The async function that calls walletClient.writeContract
+ * @param operation - Human-readable description for timeout error message
+ * @returns The transaction hash
+ */
+export async function writeContractWithTimeout<T>(
+  writeContractFn: () => Promise<T>,
+  operation: string = 'Transaction signing'
+): Promise<T> {
+  return withTimeout(writeContractFn(), SIGNING_TIMEOUT_MS, operation);
+}
+
 export function formatError(error: unknown): string {
   if (!error) return 'Transaction failed';
 
