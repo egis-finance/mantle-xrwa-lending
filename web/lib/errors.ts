@@ -10,6 +10,9 @@ export const SIGNING_TIMEOUT_MS = 60_000; // 60 seconds
 /**
  * Wraps a promise with a timeout to prevent indefinite hangs.
  * Useful for Dynamic SDK operations that may timeout internally but leave Promise pending.
+ *
+ * Attaches a no-op .catch() to suppress unhandled rejection if the original promise
+ * rejects after we've already thrown the timeout error.
  */
 export async function withTimeout<T>(
   promise: Promise<T>,
@@ -23,6 +26,11 @@ export async function withTimeout<T>(
       reject(new Error(`${operation} timed out after ${timeoutMs / 1000}s. Please try again.`));
     }, timeoutMs);
   });
+
+  // Suppress late rejections from the original promise after timeout.
+  // Without this, if promise rejects after we've already thrown timeout,
+  // it surfaces as an unhandled rejection and can crash the UI.
+  promise.catch(() => {});
 
   try {
     const result = await Promise.race([promise, timeoutPromise]);
