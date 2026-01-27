@@ -161,6 +161,43 @@ export default function BorrowPage(): ReactElement {
     systemParams.isError,
   ]);
 
+  // Pending attestations: locked USDY that hasn't been minted as AcUSDY yet
+  // Total AcUSDY = wallet balance + supplied to Morpho
+  // Returns null when any read is incomplete to avoid false positives
+  const pendingAttestation = React.useMemo<bigint | null>(() => {
+    // Gate on complete reads - avoid showing pending when data is still loading
+    if (lockedUSDY.isLoading || acUsdyBalance.isLoading || morphoCollateral.isLoading) {
+      return null;
+    }
+    if (lockedUSDY.isError || acUsdyBalance.isError || morphoCollateral.isError) {
+      return null;
+    }
+
+    const lockedRaw = lockedUSDY.data?.raw;
+    const walletAcUSDY = acUsdyBalance.data?.raw;
+    const morphoAcUSDY = morphoCollateral.data?.raw;
+
+    // If any value is undefined, we can't compute
+    if (lockedRaw === undefined || walletAcUSDY === undefined || morphoAcUSDY === undefined) {
+      return null;
+    }
+
+    const totalAcUSDY = walletAcUSDY + morphoAcUSDY;
+
+    // If locked > total AcUSDY, the difference is pending attestation
+    if (lockedRaw > totalAcUSDY) {
+      return lockedRaw - totalAcUSDY;
+    }
+    return 0n;
+  }, [
+    lockedUSDY.data?.raw, lockedUSDY.isLoading, lockedUSDY.isError,
+    acUsdyBalance.data?.raw, acUsdyBalance.isLoading, acUsdyBalance.isError,
+    morphoCollateral.data?.raw, morphoCollateral.isLoading, morphoCollateral.isError,
+  ]);
+
+  const hasPendingAttestation = pendingAttestation !== null && pendingAttestation > 0n;
+  const attestationDataReady = pendingAttestation !== null;
+
   // State for action card inputs
   // We track both display strings and optional raw values for MAX button scenarios
   // to avoid locale-dependent parseUnits issues with number inputs
@@ -721,11 +758,35 @@ export default function BorrowPage(): ReactElement {
                             {/* Spacer to push status box to bottom */}
                             <div className="flex-1"></div>
 
-                            {/* Status Box */}
+                            {/* Attestation Status Box */}
                             <div className="mt-auto">
-                                <div className="p-4 rounded-xl bg-white/80 border-2 border-gray-200 text-center shadow-sm">
-                                    <p className="text-sm text-gray-600 font-medium">No pending attestations</p>
-                                </div>
+                                {!attestationDataReady ? (
+                                  <div className="p-4 rounded-xl bg-white/80 border-2 border-gray-200 text-center shadow-sm">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+                                      <p className="text-sm text-gray-500 font-medium">Checking attestations...</p>
+                                    </div>
+                                  </div>
+                                ) : hasPendingAttestation ? (
+                                  <div className="p-4 rounded-xl bg-amber-50 border-2 border-amber-200 text-center shadow-sm">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Loader2 className="h-4 w-4 text-amber-600 animate-spin" />
+                                      <p className="text-sm text-amber-700 font-medium">
+                                        Awaiting relayer attestation
+                                      </p>
+                                    </div>
+                                    <p className="text-xs text-amber-600 mt-1">
+                                      {formatTvl(formatUnits(pendingAttestation, 18))} AcUSDY pending
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <div className="p-4 rounded-xl bg-white/80 border-2 border-gray-200 text-center shadow-sm">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                      <p className="text-sm text-gray-600 font-medium">No pending attestations</p>
+                                    </div>
+                                  </div>
+                                )}
                             </div>
                         </div>
                     </div>
