@@ -17,6 +17,7 @@ import { contracts, ETHEREUM_CHAIN_ID, UNCONFIGURED_ADDRESS } from '@/lib/contra
 import { MorphoAbi } from '@/lib/contracts/abis/Morpho';
 import { invalidateUserReads, invalidateBatchReads } from '@/lib/swr/invalidation';
 import { normalizeChainId } from '@/lib/dynamic/chains';
+import { withTimeout } from '@/lib/errors';
 import type { MorphoMarketParams } from './useSystemParams';
 
 export type SupplyCollateralStatus = 'idle' | 'approving' | 'supplying' | 'confirming' | 'success' | 'error';
@@ -144,32 +145,40 @@ export function useSupplyAcUSDY(
 
         const publicClient = getPublicClient(ETHEREUM_CHAIN_ID);
 
-        // Step 1: Approve AcUSDY to Morpho
+        // Step 1: Approve AcUSDY to Morpho (with timeout to prevent indefinite hangs)
         setStatus('approving');
-        const approveHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.acUSDY.address,
-          abi: ERC20ApproveAbi,
-          functionName: 'approve',
-          args: [contracts.morpho.address as Address, amount],
-        });
+        const approveHash = await withTimeout(
+          walletClient.writeContract({
+            account: userAddress,
+            address: contracts.acUSDY.address,
+            abi: ERC20ApproveAbi,
+            functionName: 'approve',
+            args: [contracts.morpho.address as Address, amount],
+          }),
+          60_000,
+          'Approval signing'
+        );
 
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-        // Step 2: Supply collateral to Morpho
+        // Step 2: Supply collateral to Morpho (with timeout to prevent indefinite hangs)
         setStatus('supplying');
-        const supplyHash = await walletClient.writeContract({
-          account: userAddress,
-          address: contracts.morpho.address,
-          abi: MorphoAbi,
-          functionName: 'supplyCollateral',
-          args: [
-            marketParams,  // canonical market params from on-chain
-            amount,        // assets (AcUSDY amount, 18 decimals)
-            userAddress,   // onBehalf (credit position to user)
-            '0x',          // data (empty callback - viem requires hex for bytes)
-          ],
-        });
+        const supplyHash = await withTimeout(
+          walletClient.writeContract({
+            account: userAddress,
+            address: contracts.morpho.address,
+            abi: MorphoAbi,
+            functionName: 'supplyCollateral',
+            args: [
+              marketParams,  // canonical market params from on-chain
+              amount,        // assets (AcUSDY amount, 18 decimals)
+              userAddress,   // onBehalf (credit position to user)
+              '0x',          // data (empty callback - viem requires hex for bytes)
+            ],
+          }),
+          60_000,
+          'Supply signing'
+        );
 
         setTxHash(supplyHash);
         setStatus('confirming');

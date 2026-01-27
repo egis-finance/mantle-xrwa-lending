@@ -4,6 +4,36 @@
  * In development mode, logs full error details to console with 5s deduplication.
  */
 
+// Default timeout for wallet signing operations (Dynamic SDK WAAS can hang)
+export const SIGNING_TIMEOUT_MS = 60_000; // 60 seconds
+
+/**
+ * Wraps a promise with a timeout to prevent indefinite hangs.
+ * Useful for Dynamic SDK operations that may timeout internally but leave Promise pending.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number = SIGNING_TIMEOUT_MS,
+  operation: string = 'Operation'
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${operation} timed out after ${timeoutMs / 1000}s. Please try again.`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
+
 // Module-level deduplication cache for dev logging
 const recentErrors = new Map<string, number>();
 const ERROR_DEDUPE_TTL_MS = 5000;
