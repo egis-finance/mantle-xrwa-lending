@@ -12,7 +12,7 @@ import { Button } from './ui/button';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Lend', href: '/earn' },
+  { name: 'Lend', href: '/lend' },
   { name: 'Borrow', href: '/borrow' },
 ];
 

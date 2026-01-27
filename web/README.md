@@ -23,7 +23,7 @@ Then open [http://localhost:3000](http://localhost:3000).
 - **Home:** [http://localhost:3000/](http://localhost:3000/)
 - **Borrow:** [http://localhost:3000/borrow](http://localhost:3000/borrow)
 - **Dashboard:** [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
-- **Earn:** [http://localhost:3000/earn](http://localhost:3000/earn)
+- **Lend:** [http://localhost:3000/lend](http://localhost:3000/lend)
 
 ## Tech Stack
 
